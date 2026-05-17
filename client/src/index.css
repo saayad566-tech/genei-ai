@@ -1,13 +1,61 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── Genei AI Design Tokens ── */
+:root {
+  --radius: 0.75rem;
+
+  /* Dark cinematic palette */
+  --background: oklch(0.08 0.012 265);
+  --foreground: oklch(0.96 0.005 265);
+  --card: oklch(0.11 0.015 265);
+  --card-foreground: oklch(0.96 0.005 265);
+  --popover: oklch(0.10 0.015 265);
+  --popover-foreground: oklch(0.96 0.005 265);
+  --primary: oklch(0.65 0.22 285);
+  --primary-foreground: oklch(0.98 0.005 265);
+  --secondary: oklch(0.16 0.018 265);
+  --secondary-foreground: oklch(0.80 0.01 265);
+  --muted: oklch(0.14 0.015 265);
+  --muted-foreground: oklch(0.52 0.015 265);
+  --accent: oklch(0.65 0.22 285);
+  --accent-foreground: oklch(0.98 0.005 265);
+  --destructive: oklch(0.60 0.22 25);
+  --destructive-foreground: oklch(0.98 0.005 265);
+  --border: oklch(0.20 0.018 265);
+  --input: oklch(0.16 0.018 265);
+  --ring: oklch(0.65 0.22 285);
+
+  /* Genei brand gradients */
+  --genei-purple: oklch(0.65 0.22 285);
+  --genei-pink: oklch(0.60 0.25 310);
+  --genei-cyan: oklch(0.72 0.18 210);
+  --genei-gold: oklch(0.78 0.18 75);
+  --genei-green: oklch(0.68 0.20 155);
+
+  /* Sidebar */
+  --sidebar: oklch(0.09 0.013 265);
+  --sidebar-foreground: oklch(0.96 0.005 265);
+  --sidebar-primary: oklch(0.65 0.22 285);
+  --sidebar-primary-foreground: oklch(0.98 0.005 265);
+  --sidebar-accent: oklch(0.14 0.018 265);
+  --sidebar-accent-foreground: oklch(0.96 0.005 265);
+  --sidebar-border: oklch(0.18 0.018 265);
+  --sidebar-ring: oklch(0.65 0.22 285);
+
+  /* Chart colors */
+  --chart-1: oklch(0.65 0.22 285);
+  --chart-2: oklch(0.60 0.25 310);
+  --chart-3: oklch(0.72 0.18 210);
+  --chart-4: oklch(0.78 0.18 75);
+  --chart-5: oklch(0.68 0.20 155);
+}
+
+/* ── Base Styles ── */
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -27,11 +75,6 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -40,138 +83,293 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-}
-
-:root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
-}
-
-.dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground:  oklch(0.92 0.005 65);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground:  oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
   }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", system-ui, sans-serif;
+    overflow-x: hidden;
   }
-  button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
-  [type="button"]:not(:disabled),
-  [type="submit"]:not(:disabled),
-  [type="reset"]:not(:disabled),
-  a[href],
-  select:not(:disabled),
-  input[type="checkbox"]:not(:disabled),
-  input[type="radio"]:not(:disabled) {
-    @apply cursor-pointer;
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: oklch(0.10 0.012 265);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.25 0.02 265);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.65 0.22 285 / 0.6);
+  }
+
+  /* Selection */
+  ::selection {
+    background: oklch(0.65 0.22 285 / 0.3);
+    color: oklch(0.96 0.005 265);
   }
 }
 
+/* ── Typography ── */
+.font-display {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+}
+.font-mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ── Genei Component Classes ── */
 @layer components {
-  /**
-   * Custom container utility that centers content and adds responsive padding.
-   *
-   * This overrides Tailwind's default container behavior to:
-   * - Auto-center content (mx-auto)
-   * - Add responsive horizontal padding
-   * - Set max-width for large screens
-   *
-   * Usage: <div className="container">...</div>
-   *
-   * For custom widths, use max-w-* utilities directly:
-   * <div className="max-w-6xl mx-auto px-4">...</div>
-   */
-  .container {
+  /* Cards */
+  .genei-card {
+    background: oklch(0.11 0.015 265);
+    border: 1px solid oklch(0.20 0.018 265);
+    transition: border-color 0.2s ease;
+  }
+  .genei-card:hover {
+    border-color: oklch(0.25 0.02 265);
+  }
+
+  /* Inputs */
+  .genei-input {
+    background: oklch(0.13 0.015 265);
+    border: 1px solid oklch(0.22 0.018 265);
+    border-radius: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    color: oklch(0.96 0.005 265);
+    font-size: 0.875rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    outline: none;
     width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
-    padding-right: 1rem;
+  }
+  .genei-input:focus {
+    border-color: oklch(0.65 0.22 285 / 0.6);
+    box-shadow: 0 0 0 3px oklch(0.65 0.22 285 / 0.12);
+  }
+  .genei-input::placeholder {
+    color: oklch(0.40 0.01 265);
+  }
+  .genei-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
-  .flex {
-    min-height: 0;
-    min-width: 0;
+  /* Primary button */
+  .genei-btn-primary {
+    background: linear-gradient(135deg, oklch(0.65 0.22 285), oklch(0.60 0.25 310));
+    color: white;
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    box-shadow: 0 0 20px oklch(0.65 0.22 285 / 0.25);
+  }
+  .genei-btn-primary:hover {
+    opacity: 0.92;
+    box-shadow: 0 0 30px oklch(0.65 0.22 285 / 0.4);
+  }
+  .genei-btn-primary:active {
+    transform: scale(0.97);
+  }
+  .genei-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
   }
 
-  @media (min-width: 640px) {
-    .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
-      padding-right: 1.5rem;
-    }
+  /* Gradient texts */
+  .genei-gradient-text {
+    background: linear-gradient(135deg, oklch(0.80 0.18 285), oklch(0.72 0.22 310));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .genei-gradient-text-cyan {
+    background: linear-gradient(135deg, oklch(0.80 0.16 210), oklch(0.72 0.18 185));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .genei-gradient-text-gold {
+    background: linear-gradient(135deg, oklch(0.88 0.16 75), oklch(0.78 0.18 55));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  @media (min-width: 1024px) {
-    .container {
-      padding-left: 2rem; /* 32px - desktop padding */
-      padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
-    }
+  /* Badges */
+  .genei-badge-purple {
+    background: oklch(0.65 0.22 285 / 0.15);
+    border: 1px solid oklch(0.65 0.22 285 / 0.3);
+    color: oklch(0.80 0.18 285);
+    padding: 0.2rem 0.6rem;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .genei-badge-pink {
+    background: oklch(0.60 0.25 310 / 0.15);
+    border: 1px solid oklch(0.60 0.25 310 / 0.3);
+    color: oklch(0.78 0.20 310);
+    padding: 0.2rem 0.6rem;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .genei-badge-cyan {
+    background: oklch(0.72 0.18 210 / 0.15);
+    border: 1px solid oklch(0.72 0.18 210 / 0.3);
+    color: oklch(0.80 0.16 210);
+    padding: 0.2rem 0.6rem;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .genei-badge-gold {
+    background: oklch(0.78 0.18 75 / 0.15);
+    border: 1px solid oklch(0.78 0.18 75 / 0.3);
+    color: oklch(0.88 0.16 75);
+    padding: 0.2rem 0.6rem;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* Shimmer loading effect */
+  .genei-shimmer {
+    background: linear-gradient(
+      90deg,
+      oklch(0.65 0.22 285 / 0.3) 0%,
+      oklch(0.72 0.18 210 / 0.5) 50%,
+      oklch(0.65 0.22 285 / 0.3) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Pulse glow */
+  .genei-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  /* Glow border */
+  .genei-glow {
+    box-shadow: 0 0 20px oklch(0.65 0.22 285 / 0.3), 0 0 60px oklch(0.65 0.22 285 / 0.1);
+  }
+
+  /* Sidebar nav item */
+  .genei-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: oklch(0.52 0.015 265);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .genei-nav-item:hover {
+    color: oklch(0.85 0.01 265);
+    background: oklch(0.14 0.018 265);
+  }
+  .genei-nav-item.active {
+    color: oklch(0.96 0.005 265);
+    background: oklch(0.65 0.22 285 / 0.15);
+    border: 1px solid oklch(0.65 0.22 285 / 0.25);
+  }
+  .genei-nav-item.active .nav-icon {
+    color: oklch(0.80 0.18 285);
+  }
+
+  /* Scrollbar hide utility */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Keyframes ── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 4px oklch(0.68 0.20 155 / 0.6); }
+  50% { box-shadow: 0 0 12px oklch(0.68 0.20 155 / 1), 0 0 24px oklch(0.68 0.20 155 / 0.4); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes aurora {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Container ── */
+.container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* ── Flex min-width fix ── */
+.flex {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── Radix animations ── */
+@layer base {
+  [data-state="open"] > .animate-in {
+    animation-duration: 200ms;
+  }
+  [data-state="closed"] > .animate-out {
+    animation-duration: 150ms;
   }
 }

@@ -1,17 +1,16 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  boolean,
+  bigint,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +24,63 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+export const projects = mysqlTable("projects", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  type: varchar("type", { length: 64 }).notNull(), // music, video, image, app, website, voice
+  description: text("description"),
+  thumbnail: text("thumbnail"),
+  status: mysqlEnum("status", ["draft", "processing", "completed", "failed"]).default("draft").notNull(),
+  metadata: text("metadata"), // JSON string for type-specific data
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = typeof projects.$inferInsert;
+
+export const assets = mysqlTable("assets", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId"),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 64 }).notNull(), // image, audio, video, document
+  mimeType: varchar("mimeType", { length: 128 }),
+  storageKey: text("storageKey").notNull(),
+  storageUrl: text("storageUrl").notNull(),
+  size: bigint("size", { mode: "number" }).default(0),
+  prompt: text("prompt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Asset = typeof assets.$inferSelect;
+export type InsertAsset = typeof assets.$inferInsert;
+
+export const apiKeys = mysqlTable("api_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  provider: varchar("provider", { length: 64 }).notNull(), // openai, suno, runway, etc.
+  label: varchar("label", { length: 128 }),
+  encryptedKey: text("encryptedKey").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  usageCount: int("usageCount").default(0).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+export const chatMessages = mysqlTable("chat_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  role: mysqlEnum("role", ["user", "assistant", "system"]).notNull(),
+  content: text("content").notNull(),
+  sessionId: varchar("sessionId", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;
