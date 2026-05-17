@@ -1,0 +1,43 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [
+    "server",
+    "db",
+    "user"
+  ],
+  "dev_command": "pnpm run dev",
+  "env_vars": {
+    "DATABASE_URL": "mysql://3HZoSepWcF2akK3.root:y83UcZ5qfXv69mn4gomR@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/Tc7qFq5iHCKFe98qcuNCJF?ssl={\"rejectUnauthorized\":true}"
+  },
+  "experiments": [
+    "no_db_push"
+  ],
+  "git_remote": {
+    "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663670214280/Tc7qFq5iHCKFe98qcuNCJF",
+    "access_key_id": "ASIAZV3A2ECZJI7RBAO2",
+    "secret_access_key": "mMCmlLf3pHbTbuSSFB29RjN+o1HBrjwv58uvSS5l",
+    "session_token": "IQoJb3JpZ2luX2VjEOf//////////wEaCXVzLWVhc3QtMSJHMEUCIHaCpPehtsOYQOWGaA1TIrhhle/mE7tW+RdTdmhprrYvAiEAxfb6EcwTYvbfG1USCYS9f9gnc0LKR3QqSnmrE4eXVHoq/wMIsP//////////ARAEGgw2NjUzODYwOTg4NjYiDOsEafjkagil0aw74yrTA4xGKZhRC/bHxRwi1de5wN423dp3iHk1K1CJe9BlRV0iEJtGZHilfjCWxzBEr39AX2Ie4Q9LIx97D0E7MvNJJqsouk+xtz8+owYKedWu1yXdcSP/flFO2Vs7VehwnflfVAlxaAEPeDDTjJy1uk42tieLkAq6Ii6eC15HUOdieDzjFVGxWtrCoRhpaK+y8JaSeYn7Ja0z6664d3Tn6ne+Lop7+0ulxwrggpsZPs9sl5WlikC5b2MF2OnQfPcK7tE/hbQTpf7hXqnfSmmENQ4ieUrze6XQQEUlhJDxMSeH7EIZf2kLypEU7w7PBLArE9Mo8UhWucUKhvXomi66uNimNbkSvcpK800EYCLFInRoyN4BNQdYihREa49xFxEsYR+67a+LBtnnzlNEFAv9SaiKhXCbFMq8eXucjk2BEA04UvPxDq5lOMWX8Su4C3jzb8+FpT6SD9XBBXWjJnEZlHPbi7apcZ5qwPHhnk+MXm9FRgy4Y75V5AQ8+zA93AMHFRdW504TjS1C1Qi51IWm5bZESka2zliAEcHTFzKkx1UMdhHOcD35sfWIWoJ2+Neos5yTUgnYoT/RMzbxGUuUZsKhoHyMOT/x+iacd5MtQZ1XS2B2+cySMPKMqdAGOp0BKF7btvJuziAZNItJ0w8vMfn0c5mdYULcBqamfw8N+O15CGHESuTWHTMAPrLqE5QsLhD01P7g3S22ckt0N5S71jddG2kp+8o+qxx6FMcHxDwmhSzS2LTHagGB8Bco0Zn0QN8fpb/WTRVnomUH0hKqOqekck7VLyqQfu9yG5teVcS4D0Lsz8wk3uA+7eC/OS5MVbnwdAzeWyPbZxCO8w==",
+    "expiration": "2026-05-18T10:51:30.000Z"
+  },
+  "name": "genei-ai",
+  "path": "/home/ubuntu/genei-ai",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "B6mLphjwC7pDdivaDTCUwp",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "JWT_SECRET": "HgNUknRfsqbJQKAbBszwzh",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OWNER_NAME": "Saayad",
+    "OWNER_OPEN_ID": "TKnFYUrsiwntUYoTg4s8iJ",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "4b5cacbe-cfc5-4f65-a052-b0e347a2e9cc",
+    "VITE_APP_ID": "Tc7qFq5iHCKFe98qcuNCJF",
+    "VITE_APP_LOGO": "",
+    "VITE_APP_TITLE": "Genei AI — Ultimate AI Creator Ecosystem",
+    "VITE_FRONTEND_FORGE_API_KEY": "HBYF6hAPFvktrz4nXVegXT",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im"
+  },
+  "template_id": "web-db-user",
+  "test_command": "pnpm test"
+}
