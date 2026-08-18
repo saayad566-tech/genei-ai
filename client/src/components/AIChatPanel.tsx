@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Bot, User, Sparkles, Loader2, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Streamdown } from "streamdown";
+import { VoicePromptButton } from "@/components/VoicePromptButton";
 
 interface Message {
   id: string;
@@ -50,6 +51,10 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handleVoiceTranscript = useCallback((transcript: string) => {
+    setInput((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+  }, []);
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -257,6 +262,7 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
                     el.style.height = Math.min(el.scrollHeight, 120) + "px";
                   }}
                 />
+                <VoicePromptButton onTranscript={handleVoiceTranscript} disabled={isLoading} />
                 <button
                   onClick={() => sendMessage(input)}
                   disabled={!input.trim() || isLoading}

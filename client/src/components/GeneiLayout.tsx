@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AIChatPanel } from "./AIChatPanel";
+import { InstallPwaButton } from "./InstallPwaButton";
 
 const mainNavItems = [
   { id: "home", label: "Home", icon: Home, path: "/" },
@@ -170,7 +171,7 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <a href={getLoginUrl()} className={`flex items-center gap-3 rounded-lg p-2 genei-btn-primary text-sm ${sidebarCollapsed ? "justify-center" : ""}`}>
+          <a href={getLoginUrl()} className={`flex min-h-11 items-center gap-3 rounded-lg p-2 genei-btn-primary text-sm ${sidebarCollapsed ? "justify-center" : ""}`} aria-label="Sign in to Genei AI">
             <Sparkles className="w-4 h-4 flex-shrink-0" />
             {!sidebarCollapsed && <span>Sign In</span>}
           </a>
@@ -194,7 +195,7 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
         animate={{ width: sidebarCollapsed ? 64 : 240 }}
         transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
         className="hidden lg:flex flex-col relative flex-shrink-0 border-r border-sidebar-border"
-        style={{ background: "var(--sidebar-background)" }}
+        style={{ background: "var(--sidebar)" }}
       >
         <SidebarContent />
       </motion.aside>
@@ -217,7 +218,7 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
               exit={{ x: -280 }}
               transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
               className="fixed left-0 top-0 bottom-0 w-64 z-50 lg:hidden border-r border-sidebar-border"
-              style={{ background: "var(--sidebar-background)" }}
+              style={{ background: "var(--sidebar)" }}
             >
               <div className="absolute top-4 right-4">
                 <button onClick={() => setMobileSidebarOpen(false)} className="p-1.5 rounded-lg hover:bg-sidebar-accent text-muted-foreground">
@@ -231,14 +232,14 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex min-w-0 min-h-0 flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="flex items-center gap-3 px-4 py-3 border-b border-border flex-shrink-0"
+        <header className="flex min-h-16 items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 pt-[max(0.5rem,env(safe-area-inset-top))] sm:gap-3 sm:px-4"
           style={{ background: "oklch(0.09 0.012 265 / 0.95)", backdropFilter: "blur(12px)" }}>
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="lg:hidden p-2 rounded-lg hover:bg-secondary text-muted-foreground"
+            className="lg:hidden min-h-11 min-w-11 p-2 rounded-lg hover:bg-secondary text-muted-foreground inline-flex items-center justify-center"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -250,16 +251,18 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
               <input
                 type="text"
                 placeholder="Search projects, assets, tools..."
-                className="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+                className="w-full min-h-11 bg-secondary/50 border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <InstallPwaButton />
+
             {/* AI Assistant Button */}
             <button
               onClick={() => setChatOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+              className="flex min-h-11 items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200"
               style={{
                 background: "linear-gradient(135deg, oklch(0.65 0.22 285 / 0.2), oklch(0.60 0.25 310 / 0.2))",
                 border: "1px solid oklch(0.65 0.22 285 / 0.3)",
@@ -271,14 +274,14 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
             </button>
 
             {/* Notifications */}
-            <button className="relative p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+            <button className="relative min-h-11 min-w-11 p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors inline-flex items-center justify-center" aria-label="Notifications">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: "oklch(0.65 0.22 285)" }} />
             </button>
 
             {/* Create Button */}
             <Link href="/image">
-              <button className="genei-btn-primary flex items-center gap-2 text-sm">
+              <button className="genei-btn-primary min-h-11 flex items-center gap-2 text-sm" aria-label="Create a new image">
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Create</span>
               </button>
@@ -287,7 +290,7 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
           <motion.div
             key={location}
             initial={{ opacity: 0, y: 8 }}

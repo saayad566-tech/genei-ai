@@ -1,12 +1,13 @@
-import { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Image, Wand2, Download, Share2, Heart, Zap, Loader2,
-  Maximize2, Trash2, Copy, RefreshCw, Sparkles, Plus,
+  Maximize2, Trash2, Copy, RefreshCw, Sparkles, Plus, AlertTriangle,
   ChevronDown, Grid3X3, LayoutList
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { VoicePromptButton } from "@/components/VoicePromptButton";
 
 const stylePresets = [
   { id: "realistic", label: "Photorealistic", emoji: "📸" },
@@ -47,24 +48,40 @@ export default function ImageGenerator() {
   const [bgRemover, setBgRemover] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [savedImages, setSavedImages] = useState<Array<{ url: string; prompt: string; id: string }>>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const generateMutation = trpc.ai.generateImage.useMutation();
-  const saveAssetMutation = trpc.assets.save.useMutation();
+  const saveAssetMutation = trpc.assets.importRemote.useMutation();
+
+  const handleVoiceTranscript = useCallback((transcript: string) => {
+    setPrompt((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+  }, []);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Enter a prompt to generate an image"); return; }
     setIsGenerating(true);
+    setGenerationError(null);
     setGeneratedImage(null);
     try {
-      const stylePrompt = `${prompt}, ${selectedStyle} style, high quality, detailed`;
+      const stylePrompt = [
+        prompt.trim(),
+        `${selectedStyle} style`,
+        `aspect ratio ${selectedRatio}`,
+        "high quality, detailed",
+        negativePrompt.trim() ? `Avoid: ${negativePrompt.trim()}` : "",
+        upscale ? "preserve fine detail for high-resolution output" : "",
+        bgRemover ? "keep the primary subject cleanly separated from the background" : "",
+      ].filter(Boolean).join(", ");
       const result = await generateMutation.mutateAsync({ prompt: stylePrompt });
       setGeneratedImage(result.url ?? null);
       toast.success("Image generated!");
     } catch (err: any) {
-      toast.error(err?.message || "Failed to generate image");
+      const message = err?.message || "Generation failed or timed out. Check your model connection and try again.";
+      setGenerationError(message);
+      toast.error(message);
     } finally {
       setIsGenerating(false);
     }
@@ -73,14 +90,14 @@ export default function ImageGenerator() {
   const handleSave = async () => {
     if (!generatedImage) return;
     try {
-      await saveAssetMutation.mutateAsync({
+      const saved = await saveAssetMutation.mutateAsync({
         name: prompt.slice(0, 50) || "Generated Image",
         type: "image",
-        storageUrl: generatedImage,
-        storageKey: `generated-${Date.now()}`,
+        remoteUrl: generatedImage,
         prompt,
+        mimeType: "image/png",
       });
-      setSavedImages(prev => [{ url: generatedImage, prompt, id: Date.now().toString() }, ...prev]);
+      setSavedImages(prev => [{ url: saved.url, prompt, id: String(saved.id) }, ...prev]);
       toast.success("Saved to Asset Library!");
     } catch {
       toast.error("Failed to save image");
@@ -129,13 +146,16 @@ export default function ImageGenerator() {
             {/* Prompt */}
             <div>
               <label className="text-sm font-semibold text-foreground mb-2 block">Describe your image</label>
-              <textarea
+              <div className="flex items-start gap-2">
+                <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. A futuristic neon city at night, cyberpunk aesthetic, ultra detailed, 8K..."
                 rows={4}
                 className="w-full genei-input resize-none text-sm"
-              />
+                />
+                <VoicePromptButton onTranscript={handleVoiceTranscript} disabled={isGenerating} />
+              </div>
               {/* Example prompts */}
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {examplePrompts.slice(0, 2).map((ex) => (
@@ -318,6 +338,21 @@ export default function ImageGenerator() {
                 </div>
               )}
             </div>
+
+            {generationError && !isGenerating && (
+              <div role="alert" aria-live="polite" className="mx-4 mt-4 flex items-center gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                <span className="min-w-0 flex-1">{generationError}</span>
+                <button
+                  type="button"
+                  onClick={() => void handleGenerate()}
+                  disabled={!prompt.trim()}
+                  className="min-h-11 flex-shrink-0 rounded-lg border border-red-300/30 px-3 text-xs font-semibold text-red-100 transition-colors hover:bg-red-500/15 disabled:opacity-50"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
 
             <div className="relative min-h-[400px] flex items-center justify-center p-6"
               style={{ background: "oklch(0.09 0.01 265)" }}>

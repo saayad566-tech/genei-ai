@@ -71,3 +71,31 @@
 - [x] Vitest tests for core routers (9 tests passing)
 - [x] TypeScript clean (0 errors)
 - [x] Final checkpoint
+
+## Phase 11: PWA Repair and Android Model Support
+- [x] Audit and repair the authoritative Genei AI full-stack project
+- [x] Replace broken or missing PWA shell, manifest, icons, and service worker
+- [x] Rebuild mobile-first Android-friendly layout and navigation
+- [ ] Remove placeholder routes and resolve all missing imports
+- [x] Implement secure server-side model gateway and fallback routing
+- [x] Add provider/model capability states and truthful error handling
+- [x] Add Android-friendly prompt, upload, microphone, progress, retry, and download flows
+- [ ] Add optional lightweight on-device model capability detection with server fallback
+- [x] Verify cloud asset persistence and authenticated access
+- [x] Add unit and integration tests for model routing, PWA, and critical user flows
+- [x] Implement Android-friendly microphone input flow for creation and chat prompts
+- [x] Add explicit retry UX for failed or timed-out generation requests on mobile
+- [x] Add frontend integration coverage for image save/download, model capability rendering, and PWA install prompt
+- [x] Add real model fallback execution with retry-to-alternate-model behavior
+- [x] Add PWA manifest/service-worker tests and critical frontend flow coverage
+- [x] Run TypeScript, build, test, and browser/mobile smoke checks
+- [x] Package truthful source/PWA deliverables and update release documentation
+
+## Historical release corrections
+- [x] Replace documentation that claimed renamed ZIP archives were valid APK/EXE/IPA/HAP packages (no remaining claims found; PWA-first policy documented)
+- [ ] Publish native binaries only after genuine platform builds and installation validation
+
+## Notes
+- Primary project: `/home/ubuntu/genei-ai`
+- PWA prototype/reference: `/home/ubuntu/unified-platform`
+- Android model support means mobile-compatible server-side model routing by default; optional local inference is capability-gated.

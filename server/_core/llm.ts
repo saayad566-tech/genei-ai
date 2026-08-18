@@ -56,6 +56,7 @@ export type ToolChoice =
   | ToolChoiceExplicit;
 
 export type InvokeParams = {
+  model?: string;
   messages: Message[];
   tools?: Tool[];
   toolChoice?: ToolChoice;
@@ -269,6 +270,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
 
   const {
+    model,
     messages,
     tools,
     toolChoice,
@@ -279,8 +281,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
   } = params;
 
+  const selectedModel = model || "gemini-2.5-flash";
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: selectedModel,
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,9 +299,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
+  if (selectedModel.startsWith("gpt-")) {
+    payload.max_completion_tokens = 4096;
+    payload.reasoning = { effort: "low" };
+  } else if (selectedModel.startsWith("claude-")) {
+    payload.max_tokens = 4096;
+    payload.thinking = { type: "enabled", budget_tokens: 1024 };
+  } else {
+    payload.max_tokens = 8192;
+    payload.thinking = { budget_tokens: 128 };
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({

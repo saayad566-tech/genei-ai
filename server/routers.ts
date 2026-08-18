@@ -3,7 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { generateImage } from "./_core/imageGeneration";
-import { invokeLLM } from "./_core/llm";
+import { generateWithModel, getModelCapabilities } from "./modelGateway";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
 import { assets, apiKeys, chatMessages, projects } from "../drizzle/schema";
@@ -11,27 +11,37 @@ import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import * as crypto from "crypto";
 
-// Simple XOR-based obfuscation for API keys (not true encryption, but obscures in DB)
+// Versioned authenticated encryption for user API keys.
+// Legacy values remain readable so existing connections can be migrated on update.
+function encryptionKey(): Buffer {
+  return crypto.createHash("sha256").update(process.env.JWT_SECRET || "genei-secret").digest();
+}
+
 function obfuscateKey(key: string): string {
-  const secret = process.env.JWT_SECRET || "genei-secret";
-  const buf = Buffer.from(key, "utf8");
-  const secretBuf = Buffer.from(secret, "utf8");
-  const result = Buffer.alloc(buf.length);
-  for (let i = 0; i < buf.length; i++) {
-    result[i] = buf[i] ^ secretBuf[i % secretBuf.length];
-  }
-  return result.toString("base64");
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(key, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v2:${Buffer.concat([iv, tag, ciphertext]).toString("base64")}`;
 }
 
 function deobfuscateKey(encoded: string): string {
-  const secret = process.env.JWT_SECRET || "genei-secret";
-  const buf = Buffer.from(encoded, "base64");
-  const secretBuf = Buffer.from(secret, "utf8");
-  const result = Buffer.alloc(buf.length);
-  for (let i = 0; i < buf.length; i++) {
-    result[i] = buf[i] ^ secretBuf[i % secretBuf.length];
+  if (!encoded.startsWith("v2:")) {
+    const secret = process.env.JWT_SECRET || "genei-secret";
+    const buf = Buffer.from(encoded, "base64");
+    const secretBuf = Buffer.from(secret, "utf8");
+    const result = Buffer.alloc(buf.length);
+    for (let i = 0; i < buf.length; i++) result[i] = buf[i] ^ secretBuf[i % secretBuf.length];
+    return result.toString("utf8");
   }
-  return result.toString("utf8");
+
+  const payload = Buffer.from(encoded.slice(3), "base64");
+  const iv = payload.subarray(0, 12);
+  const tag = payload.subarray(12, 28);
+  const ciphertext = payload.subarray(28);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey(), iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
 
 export const appRouter = router({
@@ -48,6 +58,8 @@ export const appRouter = router({
 
   // ── AI Features ──────────────────────────────────────────────────────────
   ai: router({
+    capabilities: protectedProcedure.query(() => getModelCapabilities()),
+
     generateImage: protectedProcedure
       .input(z.object({ prompt: z.string().min(1).max(2000) }))
       .mutation(async ({ input }) => {
@@ -66,56 +78,65 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
-        const messages = [
-          {
-            role: "system" as const,
-            content: `You are Genei AI — an elite AI creative assistant embedded in the world's most advanced AI creator platform. You help creators produce music, videos, images, apps, websites, voice content, and automation workflows. Be concise, creative, and inspiring. When users ask for prompts, generate detailed, high-quality prompts optimized for AI generation tools.`,
-          },
-          ...(input.history || []).map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-          { role: "user" as const, content: input.message },
-        ];
-
-        const response = await invokeLLM({ messages });
-        const rawContent = response.choices[0]?.message?.content;
-        const assistantContent = typeof rawContent === "string" ? rawContent : "I'm here to help you create amazing content!";
+        const response = await generateWithModel({
+          purpose: "chat",
+          messages: [
+            {
+              role: "system",
+              content: "You are Genei AI, a concise and creative assistant for music, video, image, app, website, voice, and automation projects. Provide practical next steps and high-quality prompts.",
+            },
+            ...(input.history || []).map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
+            { role: "user", content: input.message },
+          ],
+        });
 
         if (db) {
           await db.insert(chatMessages).values({ userId: ctx.user.id, role: "user", content: input.message, sessionId: input.sessionId });
-          await db.insert(chatMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantContent, sessionId: input.sessionId });
+          await db.insert(chatMessages).values({ userId: ctx.user.id, role: "assistant", content: response.content, sessionId: input.sessionId });
         }
 
-        return { content: assistantContent };
+        return { content: response.content, model: response.model, execution: response.execution, fallbackUsed: response.fallbackUsed, attempts: response.attempts };
       }),
+
+    generateText: protectedProcedure
+      .input(z.object({
+        prompt: z.string().min(1).max(8000),
+        purpose: z.enum(["chat", "lyrics", "prompt", "vision"]).default("chat"),
+      }))
+      .mutation(async ({ input }) => generateWithModel({
+        purpose: input.purpose,
+        messages: [{ role: "user", content: input.prompt }],
+      })),
 
     generateLyrics: protectedProcedure
       .input(z.object({
-        topic: z.string().min(1),
-        genre: z.string().optional(),
-        mood: z.string().optional(),
-        language: z.string().optional(),
+        topic: z.string().min(1).max(1000),
+        genre: z.string().max(80).optional(),
+        mood: z.string().max(80).optional(),
+        language: z.string().max(80).optional(),
       }))
       .mutation(async ({ input }) => {
-        const response = await invokeLLM({
+        const response = await generateWithModel({
+          purpose: "lyrics",
           messages: [
-            { role: "system", content: "You are an elite songwriter and lyricist. Generate original, creative song lyrics." },
-            { role: "user", content: `Write song lyrics about: "${input.topic}". Genre: ${input.genre || "pop"}. Mood: ${input.mood || "energetic"}. Language: ${input.language || "English"}. Include verse, chorus, and bridge sections with clear labels.` },
+            { role: "system", content: "You are an elite songwriter. Generate original lyrics with clear verse, chorus, and bridge labels. Do not imitate living artists." },
+            { role: "user", content: `Write lyrics about: "${input.topic}". Genre: ${input.genre || "pop"}. Mood: ${input.mood || "energetic"}. Language: ${input.language || "English"}.` },
           ],
         });
-        const lyricsContent = response.choices[0]?.message?.content;
-        return { lyrics: typeof lyricsContent === "string" ? lyricsContent : "" };
+        return { lyrics: response.content, model: response.model };
       }),
 
     generatePrompt: protectedProcedure
-      .input(z.object({ type: z.string(), description: z.string() }))
+      .input(z.object({ type: z.string().max(80), description: z.string().min(1).max(2000) }))
       .mutation(async ({ input }) => {
-        const response = await invokeLLM({
+        const response = await generateWithModel({
+          purpose: "prompt",
           messages: [
-            { role: "system", content: "You are an expert AI prompt engineer. Generate optimized, detailed prompts for AI generation tools." },
-            { role: "user", content: `Generate an optimized ${input.type} prompt for: "${input.description}". Make it detailed, specific, and optimized for best AI generation results.` },
+            { role: "system", content: "You are an expert AI prompt engineer. Return one detailed, production-ready prompt and no preamble." },
+            { role: "user", content: `Create a ${input.type} prompt for: "${input.description}".` },
           ],
         });
-        const promptContent = response.choices[0]?.message?.content;
-        return { prompt: typeof promptContent === "string" ? promptContent : "" };
+        return { prompt: response.content, model: response.model };
       }),
   }),
 
@@ -153,6 +174,38 @@ export const appRouter = router({
           size: input.size || 0,
         });
         return { id: Number(result[0].insertId) };
+      }),
+
+    importRemote: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        type: z.string().default("image"),
+        remoteUrl: z.string().url(),
+        prompt: z.string().max(4000).optional(),
+        mimeType: z.string().max(128).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const remote = await fetch(input.remoteUrl, { signal: AbortSignal.timeout(30_000) });
+        if (!remote.ok) throw new Error(`Unable to download generated asset (${remote.status})`);
+        const contentType = input.mimeType || remote.headers.get("content-type") || "image/png";
+        if (!contentType.startsWith("image/")) throw new Error("Generated asset is not an image");
+        const bytes = Buffer.from(await remote.arrayBuffer());
+        if (bytes.byteLength > 25 * 1024 * 1024) throw new Error("Generated asset is larger than 25 MB");
+        const storageKey = `users/${ctx.user.id}/assets/${crypto.randomUUID()}.bin`;
+        const stored = await storagePut(storageKey, bytes, contentType);
+        const result = await db.insert(assets).values({
+          userId: ctx.user.id,
+          name: input.name,
+          type: input.type,
+          storageKey: stored.key,
+          storageUrl: stored.url,
+          prompt: input.prompt,
+          mimeType: contentType,
+          size: bytes.byteLength,
+        });
+        return { id: Number(result[0].insertId), url: stored.url, key: stored.key };
       }),
 
     delete: protectedProcedure
@@ -207,7 +260,16 @@ export const appRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
-      return db.select().from(apiKeys).where(eq(apiKeys.userId, ctx.user.id)).orderBy(desc(apiKeys.createdAt));
+      return db.select({
+        id: apiKeys.id,
+        provider: apiKeys.provider,
+        label: apiKeys.label,
+        isActive: apiKeys.isActive,
+        usageCount: apiKeys.usageCount,
+        lastUsedAt: apiKeys.lastUsedAt,
+        createdAt: apiKeys.createdAt,
+        updatedAt: apiKeys.updatedAt,
+      }).from(apiKeys).where(eq(apiKeys.userId, ctx.user.id)).orderBy(desc(apiKeys.createdAt));
     }),
 
     add: protectedProcedure

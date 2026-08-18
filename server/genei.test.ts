@@ -120,3 +120,42 @@ describe("chat", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 });
+
+
+describe("ai model gateway", () => {
+  it("returns a capability catalog that is safe to expose to Android clients", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.ai.capabilities();
+
+    expect(Array.isArray(result.models)).toBe(true);
+    expect(["live", "fallback"]).toContain(result.source);
+    expect(result.models[0]).toEqual(expect.objectContaining({
+      id: expect.any(String),
+      supportsAndroid: true,
+      supportsOnDevice: expect.any(Boolean),
+      purposes: expect.any(Array),
+    }));
+  });
+
+  it("rejects empty model prompts before invoking the provider", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.ai.generateText({ prompt: "", purpose: "chat" })).rejects.toThrow();
+  });
+});
+
+
+describe("assets importRemote", () => {
+  it("rejects non-URL remote asset inputs before network access", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.assets.importRemote({
+      name: "test",
+      remoteUrl: "not-a-url",
+      type: "image",
+    })).rejects.toThrow();
+  });
+});

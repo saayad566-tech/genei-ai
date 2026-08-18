@@ -1,0 +1,42 @@
+{
+  "name": "Genei AI — Creator Ecosystem",
+  "short_name": "Genei AI",
+  "description": "Create music, video, images, apps, websites, and AI workflows from one mobile-first workspace.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07070b",
+  "theme_color": "#8b5cf6",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/genei-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "graphics", "music", "video"],
+  "shortcuts": [
+    {
+      "name": "Image Generator",
+      "short_name": "Image",
+      "url": "/image",
+      "icons": [{ "src": "/genei-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Music Studio",
+      "short_name": "Music",
+      "url": "/music",
+      "icons": [{ "src": "/genei-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "AI Assistant",
+      "short_name": "Assistant",
+      "url": "/?assistant=1",
+      "icons": [{ "src": "/genei-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}
+

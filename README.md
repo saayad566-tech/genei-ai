@@ -1,6 +1,8 @@
 # Web App Template (tRPC + Manus Auth + Database)
 
-This template gives you a React 19 + Tailwind 4 + Express 4 + tRPC 11 stack with Manus OAuth already wired. Procedures are your contracts, types flow end to end, and authentication "just works".
+This project is Genei AI, a React 19 + Tailwind 4 + Express 4 + tRPC 11 creator ecosystem with Manus OAuth, secure server-side model routing, cloud asset persistence, and an Android-friendly PWA shell.
+
+> **Release note:** Genei AI is currently distributed as a PWA. Read [PWA_FIRST_RELEASE.md](docs/PWA_FIRST_RELEASE.md) for Android installation, model-routing behavior, validation results, and the policy for future native packages. Do not treat a renamed archive as an APK, EXE, IPA, or HAP.
 
 ---
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Key, Plus, Eye, EyeOff, Trash2, Check, X, Shield,
+  Key, Plus, Trash2, Check, X, Shield,
   Activity, DollarSign, ChevronDown, Loader2, Edit2, Zap
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { ModelRuntimeStatus } from "@/components/ModelRuntimeStatus";
 
 const providers = [
   { id: "openai", name: "OpenAI", desc: "GPT-4, DALL·E, Whisper", category: "AI", color: "oklch(0.68 0.20 155)", icon: "🤖" },
@@ -29,7 +30,6 @@ export default function ApiIntegrations() {
   const [addingProvider, setAddingProvider] = useState<string | null>(null);
   const [newKey, setNewKey] = useState("");
   const [newLabel, setNewLabel] = useState("");
-  const [showKeys, setShowKeys] = useState<Record<number, boolean>>({});
 
   const { data: apiKeys, refetch } = trpc.apiKeys.list.useQuery();
   const addKeyMutation = trpc.apiKeys.add.useMutation({
@@ -78,10 +78,12 @@ export default function ApiIntegrations() {
           </div>
           <div className="genei-card px-4 py-2 rounded-xl flex items-center gap-2">
             <Shield className="w-4 h-4 text-green-400" />
-            <span className="text-xs text-muted-foreground">AES-256 Encrypted</span>
+            <span className="text-xs text-muted-foreground">Encrypted at rest</span>
           </div>
         </div>
       </div>
+
+      <ModelRuntimeStatus />
 
       {/* Category Filter */}
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -122,12 +124,8 @@ export default function ApiIntegrations() {
                     <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: "oklch(0.14 0.02 265)" }}>
                       <Shield className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
                       <span className="text-xs text-muted-foreground flex-1 font-mono">
-                        {showKeys[existingKey.id] ? `sk-...${existingKey.encryptedKey.slice(-8)}` : "••••••••••••••••"}
+                        Key stored securely · never exposed to the browser
                       </span>
-                      <button onClick={() => setShowKeys(prev => ({ ...prev, [existingKey.id]: !prev[existingKey.id] }))}
-                        className="text-muted-foreground hover:text-foreground transition-colors">
-                        {showKeys[existingKey.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">

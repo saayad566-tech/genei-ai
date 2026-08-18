@@ -1,8 +1,8 @@
 {
   "build_command": "pnpm run build",
   "capabilities": [
-    "server",
     "db",
+    "server",
     "user"
   ],
   "dev_command": "pnpm run dev",
@@ -14,10 +14,11 @@
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663670214280/Tc7qFq5iHCKFe98qcuNCJF",
-    "access_key_id": "ASIAZV3A2ECZJI7RBAO2",
-    "secret_access_key": "mMCmlLf3pHbTbuSSFB29RjN+o1HBrjwv58uvSS5l",
-    "session_token": "IQoJb3JpZ2luX2VjEOf//////////wEaCXVzLWVhc3QtMSJHMEUCIHaCpPehtsOYQOWGaA1TIrhhle/mE7tW+RdTdmhprrYvAiEAxfb6EcwTYvbfG1USCYS9f9gnc0LKR3QqSnmrE4eXVHoq/wMIsP//////////ARAEGgw2NjUzODYwOTg4NjYiDOsEafjkagil0aw74yrTA4xGKZhRC/bHxRwi1de5wN423dp3iHk1K1CJe9BlRV0iEJtGZHilfjCWxzBEr39AX2Ie4Q9LIx97D0E7MvNJJqsouk+xtz8+owYKedWu1yXdcSP/flFO2Vs7VehwnflfVAlxaAEPeDDTjJy1uk42tieLkAq6Ii6eC15HUOdieDzjFVGxWtrCoRhpaK+y8JaSeYn7Ja0z6664d3Tn6ne+Lop7+0ulxwrggpsZPs9sl5WlikC5b2MF2OnQfPcK7tE/hbQTpf7hXqnfSmmENQ4ieUrze6XQQEUlhJDxMSeH7EIZf2kLypEU7w7PBLArE9Mo8UhWucUKhvXomi66uNimNbkSvcpK800EYCLFInRoyN4BNQdYihREa49xFxEsYR+67a+LBtnnzlNEFAv9SaiKhXCbFMq8eXucjk2BEA04UvPxDq5lOMWX8Su4C3jzb8+FpT6SD9XBBXWjJnEZlHPbi7apcZ5qwPHhnk+MXm9FRgy4Y75V5AQ8+zA93AMHFRdW504TjS1C1Qi51IWm5bZESka2zliAEcHTFzKkx1UMdhHOcD35sfWIWoJ2+Neos5yTUgnYoT/RMzbxGUuUZsKhoHyMOT/x+iacd5MtQZ1XS2B2+cySMPKMqdAGOp0BKF7btvJuziAZNItJ0w8vMfn0c5mdYULcBqamfw8N+O15CGHESuTWHTMAPrLqE5QsLhD01P7g3S22ckt0N5S71jddG2kp+8o+qxx6FMcHxDwmhSzS2LTHagGB8Bco0Zn0QN8fpb/WTRVnomUH0hKqOqekck7VLyqQfu9yG5teVcS4D0Lsz8wk3uA+7eC/OS5MVbnwdAzeWyPbZxCO8w==",
-    "expiration": "2026-05-18T10:51:30.000Z"
+    "access_key_id": "ASIAZV3A2ECZNVTGNLXO",
+    "secret_access_key": "gCdXpJfmkwD3wTmjnUd7GOlAq46bwWkKYpsurVPp",
+    "session_token": "IQoJb3JpZ2luX2VjEJD//////////wEaCXVzLWVhc3QtMSJGMEQCIEarIHC95zFb7FL4wRSspF1QZ4eyUu0ac2dCW6cg/PslAiAbti8ssfA6J9nsRiw2++v7BGkf0BLpgts76xb3vNQPSyr2AwhYEAQaDDY2NTM4NjA5ODg2NiIMCIcEdIo4j5aSqOd9KtMDFq9FDwmXdrIYzR1PHYPg2Zq3fyh7nn+UMRqnochNj9hSelTFTkon7gg9TamvUeHzPMu8QLr1OR9S8s/r5pKVxr9Qc85hQM3N5OF8SJOot2ImuGHwI9JcIbBFW231J7Vcre8PrGTwZZi4Uz0DbfU1VEBM3qAl0O+OnosDFlaGM06LFRtadUZPlAut3raBdSVbykrKDitLxoeID6/3/Oa0Wmn+k4430fsTPass/orRsbFtBMz8+ITdL7q2gLs+ieOv7YbXze+3gsg702VKH8hJQQGUCXbM8ek7OCu21KuTXghQIhlEuK92o+bzyCNZsp8nmCqn4D2Idn9xBdM5J2N815jwJ8fsgjt89DbVz+nMCiZmXUtu0atsrj3wsKjDFcT7340ZdBQQkGDjEanrg5BWyBvQ/OnVRY+0gADnpR36+AgXVmkoMI9TJ8XrLy/U3c4Bf+YU/cfpeCOPpNGRHhDGOh+9bfpRFj0MrsCi/2MkKhJ4gC3N83rZBJzv406oBedqrtK9w7yADC1RdwKb66qZc+GAXE5twv9PA93SQ9jpZL1HU3wvdVMDZJafjEKOrhWD1oddsxXpk+Db4MkrUZawS31Gs+0E85K8CFi2SOXY9M/leyQw+oyQ1AY6ngF6P1/QcgQDVCLgGhBNEqRC+Ob7lMuKFAs9MUAiST/lTq76dzzLYUMbU4TaQIh3XsG8+lmWlvuU5Eg1L2kaQvHQlxuXruip07dWQtnHUL6PqdjtOvRG2Xj4ClbqmmiIjIp8m4+eowBN315TdPJ+Y5eElFJ/ZHkAvU0mOprcumuR8dqWruHO6r+O0DNMq3ri0jugGJcA0znP7Bc2kD4+KQ==",
+    "expiration": "2026-08-18T19:15:06.000Z",
+    "backend": "GIT_BACKEND_S3"
   },
   "name": "genei-ai",
   "path": "/home/ubuntu/genei-ai",
