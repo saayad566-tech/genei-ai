@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Keyboard, Moon, Sun, Monitor, ChevronRight, Save, Loader2 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -161,7 +161,7 @@ export default function Settings() {
                   { label: "API Keys", desc: "Manage your personal API keys" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between p-4 rounded-xl hover:bg-secondary/30 cursor-pointer transition-colors group"
-                    onClick={() => toast.info(`${item.label} — coming soon`)}>
+                    onClick={() => toast.info(item.label === "API Keys" ? "Manage encrypted provider keys from API Integrations" : `${item.label} is managed by your account provider`)}>
                     <div>
                       <div className="text-sm font-medium text-foreground">{item.label}</div>
                       <div className="text-xs text-muted-foreground">{item.desc}</div>

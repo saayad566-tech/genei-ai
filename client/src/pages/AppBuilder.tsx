@@ -1,7 +1,8 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Smartphone, Wand2, Code2, Database, Lock, CreditCard, Globe, Zap, Download, Play, Plus, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 const frameworks = [
   { id: "react-native", label: "React Native", desc: "Cross-platform mobile", icon: "⚛️", color: "oklch(0.72 0.18 210)" },
@@ -32,9 +33,57 @@ export default function AppBuilder() {
   const [framework, setFramework] = useState("nextjs");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(["auth", "db"]);
   const [appName, setAppName] = useState("");
+  const [generatedSpec, setGeneratedSpec] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const generateTextMutation = trpc.ai.generateText.useMutation();
 
   const toggleFeature = (id: string) => {
     setSelectedFeatures(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
+  };
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) {
+      toast.error("Describe the app you want to build first");
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const result = await generateTextMutation.mutateAsync({
+        purpose: "prompt",
+        prompt: `Create a production-ready app blueprint for ${appName.trim() || "an untitled app"}. Requirements: ${prompt.trim()}. Framework: ${framework}. Include these features: ${selectedFeatures.join(", ") || "none"}. Return concise sections for architecture, screens, data model, API surface, and next implementation steps. Do not claim to have built or packaged a native binary.`,
+      });
+      setGeneratedSpec(result.content);
+      toast.success("App blueprint generated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "App blueprint generation failed. Try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleExportSource = () => {
+    const sourcePackage = {
+      name: appName.trim() || "Genei App Blueprint",
+      framework,
+      features: selectedFeatures,
+      requirements: prompt.trim(),
+      blueprint: generatedSpec,
+      note: "This is a source blueprint. Native APK/IPA packaging requires a genuine platform build and installation validation.",
+    };
+    const blob = new Blob([JSON.stringify(sourcePackage, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${(appName.trim() || "genei-app").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-source.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success("Source blueprint exported");
+  };
+
+  const handleTemplateSelect = (templateName: string, description: string) => {
+    setAppName(templateName);
+    setPrompt(`A ${description.toLowerCase()} with a polished mobile-first interface and production-ready setup.`);
+    toast.success(`${templateName} template loaded`);
   };
 
   return (
@@ -97,13 +146,13 @@ export default function AppBuilder() {
             </div>
 
             <div className="flex gap-3">
-              <motion.button whileTap={{ scale: 0.97 }} onClick={() => toast.info("App generation requires API setup")}
-                className="flex-1 genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm">
-                <Wand2 className="w-4 h-4" /> Generate App
+              <motion.button whileTap={{ scale: 0.97 }} onClick={() => void handleGenerate()} disabled={isGenerating || !prompt.trim()}
+                className="flex-1 genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                <Wand2 className="w-4 h-4" /> {isGenerating ? "Generating..." : "Generate Blueprint"}
               </motion.button>
-              <button onClick={() => toast.info("APK export coming soon")}
+              <button onClick={handleExportSource}
                 className="flex items-center gap-2 px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
-                <Download className="w-4 h-4" /> Export APK
+                <Download className="w-4 h-4" /> Export Source
               </button>
             </div>
           </div>
@@ -114,7 +163,7 @@ export default function AppBuilder() {
             <h3 className="font-semibold text-foreground font-display">App Templates</h3>
             {appTemplates.map((tmpl) => (
               <div key={tmpl.name} className="flex items-center gap-3 p-3 rounded-xl hover:bg-secondary/30 cursor-pointer transition-colors group"
-                onClick={() => toast.info(`Loading ${tmpl.name} template...`)}>
+                                  onClick={() => handleTemplateSelect(tmpl.name, tmpl.desc)}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
                   style={{ background: `${tmpl.color} / 0.15` }}>{tmpl.icon}</div>
                 <div className="flex-1">
@@ -127,14 +176,17 @@ export default function AppBuilder() {
           </div>
 
           <div className="genei-card p-5 rounded-xl">
-            <h3 className="font-semibold text-foreground font-display mb-3">Preview</h3>
+            <h3 className="font-semibold text-foreground font-display mb-3">Blueprint Preview</h3>
             <div className="aspect-[9/16] rounded-2xl border-2 border-border flex items-center justify-center max-w-[160px] mx-auto"
               style={{ background: "oklch(0.09 0.01 265)" }}>
               <div className="text-center">
                 <Smartphone className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[10px] text-muted-foreground">App preview</p>
+                <p className="text-[10px] text-muted-foreground">{generatedSpec ? "Blueprint ready" : "Generate a blueprint"}</p>
               </div>
             </div>
+            {generatedSpec && (
+              <pre className="mt-4 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/50 p-3 text-[10px] leading-4 text-muted-foreground">{generatedSpec}</pre>
+            )}
           </div>
         </div>
       </div>

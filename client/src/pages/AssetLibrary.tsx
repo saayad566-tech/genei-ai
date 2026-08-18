@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Archive, Search, Filter, Upload, Download, Trash2, Grid3X3,
@@ -30,8 +30,10 @@ export default function AssetLibrary() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedAssets, setSelectedAssets] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: assets, isLoading, refetch } = trpc.assets.list.useQuery();
+  const uploadAssetMutation = trpc.assets.upload.useMutation();
   const deleteAssetMutation = trpc.assets.delete.useMutation({
     onSuccess: () => { refetch(); toast.success("Asset deleted"); },
     onError: () => toast.error("Failed to delete asset"),
@@ -52,7 +54,48 @@ export default function AssetLibrary() {
   };
 
   const handleUpload = () => {
-    toast.info("File upload coming soon — assets will be stored in cloud storage");
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("Files must be 25 MB or smaller");
+      return;
+    }
+
+    const assetType = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("audio/")
+        ? "audio"
+        : file.type.startsWith("video/")
+          ? "video"
+          : "document";
+
+    setIsUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Unable to read the selected file"));
+        reader.readAsDataURL(file);
+      });
+      await uploadAssetMutation.mutateAsync({
+        name: file.name,
+        type: assetType,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        data: dataUrl,
+      });
+      await refetch();
+      toast.success(`${file.name} uploaded to Asset Library`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const formatSize = (bytes: number) => {
@@ -78,9 +121,11 @@ export default function AssetLibrary() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleUpload}
-            className="genei-btn-primary flex items-center gap-2 text-sm py-2 px-4">
-            <Upload className="w-4 h-4" /> Upload
+          <input ref={fileInputRef} type="file" className="hidden" accept="image/*,audio/*,video/*,.pdf,.txt,.md,.json,.zip" onChange={handleFileChange} />
+          <button type="button" onClick={handleUpload} disabled={isUploading}
+            className="genei-btn-primary flex min-h-11 items-center gap-2 text-sm py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50">
+            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {isUploading ? "Uploading..." : "Upload"}
           </button>
         </div>
       </div>
@@ -158,7 +203,7 @@ export default function AssetLibrary() {
           </div>
           <h3 className="text-lg font-semibold text-foreground mb-2">No assets yet</h3>
           <p className="text-sm text-muted-foreground mb-4">Generate images, music, or videos to see them here</p>
-          <button onClick={handleUpload} className="genei-btn-primary flex items-center gap-2 text-sm">
+          <button type="button" onClick={handleUpload} disabled={isUploading} className="genei-btn-primary flex min-h-11 items-center gap-2 text-sm disabled:opacity-50">
             <Plus className="w-4 h-4" /> Upload First Asset
           </button>
         </div>

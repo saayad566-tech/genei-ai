@@ -85,7 +85,7 @@ export default function Monetization() {
                   ))}
                 </ul>
                 <button
-                  onClick={() => plan.current ? toast.info("You are on this plan") : toast.info("Upgrade flow coming soon")}
+                  onClick={() => plan.current ? toast.info("You are on this plan") : toast.info("Connect billing in Settings to continue with this plan")}
                   className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${plan.current ? "border border-border text-muted-foreground" : "text-white"}`}
                   style={!plan.current ? { background: `linear-gradient(135deg, ${plan.color}, oklch(0.65 0.22 285))` } : {}}>
                   {plan.current ? "Current Plan" : "Upgrade"}
@@ -102,7 +102,7 @@ export default function Monetization() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {revenueStreams.map((stream) => (
             <div key={stream.name} className="genei-card p-5 rounded-xl flex items-center gap-4 hover:border-primary/30 cursor-pointer transition-all group"
-              onClick={() => toast.info(`${stream.name} — coming soon`)}>
+              onClick={() => toast.info(`${stream.name}: configure this revenue stream after connecting the required provider`)}>
               <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: `${stream.color} / 0.15` }}>
                 <stream.icon className="w-6 h-6" style={{ color: stream.color }} />

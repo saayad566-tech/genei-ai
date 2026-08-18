@@ -58,7 +58,15 @@ export const appRouter = router({
 
   // ── AI Features ──────────────────────────────────────────────────────────
   ai: router({
-    capabilities: protectedProcedure.query(() => getModelCapabilities()),
+    capabilities: protectedProcedure
+      .input(z.object({
+        runtime: z.object({
+          webGpu: z.boolean(),
+          storage: z.boolean(),
+          online: z.boolean(),
+        }).optional(),
+      }).optional())
+      .query(({ input }) => getModelCapabilities(input?.runtime)),
 
     generateImage: protectedProcedure
       .input(z.object({ prompt: z.string().min(1).max(2000) }))
@@ -174,6 +182,34 @@ export const appRouter = router({
           size: input.size || 0,
         });
         return { id: Number(result[0].insertId) };
+      }),
+
+    upload: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        type: z.enum(["image", "audio", "video", "document"]),
+        mimeType: z.string().max(128),
+        size: z.number().int().positive().max(25 * 1024 * 1024),
+        data: z.string().min(1).max(36_000_000),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const encoded = input.data.includes(",") ? input.data.split(",", 2)[1] : input.data;
+        const bytes = Buffer.from(encoded, "base64");
+        if (bytes.byteLength > 25 * 1024 * 1024) throw new Error("File is larger than 25 MB");
+        const storageKey = `users/${ctx.user.id}/assets/${crypto.randomUUID()}-${input.name}`;
+        const stored = await storagePut(storageKey, bytes, input.mimeType);
+        const result = await db.insert(assets).values({
+          userId: ctx.user.id,
+          name: input.name,
+          type: input.type,
+          storageKey: stored.key,
+          storageUrl: stored.url,
+          mimeType: input.mimeType,
+          size: bytes.byteLength,
+        });
+        return { id: Number(result[0].insertId), url: stored.url, key: stored.key };
       }),
 
     importRemote: protectedProcedure

@@ -27,7 +27,8 @@ function useAndroidRuntime() {
 export function ModelRuntimeStatus() {
   const { isAuthenticated } = useAuth();
   const runtime = useAndroidRuntime();
-  const capabilities = trpc.ai.capabilities.useQuery(undefined, {
+  const capabilityInput = useMemo(() => ({ runtime }), [runtime]);
+  const capabilities = trpc.ai.capabilities.useQuery(capabilityInput, {
     enabled: isAuthenticated,
     retry: false,
     refetchOnWindowFocus: false,
@@ -38,8 +39,10 @@ export function ModelRuntimeStatus() {
     if (!runtime.online) return "Offline shell active";
     if (capabilities.isLoading) return "Checking model gateway";
     if (capabilities.isError) return "Gateway needs configuration";
-    return "Android-ready server routing";
-  }, [capabilities.isError, capabilities.isLoading, isAuthenticated, runtime.online]);
+    return runtime.webGpu && runtime.storage
+      ? "Optional on-device path detected; server fallback ready"
+      : "Android-ready server routing";
+  }, [capabilities.isError, capabilities.isLoading, isAuthenticated, runtime.online, runtime.storage, runtime.webGpu]);
 
   return (
     <section className="genei-card rounded-2xl p-4 sm:p-5" aria-labelledby="model-runtime-title">
@@ -58,15 +61,16 @@ export function ModelRuntimeStatus() {
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         <RuntimeMetric icon={Globe2} label="Server models" value={isAuthenticated ? String(modelCount) : "—"} />
         <RuntimeMetric icon={Cpu} label="WebGPU" value={runtime.webGpu ? "Available" : "Fallback"} />
         <RuntimeMetric icon={Download} label="Offline shell" value={runtime.storage ? "Ready" : "Limited"} />
+        <RuntimeMetric icon={Cpu} label="On-device" value={runtime.webGpu && runtime.storage ? "Eligible" : "Gated"} />
         <RuntimeMetric icon={Smartphone} label="Android" value="Supported" />
       </div>
 
       <p className="mt-4 text-xs leading-5 text-muted-foreground">
-        Large models run securely through Genei's server gateway on Android. Optional on-device inference is capability-gated and never blocks the reliable server fallback.
+        Large models run securely through Genei's server gateway on Android. Optional lightweight on-device inference is offered only when browser WebGPU and storage capabilities are present; it never blocks the reliable server fallback.
       </p>
     </section>
   );

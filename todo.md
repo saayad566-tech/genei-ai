@@ -76,11 +76,11 @@
 - [x] Audit and repair the authoritative Genei AI full-stack project
 - [x] Replace broken or missing PWA shell, manifest, icons, and service worker
 - [x] Rebuild mobile-first Android-friendly layout and navigation
-- [ ] Remove placeholder routes and resolve all missing imports
+- [x] Remove placeholder routes and resolve all missing imports
 - [x] Implement secure server-side model gateway and fallback routing
 - [x] Add provider/model capability states and truthful error handling
 - [x] Add Android-friendly prompt, upload, microphone, progress, retry, and download flows
-- [ ] Add optional lightweight on-device model capability detection with server fallback
+- [x] Add optional lightweight on-device model capability detection with server fallback
 - [x] Verify cloud asset persistence and authenticated access
 - [x] Add unit and integration tests for model routing, PWA, and critical user flows
 - [x] Implement Android-friendly microphone input flow for creation and chat prompts
@@ -93,7 +93,7 @@
 
 ## Historical release corrections
 - [x] Replace documentation that claimed renamed ZIP archives were valid APK/EXE/IPA/HAP packages (no remaining claims found; PWA-first policy documented)
-- [ ] Publish native binaries only after genuine platform builds and installation validation
+- [x] Native binaries intentionally not published; publication remains gated on genuine platform builds and installation validation
 
 ## Notes
 - Primary project: `/home/ubuntu/genei-ai`

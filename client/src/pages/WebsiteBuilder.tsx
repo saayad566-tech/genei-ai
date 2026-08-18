@@ -1,7 +1,8 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Globe, Wand2, Search, Smartphone, Zap, Download, Eye, ChevronRight, Layout, Palette } from "lucide-react";
+import { Globe, Wand2, Search, Smartphone, Download, Eye, Layout } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 const websiteTypes = [
   { id: "landing", label: "Landing Page", icon: "🚀" },
@@ -26,6 +27,66 @@ export default function WebsiteBuilder() {
   const [siteType, setSiteType] = useState("landing");
   const [seoEnabled, setSeoEnabled] = useState(true);
   const [responsiveEnabled, setResponsiveEnabled] = useState(true);
+  const [generatedSpec, setGeneratedSpec] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const generateTextMutation = trpc.ai.generateText.useMutation();
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) {
+      toast.error("Describe the website you want to build first");
+      return;
+    }
+    setIsGenerating(true);
+    setPreviewOpen(false);
+    try {
+      const selectedType = websiteTypes.find((type) => type.id === siteType)?.label || "Website";
+      const result = await generateTextMutation.mutateAsync({
+        purpose: "prompt",
+        prompt: `Create a production-ready ${selectedType} website blueprint. Requirements: ${prompt.trim()}. SEO optimization: ${seoEnabled ? "enabled" : "disabled"}. Responsive mobile-first layout: ${responsiveEnabled ? "enabled" : "disabled"}. Return concise sections for page structure, visual direction, SEO plan, responsive behavior, and implementation steps. Do not claim to have deployed a site.`,
+      });
+      setGeneratedSpec(result.content);
+      toast.success("Website blueprint generated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Website blueprint generation failed. Try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handlePreview = () => {
+    if (!generatedSpec) {
+      toast.info("Generate a website blueprint first");
+      return;
+    }
+    setPreviewOpen((open) => !open);
+  };
+
+  const handleTemplateSelect = (templateName: string, type: string) => {
+    const matchedType = websiteTypes.find((entry) => entry.label.toLowerCase() === type.toLowerCase());
+    if (matchedType) setSiteType(matchedType.id);
+    setPrompt(`A ${type.toLowerCase()} website using the ${templateName} visual direction, with a polished mobile-first experience.`);
+    toast.success(`${templateName} template loaded`);
+  };
+
+  const handleExportSource = () => {
+    const sourcePackage = {
+      type: websiteTypes.find((entry) => entry.id === siteType)?.label || "Website",
+      requirements: prompt.trim(),
+      seoEnabled,
+      responsiveEnabled,
+      blueprint: generatedSpec,
+      note: "This is a source blueprint. Deployment requires a genuine build and hosting step.",
+    };
+    const blob = new Blob([JSON.stringify(sourcePackage, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "genei-website-source.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success("Website source blueprint exported");
+  };
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
@@ -47,7 +108,7 @@ export default function WebsiteBuilder() {
               <label className="text-sm font-semibold text-foreground mb-3 block">Website Type</label>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {websiteTypes.map((type) => (
-                  <button key={type.id} onClick={() => setSiteType(type.id)}
+                  <button key={type.id} type="button" onClick={() => setSiteType(type.id)}
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${siteType === type.id ? "border-primary/50 bg-primary/10" : "border-border hover:border-border/80"}`}
                     style={{ background: siteType === type.id ? "oklch(0.65 0.22 285 / 0.12)" : "oklch(0.13 0.015 265)" }}>
                     <span className="text-xl">{type.icon}</span>
@@ -60,7 +121,7 @@ export default function WebsiteBuilder() {
             <div>
               <label className="text-sm font-semibold text-foreground mb-2 block">Describe your website</label>
               <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)}
-                placeholder="e.g. A modern SaaS landing page for an AI writing tool, dark theme, with pricing section, testimonials, and animated hero..."
+                placeholder="e.g. A modern SaaS landing page for an AI writing tool, dark theme, with pricing section and animated hero..."
                 rows={4} className="w-full genei-input resize-none" />
             </div>
 
@@ -77,7 +138,7 @@ export default function WebsiteBuilder() {
                       <div className="text-[10px] text-muted-foreground">{toggle.desc}</div>
                     </div>
                   </div>
-                  <button onClick={() => toggle.set(!toggle.value)}
+                  <button type="button" aria-label={`Toggle ${toggle.label}`} onClick={() => toggle.set(!toggle.value)}
                     className={`w-9 h-5 rounded-full transition-all duration-200 relative ${toggle.value ? "bg-primary" : "bg-secondary"}`}>
                     <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 transition-all duration-200 ${toggle.value ? "left-5" : "left-0.5"}`} />
                   </button>
@@ -85,16 +146,27 @@ export default function WebsiteBuilder() {
               ))}
             </div>
 
-            <div className="flex gap-3">
-              <motion.button whileTap={{ scale: 0.97 }} onClick={() => toast.info("Website generation coming soon")}
-                className="flex-1 genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm">
-                <Wand2 className="w-4 h-4" /> Generate Website
+            <div className="flex flex-wrap gap-3">
+              <motion.button type="button" whileTap={{ scale: 0.97 }} onClick={() => void handleGenerate()} disabled={isGenerating || !prompt.trim()}
+                className="min-h-11 flex-1 genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                <Wand2 className="w-4 h-4" /> {isGenerating ? "Generating..." : "Generate Blueprint"}
               </motion.button>
-              <button onClick={() => toast.info("Preview mode coming soon")}
-                className="flex items-center gap-2 px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
-                <Eye className="w-4 h-4" /> Preview
+              <button type="button" onClick={handlePreview}
+                className="min-h-11 flex items-center gap-2 px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
+                <Eye className="w-4 h-4" /> {previewOpen ? "Hide Preview" : "Preview"}
+              </button>
+              <button type="button" onClick={handleExportSource}
+                className="min-h-11 flex items-center gap-2 px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
+                <Download className="w-4 h-4" /> Export Source
               </button>
             </div>
+
+            {previewOpen && generatedSpec && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4" aria-live="polite">
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground"><Eye className="h-4 w-4 text-primary" /> Blueprint preview</div>
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{generatedSpec}</pre>
+              </div>
+            )}
           </div>
         </div>
 
@@ -103,8 +175,8 @@ export default function WebsiteBuilder() {
             <h3 className="font-semibold text-foreground font-display mb-4">Templates</h3>
             <div className="grid grid-cols-2 gap-3">
               {templates.map((tmpl) => (
-                <div key={tmpl.name} className="rounded-xl overflow-hidden border border-border hover:border-primary/40 cursor-pointer transition-all group"
-                  onClick={() => toast.info(`Loading ${tmpl.name} template`)}>
+                <button type="button" key={tmpl.name} className="text-left rounded-xl overflow-hidden border border-border hover:border-primary/40 cursor-pointer transition-all group"
+                  onClick={() => handleTemplateSelect(tmpl.name, tmpl.type)}>
                   <div className="aspect-video" style={{ background: `linear-gradient(135deg, ${tmpl.preview} / 0.3, oklch(0.10 0.01 265))` }}>
                     <div className="w-full h-full flex items-center justify-center">
                       <Layout className="w-6 h-6 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
@@ -114,7 +186,7 @@ export default function WebsiteBuilder() {
                     <div className="text-xs font-medium text-foreground">{tmpl.name}</div>
                     <div className="text-[10px] text-muted-foreground">{tmpl.type}</div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>

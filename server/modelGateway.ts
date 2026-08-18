@@ -3,6 +3,12 @@ import { ENV } from "./_core/env";
 
 export type ModelPurpose = "chat" | "lyrics" | "prompt" | "vision" | "image";
 
+export type ClientRuntimeHints = {
+  webGpu: boolean;
+  storage: boolean;
+  online: boolean;
+};
+
 export type ModelCapability = {
   id: string;
   label: string;
@@ -11,6 +17,18 @@ export type ModelCapability = {
   supportsAndroid: boolean;
   supportsOnDevice: boolean;
   status: "available" | "server-only" | "not-configured";
+};
+
+export type ModelCapabilitiesResult = {
+  models: ModelCapability[];
+  source: "live" | "fallback";
+  runtime: {
+    webGpu: boolean;
+    storage: boolean;
+    online: boolean;
+    onDeviceEligible: boolean;
+    fallback: "server";
+  };
 };
 
 export type ModelGatewayResult = {
@@ -52,9 +70,17 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   ]);
 }
 
-export async function getModelCapabilities(): Promise<{ models: ModelCapability[]; source: "live" | "fallback" }> {
+export async function getModelCapabilities(runtime?: ClientRuntimeHints): Promise<ModelCapabilitiesResult> {
+  const runtimeState = {
+    webGpu: runtime?.webGpu === true,
+    storage: runtime?.storage === true,
+    online: runtime?.online !== false,
+    onDeviceEligible: runtime?.webGpu === true && runtime?.storage === true,
+    fallback: "server" as const,
+  };
+
   if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-    return { models: [{ ...DEFAULT_MODEL, status: "not-configured" }], source: "fallback" };
+    return { models: [{ ...DEFAULT_MODEL, status: "not-configured" }], source: "fallback", runtime: runtimeState };
   }
 
   try {
@@ -62,7 +88,7 @@ export async function getModelCapabilities(): Promise<{ models: ModelCapability[
       headers: { authorization: `Bearer ${ENV.forgeApiKey}` },
       signal: AbortSignal.timeout(5000),
     });
-    if (!response.ok) return { models: [DEFAULT_MODEL], source: "fallback" };
+    if (!response.ok) return { models: [DEFAULT_MODEL], source: "fallback", runtime: runtimeState };
 
     const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
     const liveModels = (payload.data ?? [])
@@ -78,9 +104,13 @@ export async function getModelCapabilities(): Promise<{ models: ModelCapability[
         status: "server-only" as const,
       }));
 
-    return { models: liveModels.length ? liveModels : [DEFAULT_MODEL], source: liveModels.length ? "live" : "fallback" };
+    return {
+      models: liveModels.length ? liveModels : [DEFAULT_MODEL],
+      source: liveModels.length ? "live" : "fallback",
+      runtime: runtimeState,
+    };
   } catch {
-    return { models: [DEFAULT_MODEL], source: "fallback" };
+    return { models: [DEFAULT_MODEL], source: "fallback", runtime: runtimeState };
   }
 }
 

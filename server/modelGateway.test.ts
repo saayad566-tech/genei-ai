@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invokeLLM } from "./_core/llm";
-import { generateWithModel } from "./modelGateway";
+import { generateWithModel, getModelCapabilities } from "./modelGateway";
 
 vi.mock("./_core/llm", () => ({
   invokeLLM: vi.fn(),
@@ -16,6 +16,14 @@ describe("model gateway fallback", () => {
       ok: true,
       json: async () => ({ data: [{ id: "primary-model", owned_by: "test" }, { id: "fallback-model", owned_by: "test" }] }),
     }));
+  });
+
+  it("reports optional on-device eligibility while preserving the server fallback", async () => {
+    const result = await getModelCapabilities({ webGpu: true, storage: true, online: true });
+
+    expect(result.runtime.onDeviceEligible).toBe(true);
+    expect(result.runtime.fallback).toBe("server");
+    expect(result.models.every((model) => model.supportsAndroid)).toBe(true);
   });
 
   it("retries with an alternate model after the first model fails", async () => {
