@@ -138,3 +138,22 @@
 - [ ] Add Python, server, and frontend integration tests for continuity, retry, QC, buttons, and provider flows
 - [ ] Verify TypeScript, Python tests, Vitest, production build, browser smoke checks, and save final handoff checkpoint
 
+
+- [x] Add typed scene, shot, continuity packet, provenance, QC, repair, and DAG job contracts to ai_director
+- [x] Replace linear mock orchestration with continuity-aware end-state extraction, next-shot conditioning, bridge planning, transition QC, and smallest-unit repair
+- [x] Add anti-artifact warning categories and approval/repair states to the AI Director quality layer
+- [x] Replace Video Studio mock generation, timeline, storyboard, and export actions with real tRPC job state and error flows
+- [x] Add provider/BYOH capability routing, durable job telemetry, and provider quick-test UX
+- [x] Add database persistence and server procedures for scene/shot contracts, continuity snapshots, lineage, QC, and repair attempts
+- [x] Add Python, server, and frontend integration tests for continuity, retry, QC, buttons, and provider flows
+- [x] Verify TypeScript, Python tests, Vitest, production build, browser smoke checks, and save final handoff checkpoint
+
+## Phase 16: AI Director 200-Point Master Specification Upgrades
+- [ ] Phase 16A: Project Brain, source ingestion, and production constitution persistence & APIs
+- [ ] Phase 16B: Multi-scene graph DAG compiler and durable job orchestration runtime
+- [ ] Phase 16C: Advanced continuity extraction and Continuity Inspector UI
+- [ ] Phase 16D: Capability router and open-source tool plugin catalog
+- [ ] Phase 16E: Secure BYOH worker job leasing and ffmpeg media rendering pipeline
+- [ ] Phase 16F: Multi-pass QC passes, anti-artifact policy, and smallest-unit repair manager
+- [ ] Phase 16G: Director Console workspace, natural-language commands, and guest identity
+- [ ] Phase 16H: Governance, security vault, prompt-injection defense, and verification tests
