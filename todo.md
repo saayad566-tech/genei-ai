@@ -122,8 +122,8 @@
 - [x] Verify production build, TypeScript checks, and save final handoff checkpoint
 
 ## Phase 14: BYOH Runner Monitoring Dashboard, Provider Testing, and Domain Binding
-- [ ] Add real-time BYOH runner monitoring panel showing heartbeat status, hardware specs, and active workloads
-- [ ] Add live provider generation testing guidance and quick-start testing in API Integrations
+- [x] Add real-time BYOH runner monitoring panel showing heartbeat status, hardware specs, and active workloads
+- [x] Add live provider generation testing guidance and quick-start testing in API Integrations
 - [x] Add workstation runner installation helper card and copy-pasteable pairing command
-- [ ] Add custom domain binding and PWA branding status in Settings
-- [ ] Verify production build, TypeScript checks, tests, and save final handoff checkpoint
+- [x] Add custom domain binding and PWA branding status in Settings
+- [x] Verify production build, TypeScript checks, tests, and save final handoff checkpoint
