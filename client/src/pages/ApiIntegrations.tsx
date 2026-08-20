@@ -7,6 +7,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ModelRuntimeStatus } from "@/components/ModelRuntimeStatus";
+import { ByohMonitorPanel } from "@/components/ByohMonitorPanel";
 
 const providers = [
   { id: "openai", name: "OpenAI", desc: "GPT-4, DALL·E, Whisper", category: "AI", color: "oklch(0.68 0.20 155)", icon: "🤖" },
@@ -143,14 +144,11 @@ export default function ApiIntegrations() {
             <p className="mt-2 text-[10px] text-muted-foreground">Keep this token private. The runner will report its installed tools and GPU capabilities after its first heartbeat.</p>
           </div>
         )}
-        <div className="space-y-2">
-          {(runners ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No workstations paired yet.</p> : (runners ?? []).map((runner) => (
-            <div key={runner.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-              <div className="flex-1 min-w-[180px]"><div className="text-sm font-medium text-foreground">{runner.name}</div><div className="text-[10px] text-muted-foreground">{runner.platform} · {runner.status} · {runner.lastHeartbeat ? `heartbeat ${new Date(runner.lastHeartbeat).toLocaleString()}` : "awaiting first heartbeat"}</div></div>
-              <div className="text-[10px] text-muted-foreground">{runnerCapabilitySummary(runner.capabilities)}</div>
-              {runner.status !== "revoked" && <button type="button" onClick={() => revokeRunnerMutation.mutate({ id: runner.id })} className="rounded-lg border border-destructive/30 px-2 py-1 text-[10px] text-destructive">Revoke</button>}
-            </div>
-          ))}
+        <div className="space-y-6 pt-2">
+          <div className="rounded-lg bg-black/40 border border-border p-3 font-mono text-[11px] text-primary flex items-center justify-between">
+            <span>python -m ai_director.runner_installer --server-url {window.location.origin} --token YOUR_TOKEN</span>
+          </div>
+          <ByohMonitorPanel />
         </div>
       </div>
 

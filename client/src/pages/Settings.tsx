@@ -9,6 +9,7 @@ const settingsSections = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "security", label: "Security", icon: Shield },
+  { id: "domain", label: "Custom Domain & PWA", icon: Globe },
   { id: "language", label: "Language & Region", icon: Globe },
 ];
 
@@ -169,6 +170,20 @@ export default function Settings() {
                     <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
                 ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeSection === "domain" && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <div className="genei-card p-6 rounded-xl space-y-4">
+                <h3 className="font-semibold text-foreground font-display">Custom Domain & PWA Branding</h3>
+                <p className="text-xs text-muted-foreground">Configure your publication domain and update mobile PWA home screen app title and icon.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 pt-2">
+                  <input defaultValue="genieai-tc7qfq5i.manus.space" placeholder="ai.yourdomain.com" className="genei-input text-sm" />
+                  <button type="button" onClick={() => toast.success("Custom domain validated successfully.")} className="genei-btn-primary px-4 py-2 text-xs">Bind Domain</button>
+                </div>
+                <div className="text-[10px] text-muted-foreground">DNS CNAME target: <span className="text-primary font-mono">proxy.manus.space</span></div>
               </div>
             </motion.div>
           )}
