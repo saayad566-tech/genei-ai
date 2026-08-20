@@ -103,3 +103,45 @@ def test_gpu_probe_falls_back_when_nvidia_tool_is_unavailable(monkeypatch):
 
     monkeypatch.setattr(runner_client.shutil, "which", lambda name: None)
     assert runner_client._nvidia_gpus() == []
+
+
+def test_clip_to_clip_continuity_packet_is_passed_to_next_shot():
+    from ai_director.continuity import condition_next_shot
+    project = Project(id="continuity-1", title="Continuity", brief="A runner continues along a path")
+    project = AIDirector(project).decompose_brief()
+    previous, current = project.scenes[0].shots
+    previous.end_continuity = __import__("ai_director.continuity", fromlist=["build_continuity_packet"]).build_continuity_packet(previous, project.scenes[0], reference_frame_url="frame://end")
+    condition_next_shot(current, previous.end_continuity)
+    assert current.start_continuity is previous.end_continuity
+    assert "CONTINUITY_CONTEXT" in current.prompt
+    assert current.contract.continuity_constraints
+
+
+def test_transition_qc_blocks_missing_boundary_packet():
+    project = Project(id="continuity-2", title="Continuity", brief="Test")
+    project = AIDirector(project).decompose_brief()
+    previous, current = project.scenes[0].shots
+    result = EllipseScanQA().verify_transition(previous, current)
+    assert result["passed"] is False
+    assert any(f["category"] == "continuity" for f in result["findings"])
+
+
+def test_bridge_plan_keeps_previous_final_frame():
+    from ai_director.continuity import build_continuity_packet, plan_bridge
+    project = Project(id="continuity-3", title="Continuity", brief="Test")
+    project = AIDirector(project).decompose_brief()
+    previous, current = project.scenes[0].shots
+    packet = build_continuity_packet(previous, project.scenes[0], reference_frame_url="frame://end")
+    bridge = plan_bridge(previous, current, packet)
+    assert bridge["requires_overlap"] is True
+    assert bridge["reference_frame_url"] == "frame://end"
+
+
+def test_qc_reports_explicit_unavailable_analysis_warning():
+    project = Project(id="continuity-4", title="Continuity", brief="Test")
+    project = AIDirector(project).decompose_brief()
+    shot = project.scenes[0].shots[0]
+    shot.asset_url = "video://shot"
+    result = EllipseScanQA().verify_shot(shot)
+    assert result["passed"] is True
+    assert any("provenance" in f["category"] for f in result["findings"])

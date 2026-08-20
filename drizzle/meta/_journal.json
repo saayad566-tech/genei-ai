@@ -22,6 +22,13 @@
       "when": 1787266276339,
       "tag": "0002_windy_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1787269053363,
+      "tag": "0003_mysterious_energizer",
+      "breakpoints": true
     }
   ]
 }

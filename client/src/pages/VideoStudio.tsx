@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Video, Play, Pause, Film, Clapperboard, Subtitles,
@@ -6,6 +7,7 @@ import {
   AlignLeft, Mic, ChevronRight, Loader2, LayoutGrid
 } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 const videoTypes = [
   { id: "cinematic", label: "Cinematic", icon: Film, color: "oklch(0.65 0.22 285)" },
@@ -39,10 +41,47 @@ export default function VideoStudio() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [duration, setDuration] = useState(15);
+  const [projectId, setProjectId] = useState<number | null>(null);
+  const [resolution, setResolution] = useState("1080p");
+  const [format, setFormat] = useState("MP4");
+  const [fps, setFps] = useState("24");
+  const [publishTarget, setPublishTarget] = useState("download");
+  const [, navigate] = useLocation();
 
-  const handleGenerate = () => {
+  const createDirectorProject = trpc.director.createProject.useMutation();
+  const retryShot = trpc.director.retryShot.useMutation({
+    onSuccess: () => toast.success("Shot queued for targeted regeneration"),
+    onError: (error) => toast.error(error.message),
+  });
+  const createExport = trpc.exports.create.useMutation({
+    onSuccess: () => toast.success("Export queued for the configured cloud or BYOH worker"),
+    onError: (error) => toast.error(error.message),
+  });
+  const directorQuery = trpc.director.getProject.useQuery(
+    { projectId: projectId ?? 0 },
+    { enabled: projectId !== null, refetchInterval: projectId !== null ? 3000 : false },
+  );
+
+  const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Enter a video description first"); return; }
-    toast.info("Connect Runway or Pika API to generate videos", { description: "Go to API Integrations to add your keys" });
+    setIsGenerating(true);
+    try {
+      const result = await createDirectorProject.mutateAsync({
+        projectId: projectId ?? undefined,
+        title: `${videoType} production`,
+        brief: prompt.trim(),
+        aspectRatio,
+        resolution,
+        fps: Number(fps),
+      });
+      setProjectId(result.projectId);
+      setActiveTab("timeline");
+      toast.success("AI Director project queued", { description: "Scene contracts and continuity handoffs are ready." });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start the AI Director pipeline");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -94,6 +133,35 @@ export default function VideoStudio() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Main Panel */}
         <div className="xl:col-span-2 space-y-5">
+          {projectId !== null && (
+            <div className="genei-card p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-foreground">AI Director Pipeline</div>
+                  <div className="text-[10px] text-muted-foreground">Scene contracts, continuity handoffs, QC, and targeted repair status</div>
+                </div>
+                <span className="genei-badge-purple">{directorQuery.data?.project.status ?? "processing"}</span>
+              </div>
+              {(directorQuery.data?.jobs ?? []).slice(0, 3).map((job) => (
+                <div key={job.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>{job.stage} · {job.kind}</span><span>{job.progress}%</span></div>
+                  <div className="h-1.5 rounded-full bg-secondary/40 overflow-hidden"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${job.progress}%` }} /></div>
+                  {job.error && <div className="text-[10px] text-destructive">{job.error}</div>}
+                </div>
+              ))}
+              {(directorQuery.data?.shots ?? []).map((shot) => (
+                <div key={shot.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-secondary/10 px-3 py-2">
+                  <div className="min-w-0"><div className="text-xs font-medium text-foreground">{shot.shotKey}</div><div className="truncate text-[10px] text-muted-foreground">{shot.status} · {shot.routeUsed ?? "awaiting route"}</div></div>
+                  <button type="button" onClick={() => projectId !== null && retryShot.mutate({ projectId, shotId: shot.id, reason: "User requested targeted regeneration after reviewing continuity or artifact warnings." })} className="shrink-0 rounded-lg border border-border px-2 py-1 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-primary">Retry shot</button>
+                </div>
+              ))}
+              {(directorQuery.data?.qc ?? []).slice(0, 3).map((report) => (
+                <div key={report.id} className={`rounded-lg border p-2 text-[10px] ${report.passed ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300" : "border-amber-500/20 bg-amber-500/5 text-amber-200"}`}>
+                  {report.subjectKey}: {report.passed ? "passed" : "review required"} · score {report.score}
+                </div>
+              ))}
+            </div>
+          )}
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl" style={{ background: "oklch(0.12 0.015 265)", border: "1px solid oklch(0.20 0.02 265)" }}>
             {[
@@ -207,29 +275,20 @@ export default function VideoStudio() {
                 </div>
 
                 {/* Timeline tracks */}
-                <div className="space-y-2">
-                  {["Video", "Audio", "Subtitles", "Effects"].map((track, i) => (
-                    <div key={track} className="flex items-center gap-3">
-                      <div className="w-20 text-xs text-muted-foreground flex-shrink-0">{track}</div>
-                      <div className="flex-1 h-10 rounded-lg relative overflow-hidden" style={{ background: "oklch(0.14 0.02 265)" }}>
-                        {i === 0 && (
-                          <div className="absolute left-0 top-0 bottom-0 rounded-lg flex items-center px-2"
-                            style={{ width: "70%", background: "linear-gradient(90deg, oklch(0.65 0.22 285 / 0.4), oklch(0.60 0.25 310 / 0.4))", border: "1px solid oklch(0.65 0.22 285 / 0.3)" }}>
-                            <span className="text-xs text-foreground truncate">Main Clip</span>
-                          </div>
-                        )}
-                        {i === 1 && (
-                          <div className="absolute left-0 top-0 bottom-0 rounded-lg flex items-center px-2"
-                            style={{ width: "80%", background: "linear-gradient(90deg, oklch(0.72 0.18 210 / 0.4), oklch(0.68 0.20 155 / 0.4))", border: "1px solid oklch(0.72 0.18 210 / 0.3)" }}>
-                            <span className="text-xs text-foreground truncate">Background Music</span>
-                          </div>
-                        )}
-                        {i === 2 && (
-                          <div className="absolute left-4 top-0 bottom-0 rounded-lg flex items-center px-2"
-                            style={{ width: "60%", background: "oklch(0.78 0.18 75 / 0.3)", border: "1px solid oklch(0.78 0.18 75 / 0.3)" }}>
-                            <span className="text-xs text-foreground truncate">Auto Captions</span>
-                          </div>
-                        )}
+                <div className="space-y-3">
+                  {(directorQuery.data?.shots ?? []).length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">Generate a project to populate the continuity-aware timeline.</div>
+                  ) : (directorQuery.data?.shots ?? []).map((shot, index) => (
+                    <div key={shot.id} className="rounded-lg border border-border/70 bg-secondary/10 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0"><div className="text-xs font-semibold text-foreground">{index + 1}. {shot.shotKey}</div><div className="truncate text-[10px] text-muted-foreground">{shot.prompt}</div></div>
+                        <span className="text-[10px] text-muted-foreground">{shot.status}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-secondary/50 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-primary to-pink-500" style={{ width: `${Math.max(8, Math.min(100, 100 / Math.max(1, (directorQuery.data?.shots ?? []).length)))}%` }} /></div>
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                        <span>Continuity: {shot.startContinuity ? "conditioned" : index === 0 ? "initial" : "missing"}</span>
+                        <span>Route: {shot.routeUsed ?? "awaiting provider"}</span>
+                        <button type="button" onClick={() => projectId !== null && retryShot.mutate({ projectId, shotId: shot.id, reason: "Timeline review requested a continuity-safe regeneration." })} className="ml-auto rounded-md border border-border px-2 py-1 hover:border-primary/50 hover:text-primary">Regenerate boundary</button>
                       </div>
                     </div>
                   ))}
@@ -255,27 +314,20 @@ export default function VideoStudio() {
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <div className="genei-card p-5 rounded-xl space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-foreground">AI Storyboard</h3>
-                  <button className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-all">
-                    <Wand2 className="w-3 h-3" /> Auto Generate
+                  <div><h3 className="font-semibold text-foreground">AI Storyboard</h3><p className="text-[10px] text-muted-foreground">Every card is a persisted shot contract, not a placeholder frame.</p></div>
+                  <button type="button" onClick={handleGenerate} disabled={isGenerating} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-primary transition-all disabled:opacity-50">
+                    {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />} Generate storyboard
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {storyboardFrames.map((frame) => (
-                    <div key={frame.id} className="rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-all cursor-pointer group">
-                      <div className="aspect-video flex items-center justify-center"
-                        style={{ background: `linear-gradient(135deg, oklch(${0.10 + frame.id * 0.01} 0.015 ${265 + frame.id * 5}), oklch(${0.14 + frame.id * 0.01} 0.02 ${285 + frame.id * 5}))` }}>
-                        <Clapperboard className="w-8 h-8 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
-                      </div>
-                      <div className="p-2.5">
-                        <div className="text-xs font-medium text-foreground">{frame.id}. {frame.label}</div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">{frame.desc}</div>
-                      </div>
+                  {(directorQuery.data?.shots ?? []).length === 0 ? (
+                    <div className="col-span-full rounded-xl border-2 border-dashed border-border p-8 text-center text-xs text-muted-foreground">No storyboard yet. Generate a video to create scene-by-scene cards.</div>
+                  ) : (directorQuery.data?.shots ?? []).map((shot, index) => (
+                    <div key={shot.id} className="rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-all group">
+                      <div className="aspect-video flex items-center justify-center bg-gradient-to-br from-primary/10 to-pink-500/10"><Clapperboard className="w-8 h-8 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" /></div>
+                      <div className="p-2.5"><div className="text-xs font-medium text-foreground">{index + 1}. {shot.shotKey}</div><div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{shot.prompt}</div><div className="mt-2 text-[10px] text-primary">{shot.startContinuity ? "Continuity conditioned" : "Opening boundary"}</div></div>
                     </div>
                   ))}
-                  <div className="rounded-xl border-2 border-dashed border-border hover:border-primary/40 transition-all cursor-pointer flex items-center justify-center aspect-video">
-                    <Plus className="w-6 h-6 text-muted-foreground" />
-                  </div>
                 </div>
               </div>
             </motion.div>
@@ -302,7 +354,7 @@ export default function VideoStudio() {
                   </div>
                 </div>
                 <button
-                  onClick={() => toast.info(`Go to API Integrations to connect ${int.name}`)}
+                  onClick={() => navigate(`/api?provider=${int.name.toLowerCase()}`)}
                   className="text-xs px-3 py-1.5 rounded-lg border border-border hover:border-primary/40 text-muted-foreground hover:text-primary transition-all"
                 >
                   Connect
@@ -320,13 +372,21 @@ export default function VideoStudio() {
             ].map((setting) => (
               <div key={setting.label}>
                 <label className="text-xs text-muted-foreground mb-1 block">{setting.label}</label>
-                <select className="w-full genei-input text-sm py-2">
-                  {setting.options.map(o => <option key={o}>{o}</option>)}
-                </select>
+                    <select value={setting.label === "Resolution" ? resolution : setting.label === "Format" ? format : fps} onChange={(e) => setting.label === "Resolution" ? setResolution(e.target.value) : setting.label === "Format" ? setFormat(e.target.value) : setFps(e.target.value)} className="w-full genei-input text-sm py-2">
+                      {setting.options.map(o => <option key={o}>{o}</option>)}
+                    </select>
               </div>
             ))}
-            <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
-              <Download className="w-4 h-4" /> Export Video
+            <select value={publishTarget} onChange={(e) => setPublishTarget(e.target.value)} className="w-full genei-input text-sm py-2">
+              <option value="download">Download file</option>
+              <option value="byoh">Render on paired BYOH runner</option>
+              <option value="cloud">Render on configured cloud provider</option>
+            </select>
+            <button type="button" disabled={projectId === null || createExport.isPending} onClick={() => {
+              if (projectId === null) { toast.error("Generate a project before exporting"); return; }
+              createExport.mutate({ projectId, format: format.toLowerCase(), preset: `${resolution}-${fps}fps`, publishTarget });
+            }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all disabled:opacity-50">
+              {createExport.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} {projectId === null ? "Generate a project to export" : "Queue Export"}
             </button>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { generateWithModel, getModelCapabilities } from "./modelGateway";
 import { checkVideoProviderHealth } from "./videoProviders";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
-import { assets, apiKeys, byohRunners, chatMessages, exportJobs, projects } from "../drizzle/schema";
+import { assets, apiKeys, byohRunners, chatMessages, exportJobs, projects, directorScenes, directorShots, directorJobs, directorQcReports } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import * as crypto from "crypto";
@@ -506,6 +506,146 @@ export const appRouter = router({
           status: "queued",
         });
         return { id: Number(result[0].insertId), status: "queued" as const, message: "Export queued for a configured cloud or BYOH worker." };
+      }),
+  }),
+
+  // ── AI Director / Continuity Pipeline ───────────────────────────────────
+  director: router({
+    createProject: protectedProcedure
+      .input(z.object({
+        projectId: z.number().optional(),
+        title: z.string().min(1).max(255),
+        brief: z.string().min(1).max(10000),
+        aspectRatio: z.string().default("16:9"),
+        resolution: z.string().default("1080p"),
+        fps: z.number().int().min(1).max(120).default(24),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        let projectId = input.projectId;
+        if (projectId) {
+          const owned = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.userId, ctx.user.id))).limit(1);
+          if (!owned.length) throw new Error("Project not found");
+          await db.update(projects).set({ status: "processing", metadata: JSON.stringify({ aspectRatio: input.aspectRatio, resolution: input.resolution, fps: input.fps, director: "continuity-v1" }) }).where(and(eq(projects.id, projectId), eq(projects.userId, ctx.user.id)));
+        } else {
+          const created = await db.insert(projects).values({
+            userId: ctx.user.id,
+            title: input.title,
+            type: "video",
+            description: input.brief,
+            status: "processing",
+            metadata: JSON.stringify({ aspectRatio: input.aspectRatio, resolution: input.resolution, fps: input.fps, director: "continuity-v1" }),
+          });
+          projectId = Number(created[0].insertId);
+        }
+
+        const scene = await db.insert(directorScenes).values({
+          userId: ctx.user.id,
+          projectId,
+          sceneKey: "scene-1",
+          sceneIndex: 1,
+          title: "Introduction",
+          objective: `Establish setting and premise for: ${input.brief}`,
+          location: "Cinematic Studio",
+          timeOfDay: "Day",
+          status: "pending",
+          contract: JSON.stringify({ acceptanceCriteria: ["Setting is legible", "Character identity is stable"], boundaryConstraints: ["Preserve location, lighting, and camera axis"] }),
+        });
+        const sceneId = Number(scene[0].insertId);
+        const firstShot = await db.insert(directorShots).values({
+          userId: ctx.user.id,
+          projectId,
+          sceneId,
+          shotKey: "shot-1-1",
+          sequenceIndex: 1,
+          prompt: `Cinematic wide establishing shot: ${input.brief}; action: establishing movement`,
+          status: "pending",
+          contract: JSON.stringify({ acceptanceCriteria: ["Wide establishing composition", "Readable movement direction"], continuityConstraints: ["Create a stable end frame for the next shot"] }),
+        });
+        const firstShotId = Number(firstShot[0].insertId);
+        const secondShot = await db.insert(directorShots).values({
+          userId: ctx.user.id,
+          projectId,
+          sceneId,
+          shotKey: "shot-1-2",
+          sequenceIndex: 2,
+          prompt: "Close-up character portrait with cinematic lighting and expressive emotion; action: continue movement from previous shot",
+          status: "pending",
+          contract: JSON.stringify({ requiredInputs: ["shot-1-1.end_continuity"], dependencyIds: ["shot-1-1"], acceptanceCriteria: ["Match previous character identity", "Preserve camera axis and light"], continuityConstraints: ["Previous shot end state is mandatory conditioning"] }),
+        });
+        const secondShotId = Number(secondShot[0].insertId);
+        const job = await db.insert(directorJobs).values({
+          userId: ctx.user.id,
+          projectId,
+          sceneId,
+          kind: "project",
+          stage: "planning",
+          status: "queued",
+          progress: 0,
+          metadata: JSON.stringify({ shotIds: [firstShotId, secondShotId], continuityRequired: true }),
+        });
+        return { projectId, sceneId, shotIds: [firstShotId, secondShotId], jobId: Number(job[0].insertId), status: "queued" as const };
+      }),
+
+    getProject: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return null;
+        const owned = await db.select().from(projects).where(and(eq(projects.id, input.projectId), eq(projects.userId, ctx.user.id))).limit(1);
+        if (!owned.length) return null;
+        const scenes = await db.select().from(directorScenes).where(and(eq(directorScenes.projectId, input.projectId), eq(directorScenes.userId, ctx.user.id))).orderBy(directorScenes.sceneIndex);
+        const shots = await db.select().from(directorShots).where(and(eq(directorShots.projectId, input.projectId), eq(directorShots.userId, ctx.user.id))).orderBy(directorShots.sequenceIndex);
+        const jobs = await db.select().from(directorJobs).where(and(eq(directorJobs.projectId, input.projectId), eq(directorJobs.userId, ctx.user.id))).orderBy(desc(directorJobs.createdAt));
+        const qc = await db.select().from(directorQcReports).where(and(eq(directorQcReports.projectId, input.projectId), eq(directorQcReports.userId, ctx.user.id))).orderBy(desc(directorQcReports.createdAt));
+        return { project: owned[0], scenes, shots, jobs, qc };
+      }),
+
+    jobs: protectedProcedure
+      .input(z.object({ projectId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const where = input.projectId ? and(eq(directorJobs.userId, ctx.user.id), eq(directorJobs.projectId, input.projectId)) : eq(directorJobs.userId, ctx.user.id);
+        return db.select().from(directorJobs).where(where).orderBy(desc(directorJobs.updatedAt)).limit(100);
+      }),
+
+    updateJob: protectedProcedure
+      .input(z.object({ id: z.number(), status: z.enum(["queued", "running", "paused", "completed", "failed", "blocked", "cancelled"]), stage: z.string().max(64), progress: z.number().int().min(0).max(100), error: z.string().max(2000).optional(), metadata: z.any().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        await db.update(directorJobs).set({ status: input.status, stage: input.stage, progress: input.progress, error: input.error, metadata: input.metadata === undefined ? undefined : JSON.stringify(input.metadata), updatedAt: new Date() }).where(and(eq(directorJobs.id, input.id), eq(directorJobs.userId, ctx.user.id)));
+        return { success: true };
+      }),
+
+    saveBoundary: protectedProcedure
+      .input(z.object({ shotId: z.number(), startContinuity: z.any().optional(), endContinuity: z.any().optional(), assetUrl: z.string().max(2000).optional(), finalFrameUrl: z.string().max(2000).optional(), routeUsed: z.string().max(128).optional(), status: z.enum(["pending", "generating", "generated", "needs_review", "approved", "failed"]).optional(), qaScore: z.number().int().min(0).max(100).optional(), provenance: z.any().optional(), lineage: z.any().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        await db.update(directorShots).set({ startContinuity: input.startContinuity === undefined ? undefined : JSON.stringify(input.startContinuity), endContinuity: input.endContinuity === undefined ? undefined : JSON.stringify(input.endContinuity), assetUrl: input.assetUrl, finalFrameUrl: input.finalFrameUrl, routeUsed: input.routeUsed, status: input.status, qaScore: input.qaScore, provenance: input.provenance === undefined ? undefined : JSON.stringify(input.provenance), lineage: input.lineage === undefined ? undefined : JSON.stringify(input.lineage), updatedAt: new Date() }).where(and(eq(directorShots.id, input.shotId), eq(directorShots.userId, ctx.user.id)));
+        return { success: true };
+      }),
+
+    saveQc: protectedProcedure
+      .input(z.object({ projectId: z.number(), sceneId: z.number().optional(), shotId: z.number().optional(), subjectKey: z.string().max(255), transition: z.boolean().default(false), passed: z.boolean(), score: z.number().int().min(0).max(100), findings: z.any().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const result = await db.insert(directorQcReports).values({ userId: ctx.user.id, projectId: input.projectId, sceneId: input.sceneId, shotId: input.shotId, subjectKey: input.subjectKey, transition: input.transition, passed: input.passed, score: input.score, findings: input.findings === undefined ? undefined : JSON.stringify(input.findings) });
+        return { id: Number(result[0].insertId), success: true };
+      }),
+
+    retryShot: protectedProcedure
+      .input(z.object({ projectId: z.number(), shotId: z.number(), reason: z.string().min(1).max(2000) }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const result = await db.insert(directorJobs).values({ userId: ctx.user.id, projectId: input.projectId, shotId: input.shotId, kind: "repair", stage: "shot_generation", status: "queued", progress: 0, attempt: 1, metadata: JSON.stringify({ reason: input.reason, policy: "regenerate_smallest_failed_unit" }) });
+        await db.update(directorShots).set({ status: "generating", updatedAt: new Date() }).where(and(eq(directorShots.id, input.shotId), eq(directorShots.userId, ctx.user.id)));
+        return { jobId: Number(result[0].insertId), status: "queued" as const };
       }),
   }),
 

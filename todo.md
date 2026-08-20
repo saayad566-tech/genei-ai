@@ -127,3 +127,14 @@
 - [x] Add workstation runner installation helper card and copy-pasteable pairing command
 - [x] Add custom domain binding and PWA branding status in Settings
 - [x] Verify production build, TypeScript checks, tests, and save final handoff checkpoint
+
+## Phase 15: Continuity-Aware AI Director and Video Pipeline Upgrade
+- [ ] Add typed scene, shot, continuity packet, provenance, QC, repair, and DAG job contracts to ai_director
+- [ ] Replace linear mock orchestration with continuity-aware end-state extraction, next-shot conditioning, bridge planning, transition QC, and smallest-unit repair
+- [ ] Add anti-artifact warning categories and approval/repair states to the AI Director quality layer
+- [ ] Replace Video Studio mock generation, timeline, storyboard, and export actions with real tRPC job state and error flows
+- [ ] Add provider/BYOH capability routing, durable job telemetry, and provider quick-test UX
+- [ ] Add database persistence and server procedures for scene/shot contracts, continuity snapshots, lineage, QC, and repair attempts
+- [ ] Add Python, server, and frontend integration tests for continuity, retry, QC, buttons, and provider flows
+- [ ] Verify TypeScript, Python tests, Vitest, production build, browser smoke checks, and save final handoff checkpoint
+

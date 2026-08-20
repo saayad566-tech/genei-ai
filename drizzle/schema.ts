@@ -106,6 +106,90 @@ export const exportJobs = mysqlTable("export_jobs", {
 export type ExportJob = typeof exportJobs.$inferSelect;
 export type InsertExportJob = typeof exportJobs.$inferInsert;
 
+export const directorScenes = mysqlTable("director_scenes", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
+  sceneKey: varchar("sceneKey", { length: 128 }).notNull(),
+  sceneIndex: int("sceneIndex").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  objective: text("objective"),
+  location: varchar("location", { length: 255 }),
+  timeOfDay: varchar("timeOfDay", { length: 64 }),
+  status: mysqlEnum("status", ["pending", "generating", "stitched", "needs_review", "completed", "failed"]).default("pending").notNull(),
+  contract: text("contract"),
+  startContinuity: text("startContinuity"),
+  endContinuity: text("endContinuity"),
+  finalVideoUrl: text("finalVideoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DirectorScene = typeof directorScenes.$inferSelect;
+export type InsertDirectorScene = typeof directorScenes.$inferInsert;
+
+export const directorShots = mysqlTable("director_shots", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
+  sceneId: int("sceneId").notNull(),
+  shotKey: varchar("shotKey", { length: 128 }).notNull(),
+  sequenceIndex: int("sequenceIndex").notNull(),
+  prompt: text("prompt").notNull(),
+  status: mysqlEnum("status", ["pending", "generating", "generated", "needs_review", "approved", "failed"]).default("pending").notNull(),
+  contract: text("contract"),
+  startContinuity: text("startContinuity"),
+  endContinuity: text("endContinuity"),
+  provenance: text("provenance"),
+  lineage: text("lineage"),
+  assetUrl: text("assetUrl"),
+  finalFrameUrl: text("finalFrameUrl"),
+  routeUsed: varchar("routeUsed", { length: 128 }),
+  qaScore: int("qaScore").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DirectorShot = typeof directorShots.$inferSelect;
+export type InsertDirectorShot = typeof directorShots.$inferInsert;
+
+export const directorJobs = mysqlTable("director_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
+  sceneId: int("sceneId"),
+  shotId: int("shotId"),
+  kind: varchar("kind", { length: 64 }).notNull(),
+  stage: varchar("stage", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["queued", "running", "paused", "completed", "failed", "blocked", "cancelled"]).default("queued").notNull(),
+  progress: int("progress").default(0).notNull(),
+  attempt: int("attempt").default(0).notNull(),
+  error: text("error"),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DirectorJob = typeof directorJobs.$inferSelect;
+export type InsertDirectorJob = typeof directorJobs.$inferInsert;
+
+export const directorQcReports = mysqlTable("director_qc_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
+  sceneId: int("sceneId"),
+  shotId: int("shotId"),
+  subjectKey: varchar("subjectKey", { length: 255 }).notNull(),
+  transition: boolean("transition").default(false).notNull(),
+  passed: boolean("passed").default(false).notNull(),
+  score: int("score").default(0).notNull(),
+  findings: text("findings"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DirectorQcReport = typeof directorQcReports.$inferSelect;
+export type InsertDirectorQcReport = typeof directorQcReports.$inferInsert;
+
 export const chatMessages = mysqlTable("chat_messages", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
