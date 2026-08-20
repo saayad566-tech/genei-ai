@@ -113,3 +113,10 @@
 - [x] Add Python tests for Linux, macOS, and Windows hardware probe paths and unavailable-tool fallbacks
 - [x] Add server/UI coverage for structured runner hardware metadata acceptance and summary rendering
 
+
+## Phase 13: Provider Generation Adapters, Runner Installers, and Signed EXE/APK Packaging
+- [x] Implement provider-specific video generation submit, poll, and content adapters for Runway, Pika, Kling, and HeyGen
+- [x] Implement secure BYOH runner installer script and auto-update client capability
+- [x] Prepare native Windows EXE PyInstaller spec/build scripts and Android APK Capacitor/Gradle configuration
+- [x] Add unit and integration tests for generation adapters, runner installers, and native packaging contracts
+- [x] Verify production build, TypeScript checks, and save final handoff checkpoint
