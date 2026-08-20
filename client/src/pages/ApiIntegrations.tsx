@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Key, Plus, Trash2, Check, X, Shield,
-  Activity, DollarSign, ChevronDown, Loader2, Edit2, Zap
+  Activity, DollarSign, ChevronDown, Loader2, Edit2, Zap, Monitor, Copy
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -25,11 +25,29 @@ const providers = [
 
 const categories = ["All", "AI", "Music", "Video", "Image", "Voice"];
 
+export function runnerCapabilitySummary(value: string | null) {
+  if (!value) return "No capabilities reported";
+  try {
+    const parsed = JSON.parse(value) as { tools?: string[]; hardware?: { gpu_count?: number; ram_mb?: number | null } };
+    if (Array.isArray(parsed)) return `${parsed.length} capabilities`;
+    const tools = parsed.tools?.length ?? 0;
+    const gpuCount = parsed.hardware?.gpu_count ?? 0;
+    const ram = parsed.hardware?.ram_mb ? ` · ${Math.round(parsed.hardware.ram_mb / 1024)} GB RAM` : "";
+    return `${tools} tools · ${gpuCount} GPU${gpuCount === 1 ? "" : "s"}${ram}`;
+  } catch {
+    return "Capability metadata unavailable";
+  }
+}
+
 export default function ApiIntegrations() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [addingProvider, setAddingProvider] = useState<string | null>(null);
   const [newKey, setNewKey] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  const [healthByKey, setHealthByKey] = useState<Record<number, { status: string; message: string }>>({});
+  const [runnerName, setRunnerName] = useState("");
+  const [runnerPlatform, setRunnerPlatform] = useState("Windows");
+  const [pairedToken, setPairedToken] = useState<string | null>(null);
 
   const { data: apiKeys, refetch } = trpc.apiKeys.list.useQuery();
   const addKeyMutation = trpc.apiKeys.add.useMutation({
@@ -41,6 +59,21 @@ export default function ApiIntegrations() {
   });
   const toggleKeyMutation = trpc.apiKeys.toggle.useMutation({
     onSuccess: () => refetch(),
+  });
+  const { data: runners, refetch: refetchRunners } = trpc.runners.list.useQuery();
+  const pairRunnerMutation = trpc.runners.pair.useMutation({
+    onSuccess: (result) => { setPairedToken(result.token); setRunnerName(""); refetchRunners(); toast.success("BYOH runner paired. Copy the token into the runner once."); },
+    onError: (error) => toast.error(error.message || "Unable to pair runner"),
+  });
+  const revokeRunnerMutation = trpc.runners.revoke.useMutation({
+    onSuccess: () => { refetchRunners(); toast.success("Runner revoked"); },
+  });
+  const healthCheckMutation = trpc.apiKeys.healthCheck.useMutation({
+    onSuccess: (result, variables) => {
+      setHealthByKey((previous) => ({ ...previous, [variables.id]: result }));
+      toast[result.status === "healthy" ? "success" : "warning"](result.message);
+    },
+    onError: (error) => toast.error(error.message || "Provider health check failed"),
   });
 
   const filteredProviders = providers.filter(p =>
@@ -85,6 +118,42 @@ export default function ApiIntegrations() {
 
       <ModelRuntimeStatus />
 
+      <div className="genei-card rounded-xl p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15"><Monitor className="h-5 w-5 text-primary" /></div>
+          <div className="flex-1">
+            <h2 className="font-semibold text-foreground font-display">Bring Your Own Hardware</h2>
+            <p className="text-xs text-muted-foreground">Pair a workstation to run heavy video, image, audio, and upscaling tools locally. The runner connects outbound and never receives provider secrets.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_auto] gap-2">
+          <input value={runnerName} onChange={(event) => setRunnerName(event.target.value)} placeholder="Workstation name" className="genei-input text-sm" />
+          <select value={runnerPlatform} onChange={(event) => setRunnerPlatform(event.target.value)} className="genei-input text-sm">
+            <option>Windows</option><option>macOS</option><option>Linux</option>
+          </select>
+          <button type="button" disabled={!runnerName.trim() || pairRunnerMutation.isPending} onClick={() => pairRunnerMutation.mutate({ name: runnerName.trim(), platform: runnerPlatform })} className="genei-btn-primary min-h-11 px-4 text-sm disabled:opacity-50">{pairRunnerMutation.isPending ? "Pairing..." : "Pair workstation"}</button>
+        </div>
+        {pairedToken && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <div className="text-xs font-semibold text-foreground">Copy this one-time runner token</div>
+            <div className="mt-2 flex gap-2">
+              <code className="flex-1 overflow-x-auto rounded bg-black/30 p-2 text-[11px] text-primary">{pairedToken}</code>
+              <button type="button" onClick={() => { void navigator.clipboard?.writeText(pairedToken); toast.success("Runner token copied"); }} className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground" aria-label="Copy runner token"><Copy className="h-4 w-4" /></button>
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">Keep this token private. The runner will report its installed tools and GPU capabilities after its first heartbeat.</p>
+          </div>
+        )}
+        <div className="space-y-2">
+          {(runners ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No workstations paired yet.</p> : (runners ?? []).map((runner) => (
+            <div key={runner.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+              <div className="flex-1 min-w-[180px]"><div className="text-sm font-medium text-foreground">{runner.name}</div><div className="text-[10px] text-muted-foreground">{runner.platform} · {runner.status} · {runner.lastHeartbeat ? `heartbeat ${new Date(runner.lastHeartbeat).toLocaleString()}` : "awaiting first heartbeat"}</div></div>
+              <div className="text-[10px] text-muted-foreground">{runnerCapabilitySummary(runner.capabilities)}</div>
+              {runner.status !== "revoked" && <button type="button" onClick={() => revokeRunnerMutation.mutate({ id: runner.id })} className="rounded-lg border border-destructive/30 px-2 py-1 text-[10px] text-destructive">Revoke</button>}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Category Filter */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {categories.map((cat) => (
@@ -127,11 +196,20 @@ export default function ApiIntegrations() {
                         Key stored securely · never exposed to the browser
                       </span>
                     </div>
+                    {healthByKey[existingKey.id] && (
+                      <div className={`rounded-lg px-2.5 py-2 text-[10px] ${healthByKey[existingKey.id].status === "healthy" ? "bg-green-500/10 text-green-400" : "bg-amber-500/10 text-amber-300"}`}>
+                        {healthByKey[existingKey.id].message}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Activity className="w-3 h-3" /> {existingKey.usageCount} calls
                       </span>
                       <div className="flex items-center gap-1">
+                        <button onClick={() => healthCheckMutation.mutate({ id: existingKey.id })} disabled={healthCheckMutation.isPending}
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-all">
+                          {healthCheckMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test
+                        </button>
                         <button onClick={() => toggleKeyMutation.mutate({ id: existingKey.id })}
                           className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${existingKey.isActive ? "bg-green-500/20 text-green-400" : "bg-secondary text-muted-foreground"}`}>
                           {existingKey.isActive ? "Active" : "Inactive"}

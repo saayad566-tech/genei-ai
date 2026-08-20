@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InstallPwaButton } from "./InstallPwaButton";
 import { ModelRuntimeStatus } from "./ModelRuntimeStatus";
 import ImageGenerator from "@/pages/ImageGenerator";
+import { runnerCapabilitySummary } from "@/pages/ApiIntegrations";
 import { VoicePromptButton } from "./VoicePromptButton";
 
 const { generateImageMutation, importRemoteMutation } = vi.hoisted(() => ({
@@ -93,6 +94,10 @@ describe("Android/PWA frontend flows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Download" }));
     expect(downloadSpy).toHaveBeenCalledTimes(1);
     downloadSpy.mockRestore();
+  });
+
+  it("summarizes structured BYOH hardware metadata for the dashboard", () => {
+    expect(runnerCapabilitySummary(JSON.stringify({ tools: ["ffmpeg", "gpu"], hardware: { gpu_count: 1, ram_mb: 65536 } }))).toBe("2 tools · 1 GPU · 64 GB RAM");
   });
 
   it("captures a voice transcript and exposes a stop control", () => {

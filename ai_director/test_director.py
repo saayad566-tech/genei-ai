@@ -49,3 +49,57 @@ def test_full_pipeline_orchestration():
     assert result.status == "completed"
     assert len(result.scenes) > 0
     assert result.scenes[0].final_video_url is not None
+
+
+def test_byoh_capability_discovery(monkeypatch):
+    from ai_director.runner_client import discover_capabilities
+
+    monkeypatch.setenv("GENEI_FFMPEG", "ffmpeg")
+    capabilities = discover_capabilities()
+    assert "local-python" in capabilities
+    assert "local-media-pipeline" in capabilities
+    assert "ffmpeg" in capabilities
+
+
+def test_linux_memory_probe(monkeypatch):
+    import builtins
+    from unittest.mock import mock_open
+    import ai_director.runner_client as runner_client
+
+    monkeypatch.setattr(runner_client.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(builtins, "open", mock_open(read_data="MemTotal:       16384000 kB\n"))
+    assert runner_client._memory_mb() == 16000
+
+
+def test_macos_memory_and_gpu_probe(monkeypatch):
+    import json
+    import ai_director.runner_client as runner_client
+
+    monkeypatch.setattr(runner_client.platform, "system", lambda: "Darwin")
+    responses = iter(["17179869184", json.dumps({"SPDisplaysDataType": [{"sppci_model": "Apple M GPU", "spdisplays_vram": "8192 MB"}]})])
+    monkeypatch.setattr(runner_client, "_run_probe", lambda args, timeout=8: next(responses))
+    assert runner_client._memory_mb() == 16384
+    gpus = runner_client._mac_gpus()
+    assert gpus[0]["name"] == "Apple M GPU"
+    assert gpus[0]["vram_mb"] == "8192"
+
+
+def test_windows_memory_and_gpu_probe(monkeypatch):
+    import json
+    import ai_director.runner_client as runner_client
+
+    monkeypatch.setattr(runner_client.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(runner_client.shutil, "which", lambda name: "pwsh" if name in {"pwsh", "powershell"} else None)
+    responses = iter(["34359738368", json.dumps({"Name": "Windows Test GPU", "AdapterRAM": 17179869184})])
+    monkeypatch.setattr(runner_client, "_run_probe", lambda args, timeout=8: next(responses))
+    assert runner_client._memory_mb() == 32768
+    gpus = runner_client._windows_gpus()
+    assert gpus[0]["name"] == "Windows Test GPU"
+    assert gpus[0]["vram_mb"] == "16384"
+
+
+def test_gpu_probe_falls_back_when_nvidia_tool_is_unavailable(monkeypatch):
+    import ai_director.runner_client as runner_client
+
+    monkeypatch.setattr(runner_client.shutil, "which", lambda name: None)
+    assert runner_client._nvidia_gpus() == []

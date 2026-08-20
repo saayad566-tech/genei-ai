@@ -112,6 +112,24 @@ describe("apiKeys", () => {
   });
 });
 
+describe("runners", () => {
+  it("list returns an array for an authenticated user", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.runners.list();
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("exports", () => {
+  it("list returns an array for an authenticated user", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.exports.list();
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
 describe("chat", () => {
   it("history returns array when DB is unavailable", async () => {
     const { ctx } = createAuthContext();

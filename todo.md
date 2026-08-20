@@ -99,3 +99,17 @@
 - Primary project: `/home/ubuntu/genei-ai`
 - PWA prototype/reference: `/home/ubuntu/unified-platform`
 - Android model support means mobile-compatible server-side model routing by default; optional local inference is capability-gated.
+
+## Phase 12: BYOK Video Models, BYOH Workstation Runners, and Export Center
+- [x] Add live BYOK video provider schemas and health check procedures
+- [x] Implement BYOH runner pairing state and hardware capability inspection
+- [x] Upgrade Export Center with multi-resolution presets and publishing destinations
+- [x] Add unit and integration tests for the new BYOK, BYOH, and Export flows
+- [x] Verify production build, TypeScript checks, and save final handoff checkpoint
+- [x] Add concrete Runway and Pika BYOK health adapters using verified official endpoint/config contracts
+- [x] Expand BYOH hardware inspection for Windows, macOS, and Linux CPU, RAM, GPU, VRAM, and tools
+- [x] Add provider-path and cross-platform hardware inspection tests
+
+- [x] Add Python tests for Linux, macOS, and Windows hardware probe paths and unavailable-tool fallbacks
+- [x] Add server/UI coverage for structured runner hardware metadata acceptance and summary rendering
+

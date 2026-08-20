@@ -4,9 +4,10 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { generateImage } from "./_core/imageGeneration";
 import { generateWithModel, getModelCapabilities } from "./modelGateway";
+import { checkVideoProviderHealth } from "./videoProviders";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
-import { assets, apiKeys, chatMessages, projects } from "../drizzle/schema";
+import { assets, apiKeys, byohRunners, chatMessages, exportJobs, projects } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import * as crypto from "crypto";
@@ -42,6 +43,34 @@ function deobfuscateKey(encoded: string): string {
   const decipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey(), iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+}
+
+type ProviderHealth = { status: "healthy" | "invalid" | "unreachable" | "unsupported" | "needs_configuration"; message: string; checkedAt: string };
+
+async function checkProviderHealth(provider: string, key: string): Promise<ProviderHealth> {
+  const checkedAt = new Date().toISOString();
+  const common: RequestInit = { signal: AbortSignal.timeout(8_000) };
+  try {
+    if (["runway", "pika", "kling", "heygen"].includes(provider)) {
+      const result = await checkVideoProviderHealth(provider, key);
+      return { status: result.status, message: `${result.message} Capabilities: ${result.capabilities.join(", ")}`, checkedAt: result.checkedAt };
+    }
+    if (provider === "openai") {
+      const response = await fetch("https://api.openai.com/v1/models", { ...common, headers: { Authorization: `Bearer ${key}` } });
+      return { status: response.ok ? "healthy" : "invalid", message: response.ok ? "OpenAI key accepted" : `OpenAI rejected the key (${response.status})`, checkedAt };
+    }
+    if (provider === "anthropic") {
+      const response = await fetch("https://api.anthropic.com/v1/models", { ...common, headers: { "x-api-key": key, "anthropic-version": "2023-06-01" } });
+      return { status: response.ok ? "healthy" : "invalid", message: response.ok ? "Anthropic key accepted" : `Anthropic rejected the key (${response.status})`, checkedAt };
+    }
+    if (provider === "elevenlabs") {
+      const response = await fetch("https://api.elevenlabs.io/v1/user", { ...common, headers: { "xi-api-key": key } });
+      return { status: response.ok ? "healthy" : "invalid", message: response.ok ? "ElevenLabs key accepted" : `ElevenLabs rejected the key (${response.status})`, checkedAt };
+    }
+    return { status: "unsupported", message: "Key is encrypted and stored. Provider-specific health validation will run when its adapter is configured.", checkedAt };
+  } catch (error) {
+    return { status: "unreachable", message: error instanceof Error ? error.message : "Provider health check failed", checkedAt };
+  }
 }
 
 export const appRouter = router({
@@ -339,6 +368,22 @@ export const appRouter = router({
         return { id: Number(result[0].insertId) };
       }),
 
+    healthCheck: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const existing = await db.select().from(apiKeys)
+          .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)))
+          .limit(1);
+        if (!existing.length) throw new Error("Key not found");
+        const health = await checkProviderHealth(existing[0].provider, deobfuscateKey(existing[0].encryptedKey));
+        if (health.status === "healthy") {
+          await db.update(apiKeys).set({ isActive: true, lastUsedAt: new Date(), updatedAt: new Date() }).where(eq(apiKeys.id, input.id));
+        }
+        return { provider: existing[0].provider, ...health };
+      }),
+
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
@@ -361,6 +406,106 @@ export const appRouter = router({
           .set({ isActive: !existing[0].isActive })
           .where(eq(apiKeys.id, input.id));
         return { success: true };
+      }),
+  }),
+
+  // ── BYOH Runners ──────────────────────────────────────────────────────────
+  runners: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select({
+        id: byohRunners.id,
+        name: byohRunners.name,
+        platform: byohRunners.platform,
+        status: byohRunners.status,
+        capabilities: byohRunners.capabilities,
+        lastHeartbeat: byohRunners.lastHeartbeat,
+        createdAt: byohRunners.createdAt,
+        updatedAt: byohRunners.updatedAt,
+      }).from(byohRunners).where(eq(byohRunners.userId, ctx.user.id)).orderBy(desc(byohRunners.updatedAt));
+    }),
+
+    pair: protectedProcedure
+      .input(z.object({ name: z.string().min(1).max(128), platform: z.string().min(1).max(64) }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const token = `genei_${crypto.randomBytes(24).toString("hex")}`;
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+        const result = await db.insert(byohRunners).values({
+          userId: ctx.user.id,
+          name: input.name,
+          platform: input.platform,
+          status: "offline",
+          pairingTokenHash: tokenHash,
+          capabilities: JSON.stringify([]),
+        });
+        return { id: Number(result[0].insertId), token, message: "Run the Genei runner with this token. It will be shown only once." };
+      }),
+
+    heartbeat: publicProcedure
+      .input(z.object({
+        token: z.string().min(20),
+        platform: z.string().min(1).max(128),
+        capabilities: z.array(z.string()).max(200),
+        hardware: z.object({
+          cpu_count: z.number().int().nullable(),
+          ram_mb: z.number().int().nullable(),
+          gpu_count: z.number().int().nonnegative(),
+          gpus: z.array(z.object({ name: z.string(), vram_mb: z.string() })).max(16),
+          platform: z.string().max(256),
+          tools: z.record(z.string(), z.boolean()),
+        }).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
+        const existing = await db.select({ id: byohRunners.id, status: byohRunners.status })
+          .from(byohRunners).where(eq(byohRunners.pairingTokenHash, tokenHash)).limit(1);
+        if (!existing.length || existing[0].status === "revoked") throw new Error("Runner token is invalid or revoked");
+        await db.update(byohRunners).set({ platform: input.platform, capabilities: JSON.stringify({ tools: input.capabilities, hardware: input.hardware ?? null }), status: "paired", lastHeartbeat: new Date(), updatedAt: new Date() }).where(eq(byohRunners.id, existing[0].id));
+        return { ok: true, runnerId: existing[0].id, receivedAt: new Date().toISOString() };
+      }),
+
+    revoke: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        await db.update(byohRunners).set({ status: "revoked", updatedAt: new Date() }).where(and(eq(byohRunners.id, input.id), eq(byohRunners.userId, ctx.user.id)));
+        return { success: true };
+      }),
+  }),
+
+  // ── Exports ───────────────────────────────────────────────────────────────
+  exports: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(exportJobs).where(eq(exportJobs.userId, ctx.user.id)).orderBy(desc(exportJobs.createdAt)).limit(50);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({
+        projectId: z.number().optional(),
+        format: z.string().min(1).max(64),
+        preset: z.string().min(1).max(64),
+        publishTarget: z.string().max(64).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const result = await db.insert(exportJobs).values({
+          userId: ctx.user.id,
+          projectId: input.projectId,
+          format: input.format,
+          preset: input.preset,
+          publishTarget: input.publishTarget,
+          status: "queued",
+        });
+        return { id: Number(result[0].insertId), status: "queued" as const, message: "Export queued for a configured cloud or BYOH worker." };
       }),
   }),
 

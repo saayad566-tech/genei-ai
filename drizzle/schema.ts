@@ -73,6 +73,39 @@ export const apiKeys = mysqlTable("api_keys", {
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
 
+export const byohRunners = mysqlTable("byoh_runners", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  platform: varchar("platform", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["paired", "offline", "revoked"]).default("paired").notNull(),
+  capabilities: text("capabilities"),
+  pairingTokenHash: varchar("pairingTokenHash", { length: 128 }).notNull(),
+  lastHeartbeat: timestamp("lastHeartbeat"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ByohRunner = typeof byohRunners.$inferSelect;
+export type InsertByohRunner = typeof byohRunners.$inferInsert;
+
+export const exportJobs = mysqlTable("export_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId"),
+  format: varchar("format", { length: 64 }).notNull(),
+  preset: varchar("preset", { length: 64 }).notNull(),
+  publishTarget: varchar("publishTarget", { length: 64 }),
+  status: mysqlEnum("status", ["queued", "processing", "completed", "failed"]).default("queued").notNull(),
+  outputUrl: text("outputUrl"),
+  error: text("error"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExportJob = typeof exportJobs.$inferSelect;
+export type InsertExportJob = typeof exportJobs.$inferInsert;
+
 export const chatMessages = mysqlTable("chat_messages", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
