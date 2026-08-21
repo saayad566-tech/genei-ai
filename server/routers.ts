@@ -6,6 +6,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { invokeLLM } from "./_core/llm";
 import { generateWithModel, getModelCapabilities } from "./modelGateway";
 import { checkVideoProviderHealth } from "./videoProviders";
+import { submitVideoGeneration, pollVideoGenerationTask } from "./videoGenerationAdapters";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
 import { assets, apiKeys, byohRunners, chatMessages, exportJobs, projects, directorScenes, directorShots, directorJobs, directorQcReports, directorNodeLogs, directorJobAssets, directorWebhookReceipts } from "../drizzle/schema";
@@ -636,6 +637,51 @@ export const appRouter = router({
           }
         }
         return { projectId, sceneId: sceneIds[0] ?? 0, sceneIds, shotIds, jobId: Number(rootJob[0].insertId), status: "queued" as const, compilerVersion: graphPlan.compilerVersion, compilerSource };
+      }),
+
+    submitProviderVideo: protectedProcedure
+      .input(z.object({
+        provider: z.enum(["runway", "pika", "kling", "heygen"]),
+        prompt: z.string().min(1).max(4000),
+        model: z.string().max(128).optional(),
+        imageUrl: z.string().url().optional(),
+        duration: z.number().int().min(2).max(15).default(5),
+        ratio: z.enum(["1280:720", "720:1280", "960:960"]).default("1280:720"),
+        jobId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await submitVideoGeneration(ctx.user.id, input);
+        const db = await getDb();
+        if (db && input.jobId) {
+          const jobs = await db.select().from(directorJobs).where(and(eq(directorJobs.id, input.jobId), eq(directorJobs.userId, ctx.user.id))).limit(1);
+          if (jobs.length) {
+            const metadata = jobs[0].metadata ? JSON.parse(jobs[0].metadata) : {};
+            metadata.provider = input.provider;
+            metadata.externalTaskId = result.taskId;
+            metadata.providerStatus = result.status;
+            if (result.error) metadata.providerError = result.error;
+            await db.update(directorJobs).set({ status: result.status === "failed" ? "failed" : "running", progress: result.status === "processing" ? 10 : 0, metadata: JSON.stringify(metadata), updatedAt: new Date() }).where(and(eq(directorJobs.id, input.jobId), eq(directorJobs.userId, ctx.user.id)));
+          }
+        }
+        return result;
+      }),
+
+    pollProviderVideo: protectedProcedure
+      .input(z.object({ provider: z.enum(["runway", "pika", "kling", "heygen"]), taskId: z.string().min(1).max(255), jobId: z.number().int().positive().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await pollVideoGenerationTask(ctx.user.id, input.provider, input.taskId);
+        const db = await getDb();
+        if (db && input.jobId) {
+          const jobs = await db.select().from(directorJobs).where(and(eq(directorJobs.id, input.jobId), eq(directorJobs.userId, ctx.user.id))).limit(1);
+          if (jobs.length) {
+            const metadata = jobs[0].metadata ? JSON.parse(jobs[0].metadata) : {};
+            metadata.providerStatus = result.status;
+            if (result.videoUrl) metadata.videoUrl = result.videoUrl;
+            if (result.error) metadata.providerError = result.error;
+            await db.update(directorJobs).set({ status: result.status === "completed" ? "completed" : result.status === "failed" ? "failed" : "running", progress: result.status === "completed" ? 100 : result.status === "processing" ? 50 : 0, metadata: JSON.stringify(metadata), updatedAt: new Date() }).where(and(eq(directorJobs.id, input.jobId), eq(directorJobs.userId, ctx.user.id)));
+          }
+        }
+        return result;
       }),
 
     getProject: protectedProcedure

@@ -226,3 +226,12 @@
 - [x] Audit and improve incomplete or misleading platform surfaces across creation, collaboration, automation, marketplace, monetization, builders, export, and the global shell
 - [x] Add beginner-focused status guidance and accessibility coverage for the audited states
 - [x] Run focused and full verification, document audit findings, and save a new checkpoint
+
+## Phase 25: Live Video Provider and LLM Verification
+- [x] Confirm official provider callback support and choose a safe live verification route
+- [x] Collect or securely resolve a real video provider API credential and configure a user-scoped provider key
+- [x] Run a real provider generation request and track its task status without exposing secrets
+- [x] Run a signed callback test against the live webhook receiver and verify receipt history, job advancement, and attention state
+- [x] Verify the LLM gateway against the live model catalog and run a real minimal generation request
+- [x] Add deterministic test coverage and document any provider/account prerequisites or blocked live steps
+- [x] Run full verification and save a final live-integration checkpoint
