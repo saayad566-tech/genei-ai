@@ -272,5 +272,5 @@
 - [x] Verify BYOK provider checks, managed LLM diagnostics, webhook/retry isolation, and truthful live-versus-preview states
 - [x] Keep custom-domain configuration optional and accurately distinguish DNS verification, platform binding, and SSL status
 - [x] Add automated Settings accessibility coverage and truthful download-state assertions; broader API Integrations/runner a11y coverage remains a follow-up
-- [x] Run full tests, TypeScript, and production build; Windows artifact validation remains pending until a Windows CI run exists
-- [ ] Trigger a Windows GitHub Actions run from a connected repository and publish the verified runner artifact with checksum and signing state
+- [x] Run full tests, TypeScript, production build, Windows Actions artifact validation, and live storage-proxy checksum validation
+- [x] Trigger a Windows GitHub Actions run from a connected private repository and publish `GeneiRunner.exe` with checksum and unsigned signing state
