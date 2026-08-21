@@ -1,4 +1,5 @@
 import { useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { Users, Plus, Mail, Crown, Shield, User, ChevronDown, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -10,27 +11,29 @@ const roles = [
   { id: "viewer", label: "Viewer", icon: User, color: "oklch(0.60 0.25 310)", desc: "View only" },
 ];
 
-const mockMembers = [
-  { id: 1, name: "You (Owner)", email: "owner@genei.ai", role: "owner", avatar: "Y", joined: "Today" },
-];
+const workspacePreviewMember = {
+  id: 1,
+  name: "Current workspace owner",
+  email: "Workspace identity appears after sign-in",
+  role: "owner",
+  avatar: "G",
+  joined: "Preview",
+};
 
 export default function TeamWorkspace() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("editor");
   const [copied, setCopied] = useState(false);
-  const inviteLink = `https://genei.ai/invite/${Math.random().toString(36).slice(2, 10)}`;
 
   const handleInvite = () => {
-    if (!inviteEmail.trim()) { toast.error("Enter an email address"); return; }
-    toast.success(`Invitation sent to ${inviteEmail}`);
-    setInviteEmail("");
+    if (!inviteEmail.trim()) { toast.error("Enter an email address first"); return; }
+    toast.info("Team invitations are in preview", { description: "The invite screen is ready, but sending and membership storage are not connected yet." });
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success("Invite link copied!");
+    toast.info("Invite links are not active yet", { description: "When team invitations are connected, Genei will create a private link here." });
   };
 
   return (
@@ -43,6 +46,7 @@ export default function TeamWorkspace() {
         <div>
           <h1 className="text-2xl font-bold font-display genei-gradient-text-cyan">Team Workspace</h1>
           <p className="text-xs text-muted-foreground">Collaborate with your team</p>
+          <span className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200">Preview — invitations not connected</span>
         </div>
       </div>
 
@@ -50,7 +54,7 @@ export default function TeamWorkspace() {
         <div className="xl:col-span-2 space-y-5">
           {/* Invite */}
           <div className="genei-card p-5 rounded-xl space-y-4">
-            <h3 className="font-semibold text-foreground font-display">Invite Team Members</h3>
+            <div><h3 className="font-semibold text-foreground font-display">Invite Team Members</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">You can prepare an invitation now. Sending and role persistence will be enabled when team storage is connected.</p></div>
             <div className="flex gap-3">
               <div className="relative flex-1">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -66,7 +70,7 @@ export default function TeamWorkspace() {
             </div>
 
             <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "oklch(0.14 0.02 265)" }}>
-              <span className="text-xs text-muted-foreground flex-1 font-mono truncate">{inviteLink}</span>
+              <span className="text-xs text-muted-foreground flex-1">Private invite link will appear here after team invitations are enabled.</span>
               <button onClick={copyLink} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-all">
                 {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? "Copied!" : "Copy Link"}
@@ -78,9 +82,9 @@ export default function TeamWorkspace() {
           <div className="genei-card rounded-xl overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
               <h3 className="font-semibold text-foreground font-display">Team Members</h3>
-              <span className="genei-badge-purple text-xs">{mockMembers.length} member{mockMembers.length !== 1 ? "s" : ""}</span>
+              <span className="genei-badge-purple text-xs">Workspace preview</span>
             </div>
-            {mockMembers.map((member) => {
+            {[workspacePreviewMember].map((member) => {
               const role = roles.find(r => r.id === member.role);
               return (
                 <div key={member.id} className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/20 transition-colors">

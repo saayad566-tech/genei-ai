@@ -13,6 +13,7 @@ const queryState = vi.hoisted(() => ({
   refetch: vi.fn(),
   lastInput: undefined as unknown,
 }));
+const summaryState = vi.hoisted(() => ({ data: { available: true, total: 0, failed: 0, received: 0, applied: 0, ignored: 0 }, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const retryState = vi.hoisted(() => ({ isPending: false, mutate: vi.fn(), options: undefined as any }));
 const authState = vi.hoisted(() => ({ isAuthenticated: true, loading: false }));
 
@@ -27,6 +28,9 @@ vi.mock("@/lib/trpc", () => ({
           queryState.lastInput = input;
           return queryState;
         },
+      },
+      getWebhookReceiptSummary: {
+        useQuery: () => summaryState,
       },
       retryWebhookReceipt: {
         useMutation: (options: unknown) => {
@@ -51,6 +55,11 @@ describe("WebhookHistoryPanel integration", () => {
     retryState.mutate.mockClear();
     retryState.options = undefined;
     retryState.isPending = false;
+    summaryState.data = { available: true, total: 0, failed: 0, received: 0, applied: 0, ignored: 0 };
+    summaryState.isLoading = false;
+    summaryState.isError = false;
+    summaryState.isFetching = false;
+    summaryState.refetch.mockClear();
     authState.isAuthenticated = true;
     authState.loading = false;
   });
@@ -65,6 +74,35 @@ describe("WebhookHistoryPanel integration", () => {
   it("shows an accessible loading state", () => {
     render(<WebhookHistoryPanel />);
     expect(screen.getByText("Loading notification history...")).toBeInTheDocument();
+  });
+
+  it("shows a zero-state badge when no failed events need attention", () => {
+    queryState.data = [];
+    queryState.isLoading = false;
+    render(<WebhookHistoryPanel />);
+    expect(screen.getByText("All deliveries clear")).toBeInTheDocument();
+  });
+
+  it("shows the authoritative failed-event badge and focuses the Failed filter", () => {
+    queryState.data = [];
+    queryState.isLoading = false;
+    summaryState.data = { available: true, total: 127, failed: 127, received: 0, applied: 0, ignored: 0 };
+    render(<WebhookHistoryPanel />);
+    const badge = screen.getByRole("button", { name: "127 failed webhook events need attention" });
+    fireEvent.click(badge);
+    expect(screen.getByRole("combobox", { name: "Filter webhook history by status" })).toHaveValue("failed");
+    expect(screen.getByText("Filters")).toBeInTheDocument();
+  });
+
+  it("refreshes the authoritative failed count after a retry result", () => {
+    queryState.data = [];
+    queryState.isLoading = false;
+    summaryState.data = { available: true, total: 1, failed: 1, received: 0, applied: 0, ignored: 0 };
+    render(<WebhookHistoryPanel />);
+    expect(screen.getByRole("button", { name: "1 failed webhook events need attention" })).toBeInTheDocument();
+    const options = retryState.options as { onSuccess: (result: { status: string }) => void };
+    options.onSuccess({ status: "applied" });
+    expect(summaryState.refetch).toHaveBeenCalledTimes(1);
   });
 
   it("shows guidance when there are no receipts", () => {

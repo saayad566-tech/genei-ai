@@ -1,19 +1,19 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ShoppingBag, Star, Download, Search, Filter, Flame, ChevronRight, Heart } from "lucide-react";
+import { ShoppingBag, Search, Filter, Flame, ChevronRight, Heart } from "lucide-react";
 import { toast } from "sonner";
 
 const categories = ["All", "Music", "Video", "Image", "App", "Website", "Voice", "Automation"];
 
 const templates = [
-  { id: 1, name: "Cyberpunk Music Pack", category: "Music", rating: 4.9, downloads: "12.4K", price: "Free", author: "ProducerX", tags: ["Hip-Hop", "Electronic"], hot: true, color: "oklch(0.65 0.22 285)" },
-  { id: 2, name: "Cinematic Video Preset", category: "Video", rating: 4.8, downloads: "8.2K", price: "$9.99", author: "FilmAI", tags: ["Cinematic", "4K"], hot: true, color: "oklch(0.60 0.25 310)" },
-  { id: 3, name: "Neon Art Style Pack", category: "Image", rating: 4.7, downloads: "21K", price: "Free", author: "ArtGen", tags: ["Neon", "Cyberpunk"], hot: false, color: "oklch(0.72 0.18 210)" },
-  { id: 4, name: "SaaS Landing Template", category: "Website", rating: 4.9, downloads: "5.6K", price: "$19.99", author: "WebAI", tags: ["SaaS", "Dark"], hot: true, color: "oklch(0.78 0.18 75)" },
-  { id: 5, name: "Voice Clone Pack", category: "Voice", rating: 4.6, downloads: "3.1K", price: "$14.99", author: "VoiceAI", tags: ["TTS", "Clone"], hot: false, color: "oklch(0.68 0.20 155)" },
-  { id: 6, name: "Social Media Automation", category: "Automation", rating: 4.8, downloads: "9.7K", price: "Free", author: "AutoBot", tags: ["Instagram", "TikTok"], hot: true, color: "oklch(0.65 0.22 285)" },
-  { id: 7, name: "Album Cover Generator", category: "Image", rating: 4.7, downloads: "15K", price: "Free", author: "CoverAI", tags: ["Music", "Art"], hot: false, color: "oklch(0.60 0.25 310)" },
-  { id: 8, name: "Podcast Intro Pack", category: "Music", rating: 4.5, downloads: "6.3K", price: "$4.99", author: "SoundAI", tags: ["Podcast", "Jingle"], hot: false, color: "oklch(0.72 0.18 210)" },
+  { id: 1, name: "Cyberpunk Music Pack", category: "Music", price: "Example: Free", author: "Preview catalog", tags: ["Hip-Hop", "Electronic"], hot: true, color: "oklch(0.65 0.22 285)" },
+  { id: 2, name: "Cinematic Video Preset", category: "Video", price: "Example: $9.99", author: "Preview catalog", tags: ["Cinematic", "4K"], hot: true, color: "oklch(0.60 0.25 310)" },
+  { id: 3, name: "Neon Art Style Pack", category: "Image", price: "Example: Free", author: "Preview catalog", tags: ["Neon", "Cyberpunk"], hot: false, color: "oklch(0.72 0.18 210)" },
+  { id: 4, name: "SaaS Landing Template", category: "Website", price: "Example: $19.99", author: "Preview catalog", tags: ["SaaS", "Dark"], hot: true, color: "oklch(0.78 0.18 75)" },
+  { id: 5, name: "Voice Clone Pack", category: "Voice", price: "Example: $14.99", author: "Preview catalog", tags: ["TTS", "Clone"], hot: false, color: "oklch(0.68 0.20 155)" },
+  { id: 6, name: "Social Media Automation", category: "Automation", price: "Example: Free", author: "Preview catalog", tags: ["Instagram", "TikTok"], hot: true, color: "oklch(0.65 0.22 285)" },
+  { id: 7, name: "Album Cover Generator", category: "Image", price: "Example: Free", author: "Preview catalog", tags: ["Music", "Art"], hot: false, color: "oklch(0.60 0.25 310)" },
+  { id: 8, name: "Podcast Intro Pack", category: "Music", price: "Example: $4.99", author: "Preview catalog", tags: ["Podcast", "Jingle"], hot: false, color: "oklch(0.72 0.18 210)" },
 ];
 
 export default function Marketplace() {
@@ -41,6 +41,7 @@ export default function Marketplace() {
           <div>
             <h1 className="text-2xl font-bold font-display genei-gradient-text-gold">Marketplace</h1>
             <p className="text-xs text-muted-foreground">Templates, presets & AI packs</p>
+            <span className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200">Preview catalog — purchases and downloads not connected</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -89,24 +90,16 @@ export default function Marketplace() {
                   <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">{tmpl.name}</h3>
                   <span className={`text-xs font-bold ${tmpl.price === "Free" ? "text-green-400" : "text-foreground"}`}>{tmpl.price}</span>
                 </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex items-center gap-1 text-xs text-yellow-400">
-                    <Star className="w-3 h-3 fill-yellow-400" /> {tmpl.rating}
-                  </div>
-                  <span className="text-xs text-muted-foreground">·</span>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Download className="w-3 h-3" /> {tmpl.downloads}
-                  </div>
-                </div>
+                <div className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground"><span className="rounded-full border border-border px-2 py-1">{tmpl.author}</span><span>Preview listing</span></div>
                 <div className="flex flex-wrap gap-1 mb-3">
                   {tmpl.tags.map(tag => (
                     <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">{tag}</span>
                   ))}
                 </div>
-                <button onClick={() => toast.success(`${tmpl.name} ${tmpl.price === "Free" ? "downloaded" : "added to cart"}!`)}
+                <button onClick={() => toast.info("Marketplace actions are in preview", { description: "This catalog item is not published for download or purchase yet." })}
                   className="w-full py-2 rounded-lg text-xs font-semibold transition-all"
                   style={{ background: "linear-gradient(135deg, oklch(0.65 0.22 285 / 0.2), oklch(0.60 0.25 310 / 0.2))", border: "1px solid oklch(0.65 0.22 285 / 0.3)", color: "oklch(0.80 0.18 285)" }}>
-                  {tmpl.price === "Free" ? "Download Free" : `Buy ${tmpl.price}`}
+                  View preview
                 </button>
               </div>
             </div>

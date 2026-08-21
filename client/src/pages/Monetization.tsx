@@ -1,4 +1,5 @@
 import { useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { DollarSign, TrendingUp, Users, Star, CreditCard, Zap, Globe, ShoppingBag, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -27,16 +28,17 @@ export default function Monetization() {
         <div>
           <h1 className="text-2xl font-bold font-display genei-gradient-text-gold">Monetization</h1>
           <p className="text-xs text-muted-foreground">Turn your creations into revenue</p>
+          <span className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200">Preview — billing and payout data not connected</span>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total Revenue", value: "$0.00", icon: DollarSign, color: "oklch(0.78 0.18 75)" },
-          { label: "Monthly Growth", value: "+0%", icon: TrendingUp, color: "oklch(0.68 0.20 155)" },
-          { label: "Customers", value: "0", icon: Users, color: "oklch(0.72 0.18 210)" },
-          { label: "Assets Sold", value: "0", icon: ShoppingBag, color: "oklch(0.65 0.22 285)" },
+          { label: "Workspace revenue", value: "—", icon: DollarSign, color: "oklch(0.78 0.18 75)" },
+          { label: "Growth data", value: "—", icon: TrendingUp, color: "oklch(0.68 0.20 155)" },
+          { label: "Customer data", value: "—", icon: Users, color: "oklch(0.72 0.18 210)" },
+          { label: "Sales data", value: "—", icon: ShoppingBag, color: "oklch(0.65 0.22 285)" },
         ].map((stat) => (
           <div key={stat.label} className="genei-card p-4 rounded-xl">
             <div className="flex items-center gap-3">
@@ -54,7 +56,7 @@ export default function Monetization() {
 
       {/* Plans */}
       <div>
-        <h2 className="text-lg font-bold font-display text-foreground mb-4">Subscription Plans</h2>
+        <div className="mb-4 flex flex-wrap items-center gap-3"><h2 className="text-lg font-bold font-display text-foreground">Subscription Plans</h2><span className="text-[11px] text-muted-foreground">Example pricing — connect billing in Settings before purchasing.</span></div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {plans.map((plan) => (
             <div key={plan.name} className={`genei-card rounded-xl overflow-hidden relative ${plan.current ? "border-primary/50" : ""}`}
@@ -72,7 +74,7 @@ export default function Monetization() {
                     </div>
                   </div>
                   {plan.popular && <span className="genei-badge-purple text-xs">Popular</span>}
-                  {plan.current && <span className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-400">Current</span>}
+                  {plan.current && <span className="text-xs px-2 py-1 rounded-lg bg-amber-400/10 text-amber-200">Preview selection</span>}
                 </div>
                 <ul className="space-y-2 mb-5">
                   {plan.features.map((feat) => (
@@ -85,10 +87,10 @@ export default function Monetization() {
                   ))}
                 </ul>
                 <button
-                  onClick={() => plan.current ? toast.info("You are on this plan") : toast.info("Connect billing in Settings to continue with this plan")}
+                  onClick={() => toast.info("Billing is not connected", { description: "Review the example plan, then connect a real billing provider in Settings before purchasing." })}
                   className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${plan.current ? "border border-border text-muted-foreground" : "text-white"}`}
                   style={!plan.current ? { background: `linear-gradient(135deg, ${plan.color}, oklch(0.65 0.22 285))` } : {}}>
-                  {plan.current ? "Current Plan" : "Upgrade"}
+                  {plan.current ? "Preview Plan" : "View plan setup"}
                 </button>
               </div>
             </div>

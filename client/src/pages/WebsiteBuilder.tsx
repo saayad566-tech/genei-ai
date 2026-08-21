@@ -97,7 +97,8 @@ export default function WebsiteBuilder() {
         </div>
         <div>
           <h1 className="text-2xl font-bold font-display" style={{ background: "linear-gradient(135deg, oklch(0.78 0.16 155), oklch(0.72 0.18 210))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Website Builder</h1>
-          <p className="text-xs text-muted-foreground">AI-powered website creation</p>
+          <p className="text-xs text-muted-foreground">AI-powered website blueprint creation</p>
+          <span className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200">Live: AI blueprint generation · Preview: deployment and hosting</span>
         </div>
       </div>
 
@@ -153,17 +154,18 @@ export default function WebsiteBuilder() {
               </motion.button>
               <button type="button" onClick={handlePreview}
                 className="min-h-11 flex items-center gap-2 px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
-                <Eye className="w-4 h-4" /> {previewOpen ? "Hide Preview" : "Preview"}
+                <Eye className="w-4 h-4" /> {previewOpen ? "Hide blueprint" : "Preview blueprint"}
               </button>
               <button type="button" onClick={handleExportSource}
                 className="min-h-11 flex items-center gap-2 px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
-                <Download className="w-4 h-4" /> Export Source
+                <Download className="w-4 h-4" /> Export source JSON
               </button>
             </div>
 
             {previewOpen && generatedSpec && (
               <div className="rounded-xl border border-primary/30 bg-primary/5 p-4" aria-live="polite">
                 <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground"><Eye className="h-4 w-4 text-primary" /> Blueprint preview</div>
+                <p className="mb-3 text-xs leading-5 text-muted-foreground">This preview is a generated implementation plan, not a deployed site. Use Export source JSON for the handoff to a real build and hosting step.</p>
                 <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{generatedSpec}</pre>
               </div>
             )}

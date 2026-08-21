@@ -34,6 +34,7 @@ export default function WebhookHistoryPanel() {
   const retryMutation = trpc.globalSettings.retryWebhookReceipt.useMutation({
     onSuccess: (result) => {
       void query.refetch();
+      void summaryQuery.refetch();
       if (result.status === "applied" || result.status === "already_applied") {
         toast.success(result.status === "already_applied" ? "This webhook was already applied" : "Webhook event retried successfully", { description: "Genei reprocessed the stored verified delivery." });
       } else {
@@ -49,6 +50,7 @@ export default function WebhookHistoryPanel() {
     provider: provider === "all" ? undefined : provider,
     limit: 100,
   }, { enabled: isAuthenticated, retry: false, refetchInterval: isAuthenticated ? 15000 : false });
+  const summaryQuery = trpc.globalSettings.getWebhookReceiptSummary.useQuery(undefined, { enabled: isAuthenticated, retry: false, refetchInterval: isAuthenticated ? 15000 : false });
 
   const receipts = (query.data ?? []) as WebhookReceipt[];
   const providers = useMemo(() => Array.from(new Set(receipts.map((receipt) => receipt.provider))).sort(), [receipts]);
@@ -65,6 +67,11 @@ export default function WebhookHistoryPanel() {
     setProvider("all");
   };
 
+  const showFailedEvents = () => {
+    setStatus("failed");
+    setShowFilters(true);
+  };
+
   return (
     <section className="genei-card rounded-2xl border border-border p-5 sm:p-6" aria-labelledby="webhook-history-title">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -73,10 +80,11 @@ export default function WebhookHistoryPanel() {
           <div>
             <h2 id="webhook-history-title" className="font-display text-base font-semibold text-foreground">Webhook notification history</h2>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Review verified provider callbacks, see whether Genei applied them, and open the delivery details when something needs attention.</p>
+            {isAuthenticated && <div className="mt-2" aria-live="polite">{summaryQuery.isLoading ? <span className="text-[11px] text-muted-foreground">Checking delivery attention…</span> : summaryQuery.isError || summaryQuery.data?.available === false ? <span className="text-[11px] text-muted-foreground">Attention count unavailable — refresh to try again.</span> : summaryQuery.data?.failed ? <button type="button" onClick={showFailedEvents} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-rose-300/30 bg-rose-400/10 px-2.5 py-1 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70" aria-label={`${summaryQuery.data.failed} failed webhook events need attention`}>{summaryQuery.data.failed} need attention</button> : <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200">All deliveries clear</span>}</div>}
           </div>
         </div>
-        <button type="button" onClick={() => query.refetch()} disabled={query.isFetching} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:cursor-wait disabled:opacity-60" aria-label="Refresh webhook notification history">
-          <RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? "animate-spin" : ""}`} /> Refresh
+        <button type="button" onClick={() => { void query.refetch(); void summaryQuery.refetch(); }} disabled={query.isFetching || summaryQuery.isFetching} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:cursor-wait disabled:opacity-60" aria-label="Refresh webhook notification history">
+          <RefreshCw className={`h-3.5 w-3.5 ${query.isFetching || summaryQuery.isFetching ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
 

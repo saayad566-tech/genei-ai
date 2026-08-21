@@ -1,4 +1,5 @@
 import { useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { Zap, Plus, Play, Pause, ChevronRight, ArrowRight, Clock, Globe, Music, Image, Video, Bot, Mail, Share2, Database, Webhook } from "lucide-react";
 import { toast } from "sonner";
@@ -28,11 +29,6 @@ const actionTypes = [
   { id: "publish", label: "Publish Asset", icon: Globe, color: "oklch(0.60 0.25 310)" },
 ];
 
-const activeWorkflows = [
-  { name: "Daily Instagram Posts", status: "active", runs: 47, lastRun: "2 hours ago" },
-  { name: "Music Cover Generator", status: "paused", runs: 12, lastRun: "1 day ago" },
-];
-
 export default function AutomationCenter() {
   const [selectedTrigger, setSelectedTrigger] = useState("schedule");
   const [selectedActions, setSelectedActions] = useState<string[]>(["image", "post"]);
@@ -51,6 +47,7 @@ export default function AutomationCenter() {
         <div>
           <h1 className="text-2xl font-bold font-display genei-gradient-text">Automation Center</h1>
           <p className="text-xs text-muted-foreground">AI-powered workflow automation</p>
+          <span className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200">Preview — execution and saving not connected</span>
         </div>
       </div>
 
@@ -60,7 +57,7 @@ export default function AutomationCenter() {
           <div className="genei-card p-5 rounded-xl space-y-5">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-foreground font-display">Build Workflow</h3>
-              <button className="genei-btn-primary flex items-center gap-2 text-xs py-2 px-3" onClick={() => toast.info("Workflow saved!")}>
+              <button className="genei-btn-primary flex items-center gap-2 text-xs py-2 px-3" onClick={() => toast.info("Workflow saving is in preview", { description: "The builder lets you plan a workflow; durable saving will be connected in a later release." })}>
                 <Plus className="w-3.5 h-3.5" /> Save Workflow
               </button>
             </div>
@@ -109,28 +106,22 @@ export default function AutomationCenter() {
             </div>
 
             <button className="w-full genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm"
-              onClick={() => toast.success("Workflow created! Connect APIs to activate.")}>
+              onClick={() => toast.info("Workflow execution is in preview", { description: "Connectors, scheduling, and run history are not active yet. Your selected steps are ready to review." })}>
               <Play className="w-4 h-4" /> Create & Run Workflow
             </button>
           </div>
 
-          {/* Active Workflows */}
+          {/* Saved Workflows */}
           <div className="genei-card rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-border">
-              <h3 className="font-semibold text-foreground font-display">Active Workflows</h3>
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold text-foreground font-display">Saved Workflows</h3>
+              <span className="genei-badge-purple text-xs">Preview</span>
             </div>
-            {activeWorkflows.map((wf, i) => (
-              <div key={wf.name} className={`flex items-center gap-4 px-4 py-3 hover:bg-secondary/20 transition-colors ${i < activeWorkflows.length - 1 ? "border-b border-border" : ""}`}>
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${wf.status === "active" ? "bg-green-500 genei-pulse" : "bg-muted-foreground"}`} />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-foreground">{wf.name}</div>
-                  <div className="text-xs text-muted-foreground">{wf.runs} runs · Last: {wf.lastRun}</div>
-                </div>
-                <button className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
-                  {wf.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                </button>
-              </div>
-            ))}
+            <div className="p-6 text-center">
+              <Zap className="mx-auto h-7 w-7 text-primary/70" />
+              <p className="mt-2 text-sm font-medium text-foreground">No executable workflows yet</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose a trigger and actions above to design a workflow. Saving, scheduling, connectors, and run history will appear here after the automation backend is connected.</p>
+            </div>
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Download, Package, Music, Video, Image, FileText, Smartphone, Globe, CheckCircle, Clock, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 
 const exportFormats = [
@@ -19,17 +20,20 @@ const exportPresets = [
 ];
 
 const publishTargets = [
-  { id: "download", label: "Download only", icon: Download },
-  { id: "asset-library", label: "Save to Asset Library", icon: Package },
-  { id: "byoh-worker", label: "Send to BYOH worker", icon: Smartphone },
-  { id: "cloud-queue", label: "Queue on cloud worker", icon: Globe },
+  { id: "download", label: "Download only", description: "Create a downloadable result after the export worker finishes.", icon: Download },
+  { id: "asset-library", label: "Save to Asset Library", description: "Keep the result in your private Genei library.", icon: Package },
+  { id: "byoh-worker", label: "Send to BYOH worker", description: "Requires a paired workstation with the required tools.", icon: Smartphone },
+  { id: "cloud-queue", label: "Queue on cloud worker", description: "Requires a configured cloud-capable provider path.", icon: Globe },
 ];
 
 export default function ExportCenter() {
   const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
   const [selectedPreset, setSelectedPreset] = useState("youtube-1080");
   const [publishTarget, setPublishTarget] = useState("download");
-  const { data: exportJobs, refetch } = trpc.exports.list.useQuery();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const exportsQuery = trpc.exports.list.useQuery(undefined, { enabled: isAuthenticated, retry: false, refetchOnWindowFocus: false });
+  const exportJobs = exportsQuery.data;
+  const refetch = exportsQuery.refetch;
   const createExportMutation = trpc.exports.create.useMutation();
 
   const toggleFormat = (format: string) => {
@@ -37,6 +41,10 @@ export default function ExportCenter() {
   };
 
   const handleExport = async () => {
+    if (!isAuthenticated) {
+      toast.error("Sign in before queueing an export", { description: "Your export jobs and generated files are private to your workspace." });
+      return;
+    }
     if (!selectedFormats.length) {
       toast.error("Select at least one export format first");
       return;
@@ -59,6 +67,7 @@ export default function ExportCenter() {
         <div>
           <h1 className="text-2xl font-bold font-display" style={{ background: "linear-gradient(135deg, oklch(0.78 0.16 155), oklch(0.72 0.18 210))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Export Center</h1>
           <p className="text-xs text-muted-foreground">Choose a delivery preset, output formats, and execution destination</p>
+          <span className="mt-2 inline-flex rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary">Exports are queued jobs — a download appears only after completion</span>
         </div>
       </div>
 
@@ -95,11 +104,11 @@ export default function ExportCenter() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {publishTargets.map((target) => (
                 <button type="button" key={target.id} onClick={() => setPublishTarget(target.id)} className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${publishTarget === target.id ? "border-primary/60 bg-primary/10" : "border-border hover:border-primary/30"}`}>
-                  <target.icon className="h-4 w-4 text-primary" /><span className="text-xs text-foreground">{target.label}</span>
+                  <target.icon className="h-4 w-4 text-primary" /><span><span className="block text-xs text-foreground">{target.label}</span><span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{target.description}</span></span>
                 </button>
               ))}
             </div>
-            <p className="mt-3 text-[10px] text-muted-foreground">Publishing destinations queue work for a configured cloud or BYOH worker. A download link appears after a worker completes the job.</p>
+            <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Download-only is the simplest path. BYOH and cloud destinations stay queued until the required worker/provider is connected; Genei will show a truthful failure state instead of creating a fake download.</p>
           </div>
 
           <button type="button" onClick={() => void handleExport()} disabled={createExportMutation.isPending} className="w-full min-h-12 genei-btn-primary flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold disabled:opacity-50">
@@ -111,7 +120,7 @@ export default function ExportCenter() {
         <div className="space-y-5">
           <div className="genei-card rounded-xl overflow-hidden">
             <div className="p-4 border-b border-border"><h3 className="font-semibold text-foreground font-display">Recent Exports</h3></div>
-            {(exportJobs ?? []).length === 0 ? <div className="p-6 text-center text-xs text-muted-foreground">No exports queued yet.</div> : (exportJobs ?? []).map((job) => (
+            {authLoading ? <div className="p-6 text-center text-xs text-muted-foreground">Checking sign-in…</div> : !isAuthenticated ? <div className="p-6 text-center"><p className="text-sm font-medium text-foreground">Sign in to see your exports</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Export jobs and download links are private to your workspace.</p></div> : exportsQuery.isError ? <div className="p-6 text-center text-xs text-rose-200">Couldn’t load export jobs. Try again after checking your connection.</div> : (exportJobs ?? []).length === 0 ? <div className="p-6 text-center text-xs text-muted-foreground">No exports queued yet. Select a format to create your first job.</div> : (exportJobs ?? []).map((job) => (
               <div key={job.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">{job.status === "completed" ? <CheckCircle className="w-4 h-4 text-green-400" /> : job.status === "failed" ? <Clock className="w-4 h-4 text-destructive" /> : <Loader2 className="w-4 h-4 animate-spin text-primary" />}</div>
                 <div className="flex-1 min-w-0"><div className="text-xs font-medium text-foreground truncate">{job.format}</div><div className="text-[10px] text-muted-foreground">{job.preset} · {job.publishTarget || "download"} · {job.status}</div></div>

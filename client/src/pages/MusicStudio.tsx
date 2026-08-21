@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Music, Play, Pause, Mic, Wand2, Sliders, Globe,
+  Music, Play, Mic, Wand2, Sliders, Globe,
   ChevronDown, Loader2, Download, Share2, Heart,
   Volume2, Clock, Zap, Plus, RefreshCw
 } from "lucide-react";
@@ -34,7 +34,6 @@ export default function MusicStudio() {
   const [language, setLanguage] = useState("English");
   const [activeTab, setActiveTab] = useState<"create" | "lyrics" | "voice">("create");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isPlaying, setIsPlaying] = useState<string | null>(null);
   const [autoMaster, setAutoMaster] = useState(true);
 
   const generateLyricsMutation = trpc.ai.generateLyrics.useMutation();
@@ -55,7 +54,7 @@ export default function MusicStudio() {
   };
 
   const handleGenerateSong = () => {
-    toast.info("Connect Suno or Udio API to generate full songs", { description: "Go to API Integrations to add your keys" });
+    toast.info("Full-song generation needs a provider", { description: "Connect Suno or Udio in API Integrations. Lyrics generation is live with Genei’s AI gateway." });
   };
 
   return (
@@ -71,12 +70,13 @@ export default function MusicStudio() {
             <div>
               <h1 className="text-2xl font-bold font-display genei-gradient-text">Music Studio</h1>
               <p className="text-xs text-muted-foreground">AI-powered music creation</p>
+              <span className="mt-2 inline-flex rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold text-primary">Live: lyrics generation · Requires provider: full songs and voice cloning</span>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
-          <span className="genei-badge-purple">Prompt-to-Song</span>
-          <span className="genei-badge-cyan">Auto Mastering</span>
+          <span className="genei-badge-purple">Lyrics live</span>
+          <span className="genei-badge-cyan">Full song: provider required</span>
         </div>
       </div>
 
@@ -196,7 +196,7 @@ export default function MusicStudio() {
                     className="flex-1 genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm"
                   >
                     <Wand2 className="w-4 h-4" />
-                    Generate Song
+                    Generate full song
                   </motion.button>
                 </div>
               </div>
@@ -230,10 +230,10 @@ export default function MusicStudio() {
                   className="w-full genei-input resize-none font-mono text-sm"
                 />
                 <div className="flex gap-2">
-                  <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
+                  <button onClick={() => toast.info("Lyrics export is not connected yet", { description: "Copy the generated lyrics from the editor while export formats are being connected." })} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
                     <Download className="w-4 h-4" /> Export
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
+                  <button onClick={() => toast.info("Sharing is not connected yet", { description: "Your lyrics remain in this workspace until a sharing destination is configured." })} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all">
                     <Share2 className="w-4 h-4" /> Share
                   </button>
                 </div>
@@ -246,12 +246,12 @@ export default function MusicStudio() {
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
               <div className="genei-card p-5 rounded-xl space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Voice Cloning</h3>
-                <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer">
+                <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
                   <Mic className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm font-medium text-foreground">Upload voice sample</p>
-                  <p className="text-xs text-muted-foreground mt-1">MP3, WAV, M4A — min 30 seconds</p>
-                  <button className="mt-4 genei-btn-primary text-sm px-6 py-2">
-                    Choose File
+                  <p className="text-sm font-medium text-foreground">Voice cloning preview</p>
+                  <p className="text-xs text-muted-foreground mt-1">MP3, WAV, M4A — upload is enabled after a voice provider is connected</p>
+                  <button type="button" onClick={() => toast.info("Voice cloning needs ElevenLabs", { description: "Connect an ElevenLabs key in API Integrations before uploading a sample." })} className="mt-4 genei-btn-primary text-sm px-6 py-2">
+                    Check provider setup
                   </button>
                 </div>
                 <div className="p-3 rounded-lg text-xs text-muted-foreground" style={{ background: "oklch(0.14 0.02 265)" }}>
@@ -264,20 +264,17 @@ export default function MusicStudio() {
           {/* Sample Tracks */}
           <div className="genei-card rounded-xl overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold text-foreground font-display">Community Tracks</h3>
-              <span className="text-xs text-muted-foreground">Trending</span>
+              <h3 className="font-semibold text-foreground font-display">Example Tracks</h3>
+              <span className="text-xs text-muted-foreground">Preview library</span>
             </div>
             {sampleTracks.map((track, i) => (
               <div key={track.title} className={`flex items-center gap-4 px-4 py-3 hover:bg-secondary/30 transition-colors ${i < sampleTracks.length - 1 ? "border-b border-border" : ""}`}>
                 <button
-                  onClick={() => setIsPlaying(isPlaying === track.title ? null : track.title)}
+                  onClick={() => toast.info("Community audio is preview-only", { description: "Playback, likes, and downloads will be available when the library is connected." })}
                   className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: "linear-gradient(135deg, oklch(0.65 0.22 285 / 0.3), oklch(0.60 0.25 310 / 0.3))" }}
                 >
-                  {isPlaying === track.title
-                    ? <Pause className="w-4 h-4 text-primary" />
-                    : <Play className="w-4 h-4 text-primary" />
-                  }
+                  <Play className="w-4 h-4 text-primary" />
                 </button>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-foreground">{track.title}</div>
@@ -285,9 +282,9 @@ export default function MusicStudio() {
                 </div>
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{track.duration}</span>
-                  <span className="flex items-center gap-1"><Volume2 className="w-3 h-3" />{track.plays}</span>
-                  <button className="hover:text-red-400 transition-colors"><Heart className="w-4 h-4" /></button>
-                  <button className="hover:text-primary transition-colors"><Download className="w-4 h-4" /></button>
+                  <span className="text-[10px] text-muted-foreground">Preview only</span>
+                  <button onClick={() => toast.info("Likes are not connected yet")} aria-label={`Like ${track.title} preview`} className="hover:text-red-400 transition-colors"><Heart className="w-4 h-4" /></button>
+                  <button onClick={() => toast.info("Community downloads are not connected yet")} aria-label={`Download ${track.title} preview`} className="hover:text-primary transition-colors"><Download className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}

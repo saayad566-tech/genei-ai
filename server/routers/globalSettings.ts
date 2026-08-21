@@ -1,7 +1,7 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { apiKeys, directorWebhookReceipts } from "../../drizzle/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { processVerifiedWebhookEvent } from "../webhookProcessor";
 import { z } from "zod/v4";
 import { invokeLLM } from "../_core/llm";
@@ -89,6 +89,19 @@ export const globalSettingsRouter = router({
       if (!needle) return rows;
       return rows.filter((row) => `${row.provider} ${row.externalTaskId} ${row.eventType}`.toLowerCase().includes(needle));
     }),
+
+  getWebhookReceiptSummary: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { available: false as const, total: 0, failed: 0, received: 0, applied: 0, ignored: 0 };
+    const grouped = await db.select({ status: directorWebhookReceipts.status, count: count() }).from(directorWebhookReceipts).where(eq(directorWebhookReceipts.userId, ctx.user.id)).groupBy(directorWebhookReceipts.status);
+    const summary = { available: true as const, total: 0, failed: 0, received: 0, applied: 0, ignored: 0 };
+    for (const row of grouped) {
+      const value = Number(row.count);
+      summary.total += value;
+      if (row.status === "failed" || row.status === "received" || row.status === "applied" || row.status === "ignored") summary[row.status] += value;
+    }
+    return summary;
+  }),
 
   getRecentWebhookReceipts: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();

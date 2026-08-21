@@ -219,3 +219,10 @@
 - [x] Save a new checkpoint after the failed-webhook retry and full verification changes
 - [x] Gate protected webhook, history, and notification polling queries for signed-out users and show clear sign-in guidance instead of indefinite loading
 - [x] Add auth-gated UI coverage and re-run full verification after the signed-out usability fix
+
+## Phase 24: Failed Webhook Attention Badge and Full Platform Audit
+- [x] Add an authoritative user-scoped failed webhook count procedure and server coverage
+- [x] Add the failed-events attention badge with filter/focus behavior and refresh/retry synchronization
+- [x] Audit and improve incomplete or misleading platform surfaces across creation, collaboration, automation, marketplace, monetization, builders, export, and the global shell
+- [x] Add beginner-focused status guidance and accessibility coverage for the audited states
+- [x] Run focused and full verification, document audit findings, and save a new checkpoint
