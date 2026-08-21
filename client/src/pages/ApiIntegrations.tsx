@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ModelRuntimeStatus } from "@/components/ModelRuntimeStatus";
 import { ByohMonitorPanel } from "@/components/ByohMonitorPanel";
+import WebhookSettingsPanel from "@/components/WebhookSettingsPanel";
 
 const providers = [
   { id: "openai", name: "OpenAI", desc: "GPT-4, DALL·E, Whisper", category: "AI", color: "oklch(0.68 0.20 155)", icon: "🤖" },
@@ -251,6 +252,9 @@ export default function ApiIntegrations() {
           );
         })}
       </div>
+
+      {/* User-Managed Webhook Settings */}
+      <WebhookSettingsPanel />
 
       {/* Usage & Cost */}
       <div className="genei-card p-5 rounded-xl">

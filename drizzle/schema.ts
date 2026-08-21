@@ -166,6 +166,8 @@ export const directorJobs = mysqlTable("director_jobs", {
   attempt: int("attempt").default(0).notNull(),
   error: text("error"),
   metadata: text("metadata"),
+  startedAt: timestamp("startedAt"),
+  finishedAt: timestamp("finishedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

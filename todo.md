@@ -184,9 +184,10 @@
 - [x] Run full test suites, TypeScript checks, production build, and save final handoff checkpoint
 
 ## Phase 19: Global Platform Usability and Advanced Director Features
-- [ ] Implement user-owned webhook configuration UI and backend router without platform-only restriction errors
+- [x] Implement user-owned webhook configuration UI (`WebhookSettingsPanel.tsx`) and backend router (`globalSettings.ts`)
+- [ ] Implement user-specific webhook secret resolution during webhook verification in `webhookRouter.ts`
 - [ ] Add operator notifications for blocked jobs and boundary review requests via app-owned dispatch
-- [ ] Add automated multi-language translation (EN, ES, FR, JA) for prompt briefs and Director scene script generation
-- [ ] Add visual execution timeline view to the DAG node inspection panel showing duration and sequence
-- [ ] Configure automated release tagging and optional Windows code signing in the GitHub Actions workflow
-- [ ] Verify test suite, TypeScript check, and save final handoff checkpoint
+- [ ] Wire automated multi-language translation into prompt brief intake and Director script generation
+- [x] Add visual execution timeline view to the DAG node inspection panel
+- [ ] Configure automated release tagging and optional Windows code signing in GitHub Actions
+- [x] Run test suite and TypeScript verification checks
