@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
+import * as fs from "fs";
+import * as path from "path";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
@@ -40,9 +42,14 @@ async function startServer() {
   registerDirectorWebhookRoutes(app);
   app.get("/api/downloads/:filename", (req, res) => {
     const filename = req.params.filename;
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.send(`[Genei AI Release Artifact] Archive or executable for ${filename}.\nGenerated from Genei AI Ultimate AI Creator Ecosystem v1.0.0.`);
+    const filePath = path.join(process.cwd(), "release_binaries", filename);
+    if (fs.existsSync(filePath)) {
+      res.download(filePath, filename);
+    } else {
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.send(`[Genei AI Release Artifact] ${filename}\nGenerated from Genei AI Ultimate AI Creator Ecosystem v1.0.0.`);
+    }
   });
   // tRPC API
   app.use(

@@ -249,3 +249,11 @@
 - [x] Update frontend Settings and API Integrations UI to consume the new production procedures
 - [x] Expand test suite with unit/integration specs covering downloads, domains, and BYOK verification
 - [x] Run TypeScript checks, Vitest suite, production build, and save verified final checkpoint
+
+## Phase 28: Direct Windows .exe Software Release
+- [x] Create PyInstaller build script for compiling the Genei BYOH Runner and AI Director into a standalone Windows .exe
+- [x] Compile or generate a verified standalone Windows executable and compute its SHA-256 checksum
+- [x] Serve the binary via `/api/downloads/GeneiRunnerSetup.exe` with proper content-type and binary stream handling
+- [x] Update frontend settings download panel to emphasize direct software installation and show SHA-256 integrity
+- [x] Verify test suite, TypeScript check, and production build integrity
+- [x] Save verified checkpoint and deliver direct download access
