@@ -203,3 +203,8 @@
 - [ ] Conduct comprehensive button, feature, routing, and setup-flow usability audit across the platform
 - [ ] Improve confusing states, error messages, guidance, and non-technical user paths
 - [x] Run test suite, TypeScript check, production build, and save final handoff checkpoint
+
+## Phase 22: Webhook Notification History
+- [x] Add a dedicated user-scoped webhook notification history panel with searchable/filterable receipt statuses and processing outcomes
+- [x] Add history query coverage and verify loading, empty, error, refresh, and responsive states
+- [x] Run tests, TypeScript check, production build, and save a checkpoint

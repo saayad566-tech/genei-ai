@@ -186,3 +186,23 @@ describe("director orchestration controls", () => {
     await expect(caller.director.controlProject({ projectId: 1, action: "cancel" })).rejects.toThrow();
   });
 });
+
+describe("webhook notification history", () => {
+  it("returns a user-scoped array with validated filters when the database is unavailable", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.globalSettings.getWebhookReceipts({
+      search: "runway",
+      status: "applied",
+      provider: "runway",
+      limit: 100,
+    });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("rejects invalid history limits", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.globalSettings.getWebhookReceipts({ limit: 0 })).rejects.toThrow();
+  });
+});

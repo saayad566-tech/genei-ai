@@ -49,6 +49,25 @@ export const globalSettingsRouter = router({
       return { translated };
     }),
 
+  getWebhookReceipts: protectedProcedure
+    .input(z.object({
+      search: z.string().max(255).optional(),
+      status: z.enum(["received", "applied", "ignored", "failed"]).optional(),
+      provider: z.string().max(64).optional(),
+      limit: z.number().int().min(1).max(100).default(50),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const filters = [eq(directorWebhookReceipts.userId, ctx.user.id)];
+      if (input?.status) filters.push(eq(directorWebhookReceipts.status, input.status));
+      if (input?.provider) filters.push(eq(directorWebhookReceipts.provider, input.provider));
+      const rows = await db.select().from(directorWebhookReceipts).where(and(...filters)).orderBy(desc(directorWebhookReceipts.createdAt)).limit(input?.limit ?? 50);
+      const needle = input?.search?.trim().toLowerCase();
+      if (!needle) return rows;
+      return rows.filter((row) => `${row.provider} ${row.externalTaskId} ${row.eventType}`.toLowerCase().includes(needle));
+    }),
+
   getRecentWebhookReceipts: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];

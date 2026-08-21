@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ModelRuntimeStatus } from "@/components/ModelRuntimeStatus";
 import { ByohMonitorPanel } from "@/components/ByohMonitorPanel";
 import WebhookSettingsPanel from "@/components/WebhookSettingsPanel";
+import WebhookHistoryPanel from "@/components/WebhookHistoryPanel";
 
 const providers = [
   { id: "openai", name: "OpenAI", desc: "GPT-4, DALL·E, Whisper", category: "AI", color: "oklch(0.68 0.20 155)", icon: "🤖" },
@@ -255,6 +256,8 @@ export default function ApiIntegrations() {
 
       {/* User-Managed Webhook Settings */}
       <WebhookSettingsPanel />
+
+      <WebhookHistoryPanel />
 
       {/* Usage & Cost */}
       <div className="genei-card p-5 rounded-xl">
