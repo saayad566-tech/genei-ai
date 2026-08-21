@@ -28,7 +28,7 @@ if (-not (Test-Path $Output)) {
 }
 
 $Hash = (Get-FileHash $Output -Algorithm SHA256).Hash.ToLowerInvariant()
-$Hash | Out-File -Encoding ascii $ChecksumPath
+"$Hash  GeneiRunner.exe" | Out-File -Encoding ascii $ChecksumPath
 
 $Version = "1.0.0"
 $Metadata = [ordered]@{

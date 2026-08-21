@@ -82,7 +82,7 @@ jobs:
         run: |
           $exe = Get-Item .\dist\GeneiRunner.exe
           $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          $hash | Out-File -Encoding ascii .\dist\GeneiRunner.exe.sha256
+          "$hash  GeneiRunner.exe" | Out-File -Encoding ascii .\dist\GeneiRunner.exe.sha256
           $signed = [bool]$env:WINDOWS_SIGNING_CERT_BASE64
           $metadata = [ordered]@{
             name = "Genei BYOH Windows Runner"
