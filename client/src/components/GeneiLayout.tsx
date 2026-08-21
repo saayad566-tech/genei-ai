@@ -7,7 +7,7 @@ import {
   Settings, Plus, Clock, Bot, LayoutTemplate, Upload,
   Cloud, Palette, BarChart3, CreditCard, ChevronLeft,
   ChevronRight, Bell, Search, Menu, X, Sparkles, LogOut,
-  Cpu, ChevronDown, Activity
+  Cpu, ChevronDown, Activity, Monitor
 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -37,6 +37,7 @@ const mainNavItems = [
   { id: "marketplace", label: "Marketplace", icon: ShoppingBag, path: "/marketplace" },
   { id: "assets", label: "Asset Library", icon: Archive, path: "/assets" },
   { id: "api", label: "API Integrations", icon: Key, path: "/api" },
+  { id: "byoh", label: "BYOH Runners", icon: Monitor, path: "/byoh", badge: "HARDWARE", badgeColor: "cyan" },
   { id: "team", label: "Team Workspace", icon: Users, path: "/team" },
   { id: "monetization", label: "Monetization", icon: DollarSign, path: "/monetization" },
   { id: "export", label: "Export Center", icon: Download, path: "/export" },

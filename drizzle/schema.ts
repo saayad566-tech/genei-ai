@@ -89,6 +89,18 @@ export const byohRunners = mysqlTable("byoh_runners", {
 export type ByohRunner = typeof byohRunners.$inferSelect;
 export type InsertByohRunner = typeof byohRunners.$inferInsert;
 
+export const runnerLogs = mysqlTable("runner_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  runnerId: int("runnerId").notNull(),
+  level: mysqlEnum("level", ["info", "warn", "error", "heartbeat"]).default("info").notNull(),
+  message: text("message").notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type RunnerLog = typeof runnerLogs.$inferSelect;
+export type InsertRunnerLog = typeof runnerLogs.$inferInsert;
+
 export const exportJobs = mysqlTable("export_jobs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

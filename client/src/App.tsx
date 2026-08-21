@@ -17,7 +17,8 @@ import VoiceLab from "./pages/VoiceLab";
 import AutomationCenter from "./pages/AutomationCenter";
 import Marketplace from "./pages/Marketplace";
 import AssetLibrary from "./pages/AssetLibrary";
-import ApiIntegrations from "./pages/ApiIntegrations";
+import ApiIntegrations from "@/pages/ApiIntegrations";
+import ByohDashboard from "@/pages/ByohDashboard";
 import TeamWorkspace from "./pages/TeamWorkspace";
 import Monetization from "./pages/Monetization";
 import ExportCenter from "./pages/ExportCenter";
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/marketplace" component={Marketplace} />
         <Route path="/assets" component={AssetLibrary} />
         <Route path="/api" component={ApiIntegrations} />
+        <Route path="/byoh" component={ByohDashboard} />
         <Route path="/team" component={TeamWorkspace} />
         <Route path="/monetization" component={Monetization} />
         <Route path="/export" component={ExportCenter} />

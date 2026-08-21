@@ -274,3 +274,11 @@
 - [x] Add automated Settings accessibility coverage and truthful download-state assertions; broader API Integrations/runner a11y coverage remains a follow-up
 - [x] Run full tests, TypeScript, production build, Windows Actions artifact validation, and live storage-proxy checksum validation
 - [x] Trigger a Windows GitHub Actions run from a connected private repository and publish `GeneiRunner.exe` with checksum and unsigned signing state
+
+## Phase 31: Real-Time BYOH Windows Runner Dashboard and Guided Direct-Download Setup
+- [x] Add database-backed runner logs table and heartbeat telemetry tracking
+- [x] Add tRPC procedures for runner status, live logs, direct EXE download URL, and pairing token management
+- [x] Create a dedicated **BYOH Runner Studio** dashboard page with live status, hardware capability breakdown, streaming logs, and one-click pairing
+- [x] Integrate direct `.exe` and source downloads with checksum verification inside the guided setup flow
+- [x] Expand Vitest and integration specs covering runner logs, live status refresh, and direct download links
+- [x] Run full test suite, TypeScript check, production build, and save verified final checkpoint

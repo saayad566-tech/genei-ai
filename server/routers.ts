@@ -9,7 +9,7 @@ import { checkVideoProviderHealth } from "./videoProviders";
 import { submitVideoGeneration, pollVideoGenerationTask } from "./videoGenerationAdapters";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
-import { assets, apiKeys, byohRunners, chatMessages, exportJobs, releaseArtifacts, customDomains, projects, directorScenes, directorShots, directorJobs, directorQcReports, directorNodeLogs, directorJobAssets, directorWebhookReceipts } from "../drizzle/schema";
+import { assets, apiKeys, byohRunners, runnerLogs, chatMessages, exportJobs, releaseArtifacts, customDomains, projects, directorScenes, directorShots, directorJobs, directorQcReports, directorNodeLogs, directorJobAssets, directorWebhookReceipts } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import * as crypto from "crypto";
@@ -502,6 +502,12 @@ export const appRouter = router({
           .from(byohRunners).where(eq(byohRunners.pairingTokenHash, tokenHash)).limit(1);
         if (!existing.length || existing[0].status === "revoked") throw new Error("Runner token is invalid or revoked");
         await db.update(byohRunners).set({ platform: input.platform, capabilities: JSON.stringify({ tools: input.capabilities, hardware: input.hardware ?? null }), status: "paired", lastHeartbeat: new Date(), updatedAt: new Date() }).where(eq(byohRunners.id, existing[0].id));
+        await db.insert(runnerLogs).values({
+          runnerId: existing[0].id,
+          level: "heartbeat",
+          message: `Received successful heartbeat from ${input.platform} workstation`,
+          metadata: JSON.stringify(input.hardware ?? {}),
+        });
         return { ok: true, runnerId: existing[0].id, receivedAt: new Date().toISOString() };
       }),
 
@@ -511,7 +517,22 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database unavailable");
         await db.update(byohRunners).set({ status: "revoked", updatedAt: new Date() }).where(and(eq(byohRunners.id, input.id), eq(byohRunners.userId, ctx.user.id)));
+        await db.insert(runnerLogs).values({
+          runnerId: input.id,
+          level: "warn",
+          message: "Workstation runner was revoked by operator",
+        });
         return { success: true };
+      }),
+
+    logs: protectedProcedure
+      .input(z.object({ runnerId: z.number(), limit: z.number().int().min(1).max(200).default(50) }))
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const [runner] = await db.select().from(byohRunners).where(and(eq(byohRunners.id, input.runnerId), eq(byohRunners.userId, ctx.user.id))).limit(1);
+        if (!runner) return [];
+        return db.select().from(runnerLogs).where(eq(runnerLogs.runnerId, input.runnerId)).orderBy(desc(runnerLogs.createdAt)).limit(input.limit);
       }),
   }),
 
