@@ -185,11 +185,11 @@
 
 ## Phase 19: Global Platform Usability and Advanced Director Features
 - [x] Implement user-owned webhook configuration UI (`WebhookSettingsPanel.tsx`) and backend router (`globalSettings.ts`)
-- [ ] Implement user-specific webhook secret resolution during webhook verification in `webhookRouter.ts`
+- [x] Implement user-specific webhook secret resolution during webhook verification in `webhookRouter.ts`
 - [ ] Add operator notifications for blocked jobs and boundary review requests via app-owned dispatch
-- [ ] Wire automated multi-language translation into prompt brief intake and Director script generation
+- [x] Wire automated multi-language translation into prompt brief intake and Director script generation
 - [x] Add visual execution timeline view to the DAG node inspection panel
-- [ ] Configure automated release tagging and optional Windows code signing in GitHub Actions
+- [x] Configure automated release tagging and optional Windows code signing in GitHub Actions
 - [x] Run test suite and TypeScript verification checks
 
 ## Phase 20: Per-User Webhook Verification, Prompt Translation, and Windows Code Signing
@@ -199,7 +199,7 @@
 - [x] Verify test suite, TypeScript check, production build, and save final handoff checkpoint
 
 ## Phase 21: Real-Time Webhook Toast & End-to-End Human Usability Audit
-- [ ] Implement real-time broadcast and toast notifications for verified incoming webhooks
+- [x] Implement real-time broadcast and toast notifications for verified incoming webhooks
 - [ ] Conduct comprehensive button, feature, routing, and setup-flow usability audit across the platform
 - [ ] Improve confusing states, error messages, guidance, and non-technical user paths
-- [ ] Run test suite, TypeScript check, production build, and save final handoff checkpoint
+- [x] Run test suite, TypeScript check, production build, and save final handoff checkpoint
