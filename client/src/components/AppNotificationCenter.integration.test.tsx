@@ -8,6 +8,10 @@ import AppNotificationCenter from "./AppNotificationCenter";
 const queryState = vi.hoisted(() => ({ data: [] as Array<{ id: number; title: string; message: string; createdAt: Date }>, isLoading: false, isError: false }));
 const markRead = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }));
 const invalidate = vi.hoisted(() => vi.fn());
+const authState = vi.hoisted(() => ({ isAuthenticated: true, loading: false }));
+
+vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => authState }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -29,6 +33,16 @@ describe("AppNotificationCenter integration", () => {
     queryState.isError = false;
     markRead.mutate.mockClear();
     invalidate.mockClear();
+    authState.isAuthenticated = true;
+    authState.loading = false;
+  });
+
+  it("shows a sign-in path instead of private alert data when signed out", () => {
+    authState.isAuthenticated = false;
+    render(<AppNotificationCenter />);
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    expect(screen.getByText("Sign in to view alerts")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in to Genei AI" })).toHaveAttribute("href", "/login");
   });
 
   it("explains the empty state", () => {

@@ -1,0 +1,1 @@
+ALTER TABLE `director_webhook_receipts` ADD `retryOfReceiptId` int;

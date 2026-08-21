@@ -13,6 +13,11 @@ const queryState = vi.hoisted(() => ({
   refetch: vi.fn(),
   lastInput: undefined as unknown,
 }));
+const retryState = vi.hoisted(() => ({ isPending: false, mutate: vi.fn(), options: undefined as any }));
+const authState = vi.hoisted(() => ({ isAuthenticated: true, loading: false }));
+
+vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => authState }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -21,6 +26,12 @@ vi.mock("@/lib/trpc", () => ({
         useQuery: (input: unknown) => {
           queryState.lastInput = input;
           return queryState;
+        },
+      },
+      retryWebhookReceipt: {
+        useMutation: (options: unknown) => {
+          retryState.options = options;
+          return retryState;
         },
       },
     },
@@ -37,6 +48,18 @@ describe("WebhookHistoryPanel integration", () => {
     queryState.isFetching = false;
     queryState.lastInput = undefined;
     queryState.refetch.mockClear();
+    retryState.mutate.mockClear();
+    retryState.options = undefined;
+    retryState.isPending = false;
+    authState.isAuthenticated = true;
+    authState.loading = false;
+  });
+
+  it("shows sign-in guidance without requesting private history when signed out", () => {
+    authState.isAuthenticated = false;
+    render(<WebhookHistoryPanel />);
+    expect(screen.getByText("Sign in to view webhook history")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in to Genei AI" })).toHaveAttribute("href", "/login");
   });
 
   it("shows an accessible loading state", () => {
@@ -84,6 +107,27 @@ describe("WebhookHistoryPanel integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh webhook notification history" }));
 
     expect(queryState.lastInput).toMatchObject({ search: "runway", status: "failed", limit: 100 });
+    expect(queryState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a retry control only for failed events and refreshes after success", () => {
+    queryState.data = [{
+      id: 12,
+      provider: "kling",
+      externalTaskId: "task_failed_12",
+      eventType: "video.failed",
+      payloadHash: "hash_failed",
+      status: "failed",
+      processedAt: new Date("2026-08-21T06:30:00Z"),
+      createdAt: new Date("2026-08-21T06:29:00Z"),
+    }];
+    queryState.isLoading = false;
+    render(<WebhookHistoryPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry failed kling webhook event" }));
+    expect(retryState.mutate).toHaveBeenCalledWith({ id: 12 });
+
+    retryState.options.onSuccess({ status: "applied", success: true, receiptId: 13 });
     expect(queryState.refetch).toHaveBeenCalledTimes(1);
   });
 });

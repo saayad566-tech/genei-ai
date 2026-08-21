@@ -1,12 +1,15 @@
 import React, { useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Clock3, Filter, History, Loader2, RefreshCw, Search, ShieldCheck, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, Filter, History, Loader2, RefreshCw, RotateCcw, Search, ShieldCheck, XCircle } from "lucide-react";
+import { getLoginUrl } from "@/const";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const statusOptions = ["all", "received", "applied", "ignored", "failed"] as const;
 type StatusFilter = (typeof statusOptions)[number];
 
 type ReceiptStatus = "received" | "applied" | "ignored" | "failed";
-type WebhookReceipt = { id: number; provider: string; externalTaskId: string; eventType: string; payloadHash: string; status: ReceiptStatus; processedAt: Date | string | null; createdAt: Date | string };
+type WebhookReceipt = { id: number; provider: string; externalTaskId: string; eventType: string; payloadHash: string; status: ReceiptStatus; processedAt: Date | string | null; createdAt: Date | string; retryOfReceiptId?: number | null };
 
 const statusMeta: Record<ReceiptStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
   received: { label: "Received", className: "text-sky-300 bg-sky-400/10 border-sky-400/20", icon: Clock3 },
@@ -26,17 +29,35 @@ export default function WebhookHistoryPanel() {
   const [provider, setProvider] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  const retryMutation = trpc.globalSettings.retryWebhookReceipt.useMutation({
+    onSuccess: (result) => {
+      void query.refetch();
+      if (result.status === "applied" || result.status === "already_applied") {
+        toast.success(result.status === "already_applied" ? "This webhook was already applied" : "Webhook event retried successfully", { description: "Genei reprocessed the stored verified delivery." });
+      } else {
+        toast.error("The retry still needs attention", { description: result.error || "Genei could not apply this stored event. Review the new history entry for details." });
+      }
+    },
+    onError: (error) => toast.error("Webhook retry could not start", { description: error.message || "Try again after checking the provider connection." }),
+  });
 
   const query = trpc.globalSettings.getWebhookReceipts.useQuery({
     search: search.trim() || undefined,
     status: status === "all" ? undefined : status,
     provider: provider === "all" ? undefined : provider,
     limit: 100,
-  }, { refetchInterval: 15000 });
+  }, { enabled: isAuthenticated, retry: false, refetchInterval: isAuthenticated ? 15000 : false });
 
   const receipts = (query.data ?? []) as WebhookReceipt[];
   const providers = useMemo(() => Array.from(new Set(receipts.map((receipt) => receipt.provider))).sort(), [receipts]);
   const selectedReceipt = receipts.find((receipt) => receipt.id === selectedId);
+
+  const retryReceipt = (receipt: WebhookReceipt) => {
+    if (receipt.status !== "failed" || retryMutation.isPending) return;
+    retryMutation.mutate({ id: receipt.id });
+  };
 
   const clearFilters = () => {
     setSearch("");
@@ -89,8 +110,10 @@ export default function WebhookHistoryPanel() {
         </div>
       )}
 
-      {query.isLoading ? (
-        <div className="flex min-h-40 items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading notification history...</div>
+      {authLoading || (isAuthenticated && query.isLoading) ? (
+        <div className="flex min-h-40 items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin text-primary" /> {authLoading ? "Checking sign-in..." : "Loading notification history..."}</div>
+      ) : !isAuthenticated ? (
+        <div className="mt-5 flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-secondary/5 px-6 text-center"><ShieldCheck className="h-8 w-8 text-primary/70" /><h3 className="mt-3 text-sm font-medium text-foreground">Sign in to view webhook history</h3><p className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">Your provider alerts are private to your workspace. Sign in once to review delivery statuses and retry failed events.</p><a href={getLoginUrl()} className="genei-button-primary mt-4 inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-xs font-semibold">Sign in to Genei AI</a></div>
       ) : query.isError ? (
         <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/5 p-4 text-sm text-rose-200"><div className="flex items-center gap-2 font-medium"><AlertCircle className="h-4 w-4" /> We couldn’t load webhook history</div><p className="mt-1 text-xs text-rose-200/70">Check your connection and try again. Your saved webhook settings are unchanged.</p><button type="button" onClick={() => query.refetch()} className="mt-3 rounded-lg border border-rose-300/30 px-3 py-1.5 text-xs hover:bg-rose-300/10">Try again</button></div>
       ) : receipts.length === 0 ? (
@@ -99,7 +122,7 @@ export default function WebhookHistoryPanel() {
         <>
           <div className="mt-5 overflow-x-auto rounded-xl border border-border/70">
             <table className="w-full min-w-[720px] text-left text-xs">
-              <thead className="bg-secondary/20 text-[10px] uppercase tracking-[0.16em] text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Provider / event</th><th className="px-4 py-3 font-medium">Task ID</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Received</th><th className="px-4 py-3 font-medium">Processed</th></tr></thead>
+              <thead className="bg-secondary/20 text-[10px] uppercase tracking-[0.16em] text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Provider / event</th><th className="px-4 py-3 font-medium">Task ID</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Received</th><th className="px-4 py-3 font-medium">Processed</th><th className="px-4 py-3 text-right font-medium">Action</th></tr></thead>
               <tbody className="divide-y divide-border/60">
                 {receipts.map((receipt) => {
                   const meta = statusMeta[receipt.status as ReceiptStatus] ?? statusMeta.received;
@@ -110,13 +133,14 @@ export default function WebhookHistoryPanel() {
                     <td className="px-4 py-3"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-medium ${meta.className}`}><StatusIcon className="h-3 w-3" />{meta.label}</span></td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground" title={new Date(receipt.createdAt).toLocaleString()}>{formatDate(receipt.createdAt)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground" title={receipt.processedAt ? new Date(receipt.processedAt).toLocaleString() : undefined}>{formatDate(receipt.processedAt)}</td>
+                    <td className="px-4 py-3 text-right">{receipt.status === "failed" && <button type="button" onClick={(event) => { event.stopPropagation(); retryReceipt(receipt); }} disabled={retryMutation.isPending} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-rose-300/30 px-2.5 py-1.5 text-[10px] font-medium text-rose-200 transition-colors hover:bg-rose-300/10 disabled:cursor-wait disabled:opacity-60" aria-label={`Retry failed ${receipt.provider} webhook event`}><RotateCcw className={`h-3 w-3 ${retryMutation.isPending ? "animate-spin" : ""}`} /> Retry event</button>}</td>
                   </tr>;
                 })}
               </tbody>
             </table>
           </div>
           <p className="mt-3 text-[11px] text-muted-foreground">Showing {receipts.length} notification{receipts.length === 1 ? "" : "s"}. Select a row to view delivery details.</p>
-          {selectedReceipt && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4" aria-live="polite"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-sm font-medium text-foreground"><ShieldCheck className="h-4 w-4 text-primary" /> Delivery details</div><button type="button" onClick={() => setSelectedId(null)} className="text-xs text-muted-foreground hover:text-foreground">Close</button></div><dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2"><div><dt className="text-muted-foreground">Payload fingerprint</dt><dd className="mt-1 break-all font-mono text-foreground">{selectedReceipt.payloadHash}</dd></div><div><dt className="text-muted-foreground">Receipt ID</dt><dd className="mt-1 font-mono text-foreground">#{selectedReceipt.id}</dd></div><div><dt className="text-muted-foreground">Received</dt><dd className="mt-1 text-foreground">{formatDate(selectedReceipt.createdAt)}</dd></div><div><dt className="text-muted-foreground">Processed</dt><dd className="mt-1 text-foreground">{formatDate(selectedReceipt.processedAt)}</dd></div></dl></div>}
+          {selectedReceipt && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4" aria-live="polite"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-sm font-medium text-foreground"><ShieldCheck className="h-4 w-4 text-primary" /> Delivery details</div><button type="button" onClick={() => setSelectedId(null)} className="text-xs text-muted-foreground hover:text-foreground">Close</button></div><dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2"><div><dt className="text-muted-foreground">Payload fingerprint</dt><dd className="mt-1 break-all font-mono text-foreground">{selectedReceipt.payloadHash}</dd></div><div><dt className="text-muted-foreground">Receipt ID</dt><dd className="mt-1 font-mono text-foreground">#{selectedReceipt.id}</dd></div><div><dt className="text-muted-foreground">Received</dt><dd className="mt-1 text-foreground">{formatDate(selectedReceipt.createdAt)}</dd></div><div><dt className="text-muted-foreground">Processed</dt><dd className="mt-1 text-foreground">{formatDate(selectedReceipt.processedAt)}</dd></div></dl>{selectedReceipt.status === "failed" && <div className="mt-4 rounded-xl border border-rose-300/20 bg-rose-300/5 p-3"><p className="text-xs leading-5 text-rose-100">Retry replays the verified delivery already stored by Genei. It does not start a new video generation request.</p><button type="button" onClick={() => retryReceipt(selectedReceipt)} disabled={retryMutation.isPending} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rose-300/30 px-3 py-2 text-xs font-medium text-rose-100 transition-colors hover:bg-rose-300/10 disabled:cursor-wait disabled:opacity-60"><RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? "animate-spin" : ""}`} />{retryMutation.isPending ? "Retrying event..." : "Retry event"}</button></div>}</div>}
         </>
       )}
     </section>

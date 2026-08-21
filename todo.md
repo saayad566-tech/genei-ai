@@ -208,3 +208,14 @@
 - [x] Add a dedicated user-scoped webhook notification history panel with searchable/filterable receipt statuses and processing outcomes
 - [x] Add history query coverage and verify loading, empty, error, refresh, and responsive states
 - [x] Run tests, TypeScript check, production build, and save a checkpoint
+
+## Phase 23: Failed Webhook Retry and Full App Verification
+- [x] Add a protected, user-scoped retry mutation for failed webhook receipts with auditable retry linkage
+- [x] Add a beginner-friendly Retry event action to Webhook Notification History with success/error/reloading states
+- [x] Extract shared webhook processing so normal callbacks and manual retries use the same logic
+- [x] Audit all active routes, setup flows, BYOK/BYOH, LLM tools, PWA install, and video-generation fallback/live readiness
+- [x] Add frontend/server coverage and run full tests, TypeScript check, production build, browser smoke checks, and save a checkpoint
+- [x] Explicitly verify LLM gateway success/fallback coverage and PWA install/service-worker behavior, then document the evidence
+- [x] Save a new checkpoint after the failed-webhook retry and full verification changes
+- [x] Gate protected webhook, history, and notification polling queries for signed-out users and show clear sign-in guidance instead of indefinite loading
+- [x] Add auth-gated UI coverage and re-run full verification after the signed-out usability fix

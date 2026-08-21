@@ -26,6 +26,22 @@ describe("model gateway fallback", () => {
     expect(result.models.every((model) => model.supportsAndroid)).toBe(true);
   });
 
+  it("reports a live catalog and returns a successful server generation", async () => {
+    mockedInvokeLLM.mockResolvedValue({
+      id: "response-live",
+      created: 1,
+      model: "primary-model",
+      choices: [{ index: 0, message: { role: "assistant", content: "live succeeded" }, finish_reason: "stop" }],
+    });
+
+    const capabilities = await getModelCapabilities({ webGpu: true, storage: true, online: true });
+    const result = await generateWithModel({ purpose: "chat", messages: [{ role: "user", content: "hello" }] });
+
+    expect(capabilities.source).toBe("live");
+    expect(result).toMatchObject({ content: "live succeeded", execution: "server", fallbackUsed: false, attempts: 1 });
+    expect(mockedInvokeLLM).toHaveBeenCalledTimes(1);
+  });
+
   it("retries with an alternate model after the first model fails", async () => {
     mockedInvokeLLM
       .mockRejectedValueOnce(new Error("primary unavailable"))

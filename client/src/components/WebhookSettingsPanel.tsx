@@ -1,11 +1,15 @@
 import React, { useState } from "react";
+import { getLoginUrl } from "@/const";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { CheckCircle2, Loader2, Webhook, KeyRound, ShieldCheck, Send } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WebhookSettingsPanel() {
   const utils = trpc.useUtils();
-  const { data: settings, isLoading } = trpc.globalSettings.getWebhookSettings.useQuery();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const settingsQuery = trpc.globalSettings.getWebhookSettings.useQuery(undefined, { enabled: isAuthenticated, retry: false, refetchOnWindowFocus: false });
+  const { data: settings, isLoading, isError } = settingsQuery;
   const [url, setUrl] = useState("");
   const [secret, setSecret] = useState("");
   const [enabled, setEnabled] = useState(true);
@@ -28,8 +32,16 @@ export default function WebhookSettingsPanel() {
     },
   });
 
-  if (isLoading) {
-    return <div className="flex items-center gap-2 p-6 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading webhook settings...</div>;
+  if (authLoading || (isAuthenticated && isLoading)) {
+    return <div className="flex items-center gap-2 p-6 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin text-primary" /> {authLoading ? "Checking sign-in..." : "Loading webhook settings..."}</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <div className="genei-card rounded-2xl border border-border bg-secondary/10 p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-2.5 text-primary"><ShieldCheck className="h-5 w-5" /></div><div><h3 className="font-display text-base font-semibold text-foreground">Sign in to manage webhooks</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Webhook secrets and provider callbacks belong to your private workspace. Sign in to save settings, test deliveries, and review retryable events.</p><a href={getLoginUrl()} className="genei-button-primary mt-4 inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-xs font-semibold">Sign in to Genei AI</a></div></div></div>;
+  }
+
+  if (isError) {
+    return <div className="genei-card rounded-2xl border border-rose-400/20 bg-rose-400/5 p-6 text-sm text-rose-200"><div className="flex items-center gap-2 font-medium"><ShieldCheck className="h-4 w-4" /> Webhook settings need attention</div><p className="mt-1 text-xs leading-5 text-rose-200/70">Genei could not load your saved settings. Check your connection and try again.</p><button type="button" onClick={() => settingsQuery.refetch()} className="mt-3 rounded-lg border border-rose-300/30 px-3 py-1.5 text-xs hover:bg-rose-300/10">Try again</button></div>;
   }
 
   return (

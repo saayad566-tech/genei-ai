@@ -237,6 +237,7 @@ export const directorWebhookReceipts = mysqlTable("director_webhook_receipts", {
   eventType: varchar("eventType", { length: 128 }).notNull(),
   payloadHash: varchar("payloadHash", { length: 128 }).notNull(),
   payload: text("payload").notNull(),
+  retryOfReceiptId: int("retryOfReceiptId"),
   status: mysqlEnum("status", ["received", "applied", "ignored", "failed"]).default("received").notNull(),
   processedAt: timestamp("processedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -2,6 +2,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { apiKeys, directorWebhookReceipts } from "../../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { processVerifiedWebhookEvent } from "../webhookProcessor";
 import { z } from "zod/v4";
 import { invokeLLM } from "../_core/llm";
 
@@ -32,6 +33,27 @@ export const globalSettingsRouter = router({
         await db.insert(apiKeys).values({ userId: ctx.user.id, provider: "genei_webhook", encryptedKey: payload, label: "User Managed Webhook" });
       }
       return { success: true };
+    }),
+
+  retryWebhookReceipt: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      const receiptRows = await db.select().from(directorWebhookReceipts).where(and(eq(directorWebhookReceipts.id, input.id), eq(directorWebhookReceipts.userId, ctx.user.id))).limit(1);
+      const receipt = receiptRows[0];
+      if (!receipt) throw new Error("Webhook event not found in your workspace");
+      if (receipt.status !== "failed") throw new Error("Only failed webhook events can be retried");
+      const latestRetry = await db.select().from(directorWebhookReceipts).where(eq(directorWebhookReceipts.retryOfReceiptId, receipt.id)).orderBy(desc(directorWebhookReceipts.createdAt)).limit(1);
+      if (latestRetry[0]?.status === "applied") return { success: true, status: "already_applied" as const, receiptId: latestRetry[0].id };
+      let payload: Record<string, any>;
+      try {
+        payload = JSON.parse(receipt.payload) as Record<string, any>;
+      } catch {
+        throw new Error("This stored webhook payload is not readable, so it cannot be retried");
+      }
+      const result = await processVerifiedWebhookEvent({ db, provider: receipt.provider, payload, rawBody: receipt.payload, expectedUserId: ctx.user.id, retryOfReceiptId: receipt.id });
+      return { success: result.receiptStatus === "applied", status: result.receiptStatus, receiptId: result.receiptId, error: result.errorMessage };
     }),
 
   translateText: protectedProcedure
