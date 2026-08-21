@@ -106,6 +106,40 @@ export const exportJobs = mysqlTable("export_jobs", {
 export type ExportJob = typeof exportJobs.$inferSelect;
 export type InsertExportJob = typeof exportJobs.$inferInsert;
 
+export const releaseArtifacts = mysqlTable("release_artifacts", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  version: varchar("version", { length: 64 }).notNull(),
+  platform: varchar("platform", { length: 64 }).notNull(), // win-x64, source-zip, android-apk, etc.
+  fileSize: varchar("fileSize", { length: 64 }).notNull(),
+  sha256: varchar("sha256", { length: 128 }).notNull(),
+  downloadUrl: text("downloadUrl").notNull(),
+  signingState: varchar("signingState", { length: 64 }).default("unsigned").notNull(),
+  isPublished: boolean("isPublished").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReleaseArtifact = typeof releaseArtifacts.$inferSelect;
+export type InsertReleaseArtifact = typeof releaseArtifacts.$inferInsert;
+
+export const customDomains = mysqlTable("custom_domains", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  hostname: varchar("hostname", { length: 255 }).notNull(),
+  cnameTarget: varchar("cnameTarget", { length: 255 }).notNull(),
+  verificationStatus: mysqlEnum("verificationStatus", ["pending", "verified", "failed"]).default("pending").notNull(),
+  bindingStatus: mysqlEnum("bindingStatus", ["unbound", "pending_binding", "bound", "error"]).default("unbound").notNull(),
+  sslStatus: mysqlEnum("sslStatus", ["inactive", "provisioning", "active", "error"]).default("inactive").notNull(),
+  errorMessage: text("errorMessage"),
+  lastCheckedAt: timestamp("lastCheckedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CustomDomain = typeof customDomains.$inferSelect;
+export type InsertCustomDomain = typeof customDomains.$inferInsert;
+
 export const directorScenes = mysqlTable("director_scenes", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

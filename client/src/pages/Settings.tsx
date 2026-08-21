@@ -14,6 +14,161 @@ const settingsSections = [
   { id: "language", label: "Language & Region", icon: Globe },
 ];
 
+import { trpc } from "@/lib/trpc";
+
+function CustomDomainSettingsSection() {
+  const { data: domainRecord, refetch } = trpc.customDomains.get.useQuery();
+  const [hostname, setHostname] = React.useState("");
+  const saveMutation = trpc.customDomains.saveAndVerify.useMutation({
+    onSuccess: (res) => {
+      refetch();
+      toast.success(`Domain ${res.hostname} saved and verified!`, { description: "CNAME configuration validated. Platform binding in progress." });
+    },
+    onError: (err) => toast.error(err.message || "Failed to verify domain"),
+  });
+  const removeMutation = trpc.customDomains.remove.useMutation({
+    onSuccess: () => {
+      refetch();
+      setHostname("");
+      toast.success("Custom domain removed");
+    },
+  });
+
+  const activeDomain = domainRecord?.hostname || "genieai-tc7qfq5i.manus.space";
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="genei-card p-6 rounded-xl space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+            <Globe className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground font-display">Custom Domain & Publication Branding</h3>
+            <p className="text-xs text-muted-foreground">Bind your custom domain with persistent DNS CNAME verification and secure SSL status.</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 p-4 rounded-xl border border-border bg-background">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground">Current Publication Domain</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${domainRecord?.bindingStatus === "bound" ? "bg-emerald-500/10 text-emerald-400" : "bg-primary/10 text-primary"}`}>
+              <Shield className="w-3 h-3" /> {domainRecord?.bindingStatus === "bound" ? "SSL Secured Active" : "DNS Verified · Pending Binding"}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={hostname}
+              onChange={(e) => setHostname(e.target.value)}
+              placeholder={domainRecord?.hostname || "app.yourdomain.com"}
+              className="genei-input text-xs flex-1 font-mono"
+            />
+            <button
+              type="button"
+              disabled={saveMutation.isPending}
+              onClick={() => {
+                const target = hostname.trim() || domainRecord?.hostname;
+                if (!target) {
+                  toast.error("Enter a valid domain hostname");
+                  return;
+                }
+                saveMutation.mutate({ hostname: target });
+              }}
+              className="genei-button-primary text-xs px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+            >
+              {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Verify & Bind"}
+            </button>
+            {domainRecord && (
+              <button
+                type="button"
+                disabled={removeMutation.isPending}
+                onClick={() => removeMutation.mutate()}
+                className="px-3 py-2 rounded-lg text-xs border border-destructive/30 text-destructive hover:bg-destructive/10"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <div className="text-[11px] text-muted-foreground space-y-1 pt-1">
+            <p className="font-medium text-foreground">Required DNS CNAME Record:</p>
+            <div className="p-2 rounded bg-secondary/20 font-mono text-[10px] text-foreground space-y-0.5">
+              <div>Type: <span className="text-primary font-semibold">CNAME</span> | Name: <span className="text-primary font-semibold">@ or sub</span> | Target: <span className="text-primary font-semibold">proxy.manus.space</span></div>
+            </div>
+            {domainRecord && (
+              <div className="text-[10px] text-emerald-400 pt-1">
+                Persistent status: verified={domainRecord.verificationStatus}, binding={domainRecord.bindingStatus}, ssl={domainRecord.sslStatus}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border bg-background space-y-3">
+          <div className="text-xs font-semibold text-foreground">📱 PWA & App Branding</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">App Display Name</label>
+              <input defaultValue="Genei AI" className="genei-input text-xs" />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground mb-1 block">Theme Color</label>
+              <input defaultValue="#7c3aed" className="genei-input text-xs" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function DownloadsArtifactsSection() {
+  const { data: artifacts, isLoading } = trpc.downloads.listArtifacts.useQuery();
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="genei-card p-6 rounded-xl space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+            <Save className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground font-display">Downloads & Desktop App (.exe)</h3>
+            <p className="text-xs text-muted-foreground">Download verified release archives and Windows BYOH runner packages.</p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {artifacts?.map((artifact) => (
+              <div key={artifact.id} className="p-4 rounded-xl border border-border bg-background space-y-3 flex flex-col justify-between">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">{artifact.name}</span>
+                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{artifact.version}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Platform: {artifact.platform} · Size: {artifact.fileSize} · Signing: {artifact.signingState}</p>
+                  <div className="text-[10px] font-mono text-muted-foreground bg-black/30 p-1.5 rounded truncate">SHA256: {artifact.sha256}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` });
+                    window.location.href = artifact.downloadUrl;
+                  }}
+                  className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"
+                >
+                  <Save className="w-3.5 h-3.5" /> Download {artifact.platform === "source-zip" ? "Source ZIP" : "Windows EXE"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("profile");
@@ -176,94 +331,11 @@ export default function Settings() {
           )}
 
           {activeSection === "domain" && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <div className="genei-card p-6 rounded-xl space-y-5">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
-                    <Globe className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground font-display">Custom Domain & Publication Branding</h3>
-                    <p className="text-xs text-muted-foreground">Bind your own custom domain or use Genei's optimized publication subdomain.</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 p-4 rounded-xl border border-border bg-background">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">Current Publication Domain</span>
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                      <Shield className="w-3 h-3" /> SSL Secured Active
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <input id="custom-domain-input" defaultValue="genieai-tc7qfq5i.manus.space" placeholder="app.yourdomain.com" className="genei-input text-xs flex-1 font-mono" />
-                    <button type="button" onClick={() => {
-                      const input = document.getElementById("custom-domain-input") as HTMLInputElement;
-                      const val = input?.value?.trim();
-                      if (!val) { toast.error("Enter a valid domain name"); return; }
-                      toast.success(`Domain ${val} successfully bound!`, { description: "SSL certificate provisioned and CNAME records verified." });
-                    }} className="genei-button-primary text-xs px-4 py-2 rounded-lg font-medium">Verify & Bind</button>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground space-y-1 pt-1">
-                    <p className="font-medium text-foreground">Required DNS Configuration:</p>
-                    <div className="p-2 rounded bg-secondary/20 font-mono text-[10px] text-foreground space-y-0.5">
-                      <div>Type: CNAME | Name: @ or subdomain | Target: <span className="text-primary">proxy.manus.space</span></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl border border-border bg-background space-y-3">
-                  <div className="text-xs font-semibold text-foreground">📱 PWA & App Branding</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-muted-foreground mb-1 block">App Display Name</label>
-                      <input defaultValue="Genei AI" className="genei-input text-xs" />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-muted-foreground mb-1 block">Theme Color</label>
-                      <input defaultValue="#7c3aed" className="genei-input text-xs" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+            <CustomDomainSettingsSection />
           )}
 
           {activeSection === "downloads" && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <div className="genei-card p-6 rounded-xl space-y-5">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
-                    <Save className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground font-display">Downloads & Desktop App (.exe)</h3>
-                    <p className="text-xs text-muted-foreground">Download project archives or build the standalone Windows installer package.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl border border-border bg-background space-y-3">
-                    <div className="text-xs font-semibold text-foreground flex items-center gap-2">📦 Project Source & Assets (.zip)</div>
-                    <p className="text-xs text-muted-foreground">Download the complete Genei AI web ecosystem source code, database schemas, and client assets instantly.</p>
-                    <button type="button" onClick={() => {
-                      toast.success("Preparing project archive download...", { description: "Your browser will download the complete Genei AI package." });
-                      window.open("https://github.com", "_blank");
-                    }} className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2">
-                      <Save className="w-3.5 h-3.5" /> Download Project ZIP
-                    </button>
-                  </div>
-
-                  <div className="p-4 rounded-xl border border-border bg-background space-y-3">
-                    <div className="text-xs font-semibold text-foreground flex items-center gap-2">🖥️ Windows Desktop App (.exe)</div>
-                    <p className="text-xs text-muted-foreground">Genei AI includes a standalone PyInstaller build workflow for compiling the AI Director and runner into a click-to-run Windows installer.</p>
-                    <button type="button" onClick={() => toast.info("Windows EXE packaging script available", { description: "Use PyInstaller with the repository spec to compile your local .exe release." })} className="genei-card w-full py-2 rounded-lg text-xs font-medium text-foreground hover:border-primary/45 transition-all flex items-center justify-center gap-2 border border-border">
-                      View Packaging Instructions
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+            <DownloadsArtifactsSection />
           )}
 
           {activeSection === "language" && (

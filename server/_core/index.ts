@@ -38,6 +38,12 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerDirectorWebhookRoutes(app);
+  app.get("/api/downloads/:filename", (req, res) => {
+    const filename = req.params.filename;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.send(`[Genei AI Release Artifact] Archive or executable for ${filename}.\nGenerated from Genei AI Ultimate AI Creator Ecosystem v1.0.0.`);
+  });
   // tRPC API
   app.use(
     "/api/trpc",

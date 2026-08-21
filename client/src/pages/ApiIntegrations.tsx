@@ -78,6 +78,12 @@ export default function ApiIntegrations() {
     },
     onError: (error) => toast.error(error.message || "Provider health check failed"),
   });
+  const testGatewayMutation = trpc.apiKeys.testGateway.useMutation({
+    onSuccess: (res) => {
+      toast[res.status === "healthy" ? "success" : "error"](res.message, { description: `Model: ${res.model} · Latency: ${res.latencyMs}ms` });
+    },
+    onError: (err) => toast.error(err.message || "Managed LLM gateway check failed"),
+  });
 
   const filteredProviders = providers.filter(p =>
     activeCategory === "All" || p.category === activeCategory
@@ -304,7 +310,15 @@ export default function ApiIntegrations() {
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Check className="w-3.5 h-3.5 text-emerald-400" /> Gateway active & connected
               </span>
-              <button type="button" onClick={() => toast.success("LLM Gateway is active", { description: "Text generation, lyric writing, and AI Director scene compilation are fully operational." })} className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground">Test LLM</button>
+              <button
+                type="button"
+                disabled={testGatewayMutation.isPending}
+                onClick={() => testGatewayMutation.mutate()}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {testGatewayMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> : <Zap className="w-3.5 h-3.5" />}
+                {testGatewayMutation.isPending ? "Testing..." : "Test LLM"}
+              </button>
             </div>
           </div>
         </div>

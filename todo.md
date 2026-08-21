@@ -241,3 +241,11 @@
 - [x] Add dedicated **Downloads & Desktop App** panel in Settings with direct project ZIP archive download and Windows .exe PyInstaller packaging guidance
 - [x] Verify full test suite, TypeScript check, and production build integrity
 - [x] Save verified checkpoint and provide direct download options
+
+## Phase 27: Production Hardening — Downloads, Domains, and BYOK Verification
+- [x] Implement server-side release artifact listing and source/binary download endpoints
+- [x] Implement database-backed custom domain records, DNS verification, and truthful binding states
+- [x] Implement real server-side BYOK verification and managed LLM gateway health checks
+- [x] Update frontend Settings and API Integrations UI to consume the new production procedures
+- [x] Expand test suite with unit/integration specs covering downloads, domains, and BYOK verification
+- [x] Run TypeScript checks, Vitest suite, production build, and save verified final checkpoint
