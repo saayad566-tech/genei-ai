@@ -263,3 +263,14 @@
 - [x] Update release artifact list to clearly distinguish between source archive and cloud-built Windows runner instructions
 - [x] Verify test suite, TypeScript check, and production build integrity
 - [x] Save verified checkpoint and provide truthful status report
+
+## Phase 30: Comprehensive Corrective Release and Usability Hardening
+- [x] Audit and remove every placeholder binary, fake download response, generic redirect, and misleading software-release claim
+- [x] Harden the Windows-native GitHub Actions/PyInstaller workflow and document the BYOH runner as distinct from a full desktop application
+- [x] Implement release-artifact readiness states and publish only verified Windows binaries with immutable URLs, checksums, and signing status
+- [x] Complete beginner-friendly BYOH pairing onboarding with one-time tokens, copyable commands, runner heartbeat state, and revoke/recovery actions
+- [x] Verify BYOK provider checks, managed LLM diagnostics, webhook/retry isolation, and truthful live-versus-preview states
+- [x] Keep custom-domain configuration optional and accurately distinguish DNS verification, platform binding, and SSL status
+- [ ] Add comprehensive automated coverage and route-level accessibility checks for Settings, API Integrations, downloads, and runner onboarding
+- [x] Run full tests, TypeScript, and production build; Windows artifact validation remains pending until a Windows CI run exists
+- [ ] Trigger a Windows GitHub Actions run from a connected repository and publish the verified runner artifact with checksum and signing state

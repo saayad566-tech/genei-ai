@@ -881,18 +881,13 @@ export const appRouter = router({
   downloads: router({
     listArtifacts: publicProcedure.query(async () => {
       const db = await getDb();
-      if (!db) return [
-        { id: 1, name: "Genei AI Complete Source Archive", version: "v1.0.0", platform: "source-zip", fileSize: "18.4 MB", sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", downloadUrl: "/api/downloads/archive.zip", signingState: "unsigned", isPublished: true },
-        { id: 2, name: "Genei BYOH Windows Runner (CI Build Required)", version: "v1.0.0", platform: "win-x64", fileSize: "Pending Windows CI", sha256: "Build via GitHub Actions workflow (.github/workflows/build-genei-runner-windows.yml)", downloadUrl: "#ci-build-required", signingState: "unsigned", isPublished: true },
-      ];
-      const items = await db.select().from(releaseArtifacts).where(eq(releaseArtifacts.isPublished, true)).orderBy(desc(releaseArtifacts.createdAt));
-      if (!items.length) {
-        return [
-          { id: 1, name: "Genei AI Complete Source Archive", version: "v1.0.0", platform: "source-zip", fileSize: "18.4 MB", sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", downloadUrl: "/api/downloads/archive.zip", signingState: "unsigned", isPublished: true },
-          { id: 2, name: "Genei BYOH Windows Runner (CI Build Required)", version: "v1.0.0", platform: "win-x64", fileSize: "Pending Windows CI", sha256: "Build via GitHub Actions workflow (.github/workflows/build-genei-runner-windows.yml)", downloadUrl: "#ci-build-required", signingState: "unsigned", isPublished: true },
-        ];
-      }
-      return items;
+      if (!db) return [];
+      const items = await db.select().from(releaseArtifacts)
+        .where(eq(releaseArtifacts.isPublished, true))
+        .orderBy(desc(releaseArtifacts.createdAt));
+      return items.filter((artifact) =>
+        artifact.downloadUrl.startsWith("https://") || artifact.downloadUrl.startsWith("/api/downloads/")
+      );
     }),
   }),
 

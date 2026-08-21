@@ -42,14 +42,16 @@ async function startServer() {
   registerDirectorWebhookRoutes(app);
   app.get("/api/downloads/:filename", (req, res) => {
     const filename = req.params.filename;
-    const filePath = path.join(process.cwd(), "release_binaries", filename);
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, filename);
-    } else {
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.setHeader("Content-Type", "application/octet-stream");
-      res.send(`[Genei AI Release Artifact] ${filename}\nGenerated from Genei AI Ultimate AI Creator Ecosystem v1.0.0.`);
+    if (!/^[A-Za-z0-9._-]+\\.(?:exe|zip|sha256|json)$/.test(filename)) {
+      res.status(400).json({ error: "Invalid artifact filename" });
+      return;
     }
+    const filePath = path.join(process.cwd(), "release_binaries", filename);
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: "Artifact is not published in this environment" });
+      return;
+    }
+    res.download(filePath, filename);
   });
   // tRPC API
   app.use(

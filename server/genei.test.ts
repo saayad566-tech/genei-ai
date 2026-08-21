@@ -206,3 +206,12 @@ describe("webhook notification history", () => {
     await expect(caller.globalSettings.getWebhookReceipts({ limit: 0 })).rejects.toThrow();
   });
 });
+
+
+describe("downloads", () => {
+  it("returns no executable or archive URL until a published artifact exists", async () => {
+    const caller = appRouter.createCaller(createPublicContext());
+    const result = await caller.downloads.listArtifacts();
+    expect(result).toEqual([]);
+  });
+});

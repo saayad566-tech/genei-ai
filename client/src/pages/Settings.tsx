@@ -131,16 +131,16 @@ function DownloadsArtifactsSection() {
             <Save className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground font-display">Downloads & Desktop App (.exe)</h3>
-            <p className="text-xs text-muted-foreground">Download verified release archives and Windows BYOH runner packages.</p>
+            <h3 className="font-semibold text-foreground font-display">Downloads & Windows Workstation Runner</h3>
+            <p className="text-xs text-muted-foreground">Download verified source archives and the standalone BYOH runner when a Windows build is published.</p>
           </div>
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : (
+        ) : artifacts && artifacts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {artifacts?.map((artifact) => (
+            {artifacts.map((artifact) => (
               <div key={artifact.id} className="p-4 rounded-xl border border-border bg-background space-y-3 flex flex-col justify-between">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -153,19 +153,21 @@ function DownloadsArtifactsSection() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (artifact.downloadUrl.startsWith("#")) {
-                      toast.info("Windows EXE requires GitHub Actions compilation", { description: "Run the provided .github/workflows/build-genei-runner-windows.yml workflow to compile the standalone .exe." });
-                      return;
-                    }
                     toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` });
                     window.location.href = artifact.downloadUrl;
                   }}
                   className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"
                 >
-                  <Save className="w-3.5 h-3.5" /> {artifact.downloadUrl.startsWith("#") ? "View Build Instructions" : `Download ${artifact.platform === "source-zip" ? "Source ZIP" : "Windows EXE"}`}
+                  <Save className="w-3.5 h-3.5" /> Download {artifact.platform === "source-zip" ? "Source ZIP" : "Windows Runner"}
                 </button>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-5 space-y-2">
+            <div className="text-sm font-semibold text-foreground">No verified release artifact is available yet</div>
+            <p className="text-xs text-muted-foreground">The Windows BYOH runner must first be compiled on a Windows GitHub Actions runner. Once the build passes PE validation, checksum generation, and the `--help` smoke test, its immutable release URL will appear here.</p>
+            <p className="text-[11px] text-muted-foreground">This state is intentional: Genei will never offer a renamed or placeholder `.exe` as a software download.</p>
           </div>
         )}
       </div>

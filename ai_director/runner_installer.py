@@ -9,13 +9,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import subprocess
-from pathlib import Path
-
-
-def install_dependencies() -> None:
-    print("[Genei BYOH] Checking dependencies...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "requests"])
 
 
 def main() -> None:
@@ -23,8 +16,6 @@ def main() -> None:
     parser.add_argument("--server-url", required=True, help="Genei server URL")
     parser.add_argument("--token", required=True, help="Workstation pairing token")
     args = parser.parse_args()
-
-    install_dependencies()
 
     os.environ["GENEI_SERVER_URL"] = args.server_url
     os.environ["GENEI_RUNNER_TOKEN"] = args.token

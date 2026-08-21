@@ -143,19 +143,22 @@ export default function ApiIntegrations() {
           <button type="button" disabled={!runnerName.trim() || pairRunnerMutation.isPending} onClick={() => pairRunnerMutation.mutate({ name: runnerName.trim(), platform: runnerPlatform })} className="genei-btn-primary min-h-11 px-4 text-sm disabled:opacity-50">{pairRunnerMutation.isPending ? "Pairing..." : "Pair workstation"}</button>
         </div>
         {pairedToken && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-            <div className="text-xs font-semibold text-foreground">Copy this one-time runner token</div>
-            <div className="mt-2 flex gap-2">
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2" aria-live="polite">
+            <div className="text-xs font-semibold text-foreground">One-time runner pairing token</div>
+            <div className="flex gap-2">
               <code className="flex-1 overflow-x-auto rounded bg-black/30 p-2 text-[11px] text-primary">{pairedToken}</code>
               <button type="button" onClick={() => { void navigator.clipboard?.writeText(pairedToken); toast.success("Runner token copied"); }} className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground" aria-label="Copy runner token"><Copy className="h-4 w-4" /></button>
             </div>
-            <p className="mt-2 text-[10px] text-muted-foreground">Keep this token private. The runner will report its installed tools and GPU capabilities after its first heartbeat.</p>
+            <p className="text-[10px] text-muted-foreground">Keep this token private. It is shown once for pairing and is not recoverable after leaving this page; create a new pairing if it is lost.</p>
+            <button type="button" onClick={() => setPairedToken(null)} className="text-[10px] text-primary hover:underline">Hide token after copying</button>
           </div>
         )}
-        <div className="space-y-6 pt-2">
-          <div className="rounded-lg bg-black/40 border border-border p-3 font-mono text-[11px] text-primary flex items-center justify-between">
-            <span>python -m ai_director.runner_installer --server-url {window.location.origin} --token YOUR_TOKEN</span>
+        <div className="space-y-3 pt-2">
+          <div className="rounded-lg bg-black/40 border border-border p-3 font-mono text-[11px] text-primary flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto">.\\GeneiRunner.exe --server-url {window.location.origin} --token {pairedToken || "YOUR_TOKEN"}</code>
+            <button type="button" onClick={() => { const command = `.\\GeneiRunner.exe --server-url ${window.location.origin} --token ${pairedToken || "YOUR_TOKEN"}`; void navigator.clipboard?.writeText(command); toast.success("Windows runner command copied"); }} className="rounded border border-border p-1.5 text-muted-foreground hover:text-foreground" aria-label="Copy Windows runner command"><Copy className="h-3.5 w-3.5" /></button>
           </div>
+          <p className="text-[10px] text-muted-foreground">The Windows binary is a BYOH workstation runner. It connects outbound and reports capabilities; it is not the full Genei dashboard application.</p>
           <ByohMonitorPanel />
         </div>
       </div>
