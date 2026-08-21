@@ -245,6 +245,20 @@ export const directorWebhookReceipts = mysqlTable("director_webhook_receipts", {
 export type DirectorWebhookReceipt = typeof directorWebhookReceipts.$inferSelect;
 export type InsertDirectorWebhookReceipt = typeof directorWebhookReceipts.$inferInsert;
 
+export const appNotifications = mysqlTable("app_notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 64 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  entityId: varchar("entityId", { length: 128 }),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AppNotification = typeof appNotifications.$inferSelect;
+export type InsertAppNotification = typeof appNotifications.$inferInsert;
+
 export const chatMessages = mysqlTable("chat_messages", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

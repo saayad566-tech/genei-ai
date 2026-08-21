@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AIChatPanel } from "./AIChatPanel";
 import { InstallPwaButton } from "./InstallPwaButton";
+import AppNotificationCenter from "./AppNotificationCenter";
 
 const mainNavItems = [
   { id: "home", label: "Home", icon: Home, path: "/" },
@@ -275,10 +276,7 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
             </button>
 
             {/* Notifications */}
-            <button className="relative min-h-11 min-w-11 p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors inline-flex items-center justify-center" aria-label="Notifications">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: "oklch(0.65 0.22 285)" }} />
-            </button>
+            <AppNotificationCenter />
 
             {/* Create Button */}
             <Link href="/image">

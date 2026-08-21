@@ -43,6 +43,13 @@
       "when": 1787294921373,
       "tag": "0005_unknown_nocturne",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787298205254,
+      "tag": "0006_tidy_scream",
+      "breakpoints": true
     }
   ]
 }

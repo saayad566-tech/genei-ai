@@ -15,6 +15,7 @@ import * as crypto from "crypto";
 import { compileDirectorGraph } from "./directorCompiler";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
+import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
 
 // Versioned authenticated encryption for user API keys.
 // Legacy values remain readable so existing connections can be migrated on update.
@@ -714,7 +715,13 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("Database unavailable");
+        const existing = await db.select({ status: directorJobs.status }).from(directorJobs).where(and(eq(directorJobs.id, input.id), eq(directorJobs.userId, ctx.user.id))).limit(1);
+        if (!existing.length) throw new Error("Director job not found");
         await db.update(directorJobs).set({ status: input.status, stage: input.stage, progress: input.progress, error: input.error, metadata: input.metadata === undefined ? undefined : JSON.stringify(input.metadata), updatedAt: new Date() }).where(and(eq(directorJobs.id, input.id), eq(directorJobs.userId, ctx.user.id)));
+        if (input.status === "blocked" && existing[0].status !== "blocked") {
+          const notification = buildBlockedJobNotification({ jobId: input.id, stage: input.stage, reason: input.error });
+          await dispatchAppNotification({ userId: ctx.user.id, ...notification });
+        }
         return { success: true };
       }),
 
@@ -742,7 +749,13 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("Database unavailable");
+        const existing = await db.select({ status: directorShots.status, projectId: directorShots.projectId }).from(directorShots).where(and(eq(directorShots.id, input.shotId), eq(directorShots.userId, ctx.user.id))).limit(1);
+        if (!existing.length) throw new Error("Director shot not found");
         await db.update(directorShots).set({ startContinuity: input.startContinuity === undefined ? undefined : JSON.stringify(input.startContinuity), endContinuity: input.endContinuity === undefined ? undefined : JSON.stringify(input.endContinuity), assetUrl: input.assetUrl, finalFrameUrl: input.finalFrameUrl, routeUsed: input.routeUsed, status: input.status, qaScore: input.qaScore, provenance: input.provenance === undefined ? undefined : JSON.stringify(input.provenance), lineage: input.lineage === undefined ? undefined : JSON.stringify(input.lineage), updatedAt: new Date() }).where(and(eq(directorShots.id, input.shotId), eq(directorShots.userId, ctx.user.id)));
+        if (input.status === "needs_review" && existing[0].status !== "needs_review") {
+          const notification = buildBoundaryReviewNotification({ shotId: input.shotId, projectId: existing[0].projectId });
+          await dispatchAppNotification({ userId: ctx.user.id, ...notification });
+        }
         return { success: true };
       }),
 
@@ -790,6 +803,12 @@ export const appRouter = router({
 
   // ── Global Settings & Localization ──────────────────────────────────────
   globalSettings: globalSettingsRouter,
+
+  // ── App-owned operator notifications ─────────────────────────────────────
+  appNotifications: router({
+    list: protectedProcedure.query(({ ctx }) => listAppNotifications(ctx.user.id)),
+    markRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => markAppNotificationRead(ctx.user.id, input.id)),
+  }),
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   stats: router({
