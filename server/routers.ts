@@ -883,13 +883,13 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return [
         { id: 1, name: "Genei AI Complete Source Archive", version: "v1.0.0", platform: "source-zip", fileSize: "18.4 MB", sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", downloadUrl: "/api/downloads/archive.zip", signingState: "unsigned", isPublished: true },
-        { id: 2, name: "Genei BYOH Windows Runner", version: "v1.0.0", platform: "win-x64", fileSize: "2.1 KB", sha256: "306d3cc9b1c56c7a95ddcac2360881e8e351749c178defdb4e6d620da309f8f8", downloadUrl: "/api/downloads/GeneiRunnerSetup.exe", signingState: "unsigned", isPublished: true },
+        { id: 2, name: "Genei BYOH Windows Runner (CI Build Required)", version: "v1.0.0", platform: "win-x64", fileSize: "Pending Windows CI", sha256: "Build via GitHub Actions workflow (.github/workflows/build-genei-runner-windows.yml)", downloadUrl: "#ci-build-required", signingState: "unsigned", isPublished: true },
       ];
       const items = await db.select().from(releaseArtifacts).where(eq(releaseArtifacts.isPublished, true)).orderBy(desc(releaseArtifacts.createdAt));
       if (!items.length) {
         return [
           { id: 1, name: "Genei AI Complete Source Archive", version: "v1.0.0", platform: "source-zip", fileSize: "18.4 MB", sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", downloadUrl: "/api/downloads/archive.zip", signingState: "unsigned", isPublished: true },
-          { id: 2, name: "Genei BYOH Windows Runner", version: "v1.0.0", platform: "win-x64", fileSize: "2.1 KB", sha256: "306d3cc9b1c56c7a95ddcac2360881e8e351749c178defdb4e6d620da309f8f8", downloadUrl: "/api/downloads/GeneiRunnerSetup.exe", signingState: "unsigned", isPublished: true },
+          { id: 2, name: "Genei BYOH Windows Runner (CI Build Required)", version: "v1.0.0", platform: "win-x64", fileSize: "Pending Windows CI", sha256: "Build via GitHub Actions workflow (.github/workflows/build-genei-runner-windows.yml)", downloadUrl: "#ci-build-required", signingState: "unsigned", isPublished: true },
         ];
       }
       return items;

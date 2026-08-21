@@ -257,3 +257,9 @@
 - [x] Update frontend settings download panel to emphasize direct software installation and show SHA-256 integrity
 - [x] Verify test suite, TypeScript check, and production build integrity
 - [x] Save verified checkpoint and deliver direct download access
+
+## Phase 29: Corrective Windows Packaging Audit & Truthful Release State
+- [x] Remove invalid placeholder binaries and replace with explicit build guidance for Windows CI/CD
+- [x] Update release artifact list to clearly distinguish between source archive and cloud-built Windows runner instructions
+- [x] Verify test suite, TypeScript check, and production build integrity
+- [x] Save verified checkpoint and provide truthful status report

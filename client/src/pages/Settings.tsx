@@ -153,12 +153,16 @@ function DownloadsArtifactsSection() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (artifact.downloadUrl.startsWith("#")) {
+                      toast.info("Windows EXE requires GitHub Actions compilation", { description: "Run the provided .github/workflows/build-genei-runner-windows.yml workflow to compile the standalone .exe." });
+                      return;
+                    }
                     toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` });
                     window.location.href = artifact.downloadUrl;
                   }}
                   className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"
                 >
-                  <Save className="w-3.5 h-3.5" /> Download {artifact.platform === "source-zip" ? "Source ZIP" : "Windows EXE"}
+                  <Save className="w-3.5 h-3.5" /> {artifact.downloadUrl.startsWith("#") ? "View Build Instructions" : `Download ${artifact.platform === "source-zip" ? "Source ZIP" : "Windows EXE"}`}
                 </button>
               </div>
             ))}
