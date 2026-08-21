@@ -197,3 +197,9 @@
 - [x] Add translation toggles and target language selectors to Director prompt intake UI and backend `createProject` procedure
 - [x] Configure GitHub Actions workflow and packaging scripts for automated release tagging and optional Windows certificate signing
 - [x] Verify test suite, TypeScript check, production build, and save final handoff checkpoint
+
+## Phase 21: Real-Time Webhook Toast & End-to-End Human Usability Audit
+- [ ] Implement real-time broadcast and toast notifications for verified incoming webhooks
+- [ ] Conduct comprehensive button, feature, routing, and setup-flow usability audit across the platform
+- [ ] Improve confusing states, error messages, guidance, and non-technical user paths
+- [ ] Run test suite, TypeScript check, production build, and save final handoff checkpoint

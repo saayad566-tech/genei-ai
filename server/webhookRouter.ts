@@ -4,6 +4,7 @@ import { getDb } from "./db";
 import { directorJobs, directorShots, directorWebhookReceipts, directorJobAssets, directorNodeLogs, apiKeys } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { storagePut } from "./storage";
+import { webhookEvents } from "./webhookEvents";
 
 export function registerDirectorWebhookRoutes(app: express.Express) {
   app.post("/api/director/webhook/:provider", express.json({ limit: "10mb" }), async (req, res) => {
@@ -147,6 +148,15 @@ export function registerDirectorWebhookRoutes(app: express.Express) {
         level: isFailed ? "error" : "info",
         message: `User-verified webhook from ${provider}: task ${externalTaskId} status ${eventType}`,
         metadata: JSON.stringify(payload),
+      });
+
+      webhookEvents.emit("verified_webhook", {
+        userId: targetJob.userId,
+        projectId: targetJob.projectId,
+        provider,
+        externalTaskId,
+        eventType,
+        status: nextStatus,
       });
     } catch (error) {
       if (receiptStatus !== "ignored") {

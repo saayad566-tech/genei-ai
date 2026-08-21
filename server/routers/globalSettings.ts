@@ -1,7 +1,7 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { apiKeys } from "../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { apiKeys, directorWebhookReceipts } from "../../drizzle/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { invokeLLM } from "../_core/llm";
 
@@ -48,4 +48,11 @@ export const globalSettingsRouter = router({
       const translated = response.choices[0]?.message?.content || input.text;
       return { translated };
     }),
+
+  getRecentWebhookReceipts: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const rows = await db.select().from(directorWebhookReceipts).where(eq(directorWebhookReceipts.userId, ctx.user.id)).orderBy(desc(directorWebhookReceipts.createdAt)).limit(5);
+    return rows;
+  }),
 });

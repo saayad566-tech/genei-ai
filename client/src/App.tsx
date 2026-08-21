@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { WebhookToastWatcher } from "./components/WebhookToastWatcher";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import GeneiLayout from "./components/GeneiLayout";
 import Home from "./pages/Home";
@@ -56,6 +57,7 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster position="bottom-right" theme="dark" />
+          <WebhookToastWatcher />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
