@@ -3,33 +3,64 @@ name: Build GeneiRunner Windows EXE
 on:
   workflow_dispatch:
   push:
+    branches: [main, master]
     paths:
       - "ai_director/**"
       - "packaging/**"
       - ".github/workflows/build-genei-runner-windows.yml"
+  release:
+    types: [published]
 
 jobs:
   build-windows-exe:
     runs-on: windows-latest
     permissions:
-      contents: read
+      contents: write
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build EXE
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller requests psutil pydantic
+
+      - name: Build standalone Windows EXE
         shell: pwsh
         run: ./packaging/build_windows_exe.ps1
 
-      - name: Validate packaged binary
+      - name: Validate packaged executable
         shell: pwsh
-        run: ./dist/GeneiRunner.exe --help
+        run: |
+          if (Test-Path "dist/GeneiRunner.exe") {
+            ./dist/GeneiRunner.exe --help
+          } else {
+            Write-Error "GeneiRunner.exe not found in dist/"
+            exit 1
+          }
 
-      - name: Upload downloadable artifact
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GeneiRunner-windows-x64
+          name: GeneiRunner-Windows-x64
           path: |
             dist/GeneiRunner.exe
             dist/GeneiRunner.exe.sha256
           if-no-files-found: error
+
+      - name: Attach release asset if triggered by release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/GeneiRunner.exe
+            dist/GeneiRunner.exe.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

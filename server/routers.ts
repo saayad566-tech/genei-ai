@@ -7,7 +7,7 @@ import { generateWithModel, getModelCapabilities } from "./modelGateway";
 import { checkVideoProviderHealth } from "./videoProviders";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
-import { assets, apiKeys, byohRunners, chatMessages, exportJobs, projects, directorScenes, directorShots, directorJobs, directorQcReports } from "../drizzle/schema";
+import { assets, apiKeys, byohRunners, chatMessages, exportJobs, projects, directorScenes, directorShots, directorJobs, directorQcReports, directorNodeLogs, directorJobAssets, directorWebhookReceipts } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import * as crypto from "crypto";
@@ -655,6 +655,27 @@ export const appRouter = router({
           else if (job.sceneId) dagEdges.push({ id: `edge-scene-job-${job.sceneId}-${job.id}`, source: `scene-${job.sceneId}`, target: jobNodeId, kind: "execution" });
         }
         return { project: owned[0], scenes, shots, jobs, qc, dag: { nodes: dagNodes, edges: dagEdges } };
+      }),
+
+    nodeDetails: protectedProcedure
+      .input(z.object({ projectId: z.number(), nodeId: z.string().min(1).max(255) }))
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return null;
+        const owned = await db.select({ id: projects.id, title: projects.title, status: projects.status }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.userId, ctx.user.id))).limit(1);
+        if (!owned.length) return null;
+        const nodeId = input.nodeId;
+        const shotId = nodeId.startsWith("shot-") ? Number(nodeId.slice(5)) : undefined;
+        const sceneId = nodeId.startsWith("scene-") ? Number(nodeId.slice(6)) : undefined;
+        const jobId = nodeId.startsWith("job-") ? Number(nodeId.slice(4)) : undefined;
+        const [shot] = shotId ? await db.select().from(directorShots).where(and(eq(directorShots.id, shotId), eq(directorShots.projectId, input.projectId), eq(directorShots.userId, ctx.user.id))).limit(1) : [];
+        const [scene] = sceneId ? await db.select().from(directorScenes).where(and(eq(directorScenes.id, sceneId), eq(directorScenes.projectId, input.projectId), eq(directorScenes.userId, ctx.user.id))).limit(1) : [];
+        const [job] = jobId ? await db.select().from(directorJobs).where(and(eq(directorJobs.id, jobId), eq(directorJobs.projectId, input.projectId), eq(directorJobs.userId, ctx.user.id))).limit(1) : [];
+        const jobs = await db.select().from(directorJobs).where(and(eq(directorJobs.projectId, input.projectId), eq(directorJobs.userId, ctx.user.id), shotId ? eq(directorJobs.shotId, shotId) : sceneId ? eq(directorJobs.sceneId, sceneId) : jobId ? eq(directorJobs.id, jobId) : eq(directorJobs.projectId, input.projectId))).orderBy(desc(directorJobs.updatedAt)).limit(50);
+        const logs = await db.select().from(directorNodeLogs).where(and(eq(directorNodeLogs.projectId, input.projectId), eq(directorNodeLogs.userId, ctx.user.id), eq(directorNodeLogs.nodeId, nodeId))).orderBy(desc(directorNodeLogs.createdAt)).limit(100);
+        const generatedAssets = await db.select().from(directorJobAssets).where(and(eq(directorJobAssets.projectId, input.projectId), eq(directorJobAssets.userId, ctx.user.id), shotId ? eq(directorJobAssets.shotId, shotId) : sceneId ? eq(directorJobAssets.sceneId, sceneId) : jobId ? eq(directorJobAssets.jobId, jobId) : eq(directorJobAssets.projectId, input.projectId))).orderBy(desc(directorJobAssets.createdAt)).limit(100);
+        const node = shot ? { kind: "shot", id: nodeId, label: shot.shotKey, status: shot.status, progress: jobs[0]?.progress ?? 0, shot, sceneId: shot.sceneId } : scene ? { kind: "scene", id: nodeId, label: `${scene.sceneKey} · ${scene.title}`, status: scene.status, progress: jobs[0]?.progress ?? 0, scene, sceneId: scene.id } : job ? { kind: "job", id: nodeId, label: `${job.stage} · ${job.kind}`, status: job.status, progress: job.progress, job, sceneId: job.sceneId, shotId: job.shotId } : { kind: "project", id: nodeId, label: owned[0].title, status: owned[0].status, progress: jobs.length ? Math.round(jobs.reduce((sum, item) => sum + item.progress, 0) / jobs.length) : 0 };
+        return { node, jobs, logs, assets: generatedAssets };
       }),
 
     jobs: protectedProcedure

@@ -5,8 +5,15 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import DagOrchestrationDashboard, { type DirectorData } from "./DagOrchestrationDashboard";
 
+const nodeDetails = {
+  node: { id: "shot-20", kind: "shot", label: "shot-1-1", status: "generating", progress: 42, error: null },
+  jobs: [{ id: 30, stage: "shot_generation", status: "blocked", progress: 42, error: null, attempt: 1, updatedAt: new Date() }],
+  logs: [{ id: 50, level: "info", message: "Provider submitted; waiting for callback", metadata: null, createdAt: new Date() }],
+  assets: [{ id: 60, kind: "preview_video", source: "runway", storageUrl: "https://cdn.example/shot-20.mp4", mimeType: "video/mp4", sizeBytes: 2048, metadata: null, createdAt: new Date() }],
+};
+
 const project: DirectorData = {
-  project: { status: "processing", metadata: null },
+  project: { id: 11, title: "Continuity test", status: "processing", metadata: null },
   scenes: [{ id: 10, sceneKey: "scene-1", sceneIndex: 1, title: "Opening", status: "running", objective: "Establish the path", location: "Neon street" }],
   shots: [{ id: 20, sceneId: 10, shotKey: "shot-1-1", sequenceIndex: 1, status: "generating", prompt: "A character keeps walking", routeUsed: "runway", qaScore: 86, startContinuity: "captured", endContinuity: null }],
   jobs: [{ id: 30, sceneId: 10, shotId: 20, kind: "shot_generation", stage: "shot_generation", status: "blocked", progress: 42, error: null, attempt: 1, updatedAt: new Date() }],
@@ -29,7 +36,7 @@ describe("DAG orchestration dashboard", () => {
   it("renders live progress and exposes shot details and retry action", () => {
     const onRetry = vi.fn();
     const onSaveBoundary = vi.fn();
-    render(<DagOrchestrationDashboard project={project} onRetry={onRetry} onSaveBoundary={onSaveBoundary} />);
+    render(<DagOrchestrationDashboard project={project} nodeDetails={nodeDetails} onRetry={onRetry} onSaveBoundary={onSaveBoundary} />);
 
     expect(screen.getByText("Orchestration Graph")).toBeInTheDocument();
     expect(screen.getAllByText("scene-1 · Opening").length).toBeGreaterThan(0);
@@ -47,6 +54,9 @@ describe("DAG orchestration dashboard", () => {
     expect(screen.getByText("Route: runway")).toBeInTheDocument();
     expect(screen.getByText("Start boundary: captured")).toBeInTheDocument();
     expect(screen.getByText("Continuity Inspector · shot-1-1")).toBeInTheDocument();
+    expect(screen.getByLabelText("DAG node inspection")).toBeInTheDocument();
+    expect(screen.getByText("Provider submitted; waiting for callback")).toBeInTheDocument();
+    expect(screen.getByText("Open asset")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "Action phase start" }), { target: { value: "walking" } });
     fireEvent.click(screen.getByRole("button", { name: "Save boundary review" }));
     expect(onSaveBoundary).toHaveBeenCalledWith(20, expect.objectContaining({ status: "needs_review" }));

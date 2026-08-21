@@ -175,3 +175,10 @@
 - [x] Re-run Phase 16 scope reconciliation after the compiler, inspector, and controls are implemented and verified
 - [x] Add a protected `cancel` orchestration action with durable job transitions and dashboard/console controls
 - [x] Update the Phase 16 scope reconciliation to distinguish the Python compiler bridge and full control set
+
+## Phase 18: Node Inspection, Webhooks, Localization, and Cloud Windows Builds
+- [x] Build detailed DAG node inspection panel showing current status, logs, and generated assets when clicking a DAG node
+- [x] Implement authenticated provider webhooks, durable media-asset persistence, and automatic job advancement
+- [x] Add multi-language localization (English, Spanish, French, Japanese) for continuity inspector and DAG orchestration telemetry
+- [x] Configure and validate cloud-based automated Windows runner GitHub Actions workflow with signing and checksums
+- [x] Run full test suites, TypeScript checks, production build, and save final handoff checkpoint

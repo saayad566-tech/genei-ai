@@ -190,6 +190,59 @@ export const directorQcReports = mysqlTable("director_qc_reports", {
 export type DirectorQcReport = typeof directorQcReports.$inferSelect;
 export type InsertDirectorQcReport = typeof directorQcReports.$inferInsert;
 
+export const directorNodeLogs = mysqlTable("director_node_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
+  sceneId: int("sceneId"),
+  shotId: int("shotId"),
+  jobId: int("jobId"),
+  nodeId: varchar("nodeId", { length: 255 }).notNull(),
+  level: mysqlEnum("level", ["info", "warning", "error"]).default("info").notNull(),
+  message: text("message").notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DirectorNodeLog = typeof directorNodeLogs.$inferSelect;
+export type InsertDirectorNodeLog = typeof directorNodeLogs.$inferInsert;
+
+export const directorJobAssets = mysqlTable("director_job_assets", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
+  sceneId: int("sceneId"),
+  shotId: int("shotId"),
+  jobId: int("jobId"),
+  kind: varchar("kind", { length: 64 }).notNull(),
+  source: varchar("source", { length: 128 }).notNull(),
+  storageKey: text("storageKey").notNull(),
+  storageUrl: text("storageUrl").notNull(),
+  mimeType: varchar("mimeType", { length: 128 }),
+  sizeBytes: bigint("sizeBytes", { mode: "number" }),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DirectorJobAsset = typeof directorJobAssets.$inferSelect;
+export type InsertDirectorJobAsset = typeof directorJobAssets.$inferInsert;
+
+export const directorWebhookReceipts = mysqlTable("director_webhook_receipts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  provider: varchar("provider", { length: 64 }).notNull(),
+  externalTaskId: varchar("externalTaskId", { length: 255 }).notNull(),
+  eventType: varchar("eventType", { length: 128 }).notNull(),
+  payloadHash: varchar("payloadHash", { length: 128 }).notNull(),
+  payload: text("payload").notNull(),
+  status: mysqlEnum("status", ["received", "applied", "ignored", "failed"]).default("received").notNull(),
+  processedAt: timestamp("processedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DirectorWebhookReceipt = typeof directorWebhookReceipts.$inferSelect;
+export type InsertDirectorWebhookReceipt = typeof directorWebhookReceipts.$inferInsert;
+
 export const chatMessages = mysqlTable("chat_messages", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

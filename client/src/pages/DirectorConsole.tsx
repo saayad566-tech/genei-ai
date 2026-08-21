@@ -8,10 +8,15 @@ export default function DirectorConsole() {
   const [, navigate] = useLocation();
   const projectsQuery = trpc.projects.list.useQuery();
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const projectId = selectedProjectId ?? projectsQuery.data?.find((project) => project.type === "video")?.id ?? projectsQuery.data?.[0]?.id ?? null;
   const directorQuery = trpc.director.getProject.useQuery(
     { projectId: projectId ?? 0 },
     { enabled: projectId !== null, refetchInterval: projectId !== null ? 3000 : false },
+  );
+  const nodeDetailsQuery = trpc.director.nodeDetails.useQuery(
+    { projectId: projectId ?? 0, nodeId: selectedNodeId ?? "" },
+    { enabled: projectId !== null && selectedNodeId !== null, refetchInterval: selectedNodeId ? 3000 : false },
   );
   const saveBoundary = trpc.director.saveBoundary.useMutation({ onSuccess: () => void directorQuery.refetch() });
   const controlProject = trpc.director.controlProject.useMutation({ onSuccess: () => void directorQuery.refetch() });
@@ -42,6 +47,10 @@ export default function DirectorConsole() {
         onResume={() => controlProject.mutate({ projectId, action: "resume" })}
         onCancel={() => controlProject.mutate({ projectId, action: "cancel" })}
         onStop={() => controlProject.mutate({ projectId, action: "stop" })}
+        selectedNodeId={selectedNodeId}
+        nodeDetails={nodeDetailsQuery.data}
+        nodeDetailsLoading={nodeDetailsQuery.isFetching}
+        onNodeSelect={setSelectedNodeId}
       />}
     </div>
   );

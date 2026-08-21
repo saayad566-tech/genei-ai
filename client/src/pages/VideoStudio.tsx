@@ -47,6 +47,7 @@ export default function VideoStudio() {
   const [format, setFormat] = useState("MP4");
   const [fps, setFps] = useState("24");
   const [publishTarget, setPublishTarget] = useState("download");
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [, navigate] = useLocation();
 
   const createDirectorProject = trpc.director.createProject.useMutation();
@@ -61,6 +62,10 @@ export default function VideoStudio() {
   const directorQuery = trpc.director.getProject.useQuery(
     { projectId: projectId ?? 0 },
     { enabled: projectId !== null, refetchInterval: projectId !== null ? 3000 : false },
+  );
+  const nodeDetailsQuery = trpc.director.nodeDetails.useQuery(
+    { projectId: projectId ?? 0, nodeId: selectedNodeId ?? "" },
+    { enabled: projectId !== null && selectedNodeId !== null, refetchInterval: selectedNodeId ? 3000 : false },
   );
   const saveBoundary = trpc.director.saveBoundary.useMutation({
     onSuccess: () => { toast.success("Continuity boundary saved"); void directorQuery.refetch(); },
@@ -149,6 +154,10 @@ export default function VideoStudio() {
         onResume={() => controlProject.mutate({ projectId, action: "resume" })}
         onCancel={() => controlProject.mutate({ projectId, action: "cancel" })}
         onStop={() => controlProject.mutate({ projectId, action: "stop" })}
+        selectedNodeId={selectedNodeId}
+        nodeDetails={nodeDetailsQuery.data}
+        nodeDetailsLoading={nodeDetailsQuery.isFetching}
+        onNodeSelect={setSelectedNodeId}
       />}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
