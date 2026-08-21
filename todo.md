@@ -182,3 +182,11 @@
 - [x] Add multi-language localization (English, Spanish, French, Japanese) for continuity inspector and DAG orchestration telemetry
 - [x] Configure and validate cloud-based automated Windows runner GitHub Actions workflow with signing and checksums
 - [x] Run full test suites, TypeScript checks, production build, and save final handoff checkpoint
+
+## Phase 19: Global Platform Usability and Advanced Director Features
+- [ ] Implement user-owned webhook configuration UI and backend router without platform-only restriction errors
+- [ ] Add operator notifications for blocked jobs and boundary review requests via app-owned dispatch
+- [ ] Add automated multi-language translation (EN, ES, FR, JA) for prompt briefs and Director scene script generation
+- [ ] Add visual execution timeline view to the DAG node inspection panel showing duration and sequence
+- [ ] Configure automated release tagging and optional Windows code signing in the GitHub Actions workflow
+- [ ] Verify test suite, TypeScript check, and save final handoff checkpoint

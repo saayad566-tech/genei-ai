@@ -1,0 +1,51 @@
+import { protectedProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
+import { apiKeys } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
+import { z } from "zod/v4";
+import { invokeLLM } from "../_core/llm";
+
+export const globalSettingsRouter = router({
+  getWebhookSettings: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { webhookUrl: "", webhookSecret: "", enabled: false };
+    const found = await db.select().from(apiKeys).where(and(eq(apiKeys.userId, ctx.user.id), eq(apiKeys.provider, "genei_webhook"))).limit(1);
+    if (!found.length) return { webhookUrl: "", webhookSecret: "", enabled: false };
+    try {
+      const data = JSON.parse(found[0].encryptedKey);
+      return { webhookUrl: data.webhookUrl || "", webhookSecret: data.webhookSecret || "", enabled: Boolean(data.enabled) };
+    } catch {
+      return { webhookUrl: "", webhookSecret: "", enabled: false };
+    }
+  }),
+
+  saveWebhookSettings: protectedProcedure
+    .input(z.object({ webhookUrl: z.string().max(1000), webhookSecret: z.string().max(255), enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      const existing = await db.select().from(apiKeys).where(and(eq(apiKeys.userId, ctx.user.id), eq(apiKeys.provider, "genei_webhook"))).limit(1);
+      const payload = JSON.stringify(input);
+      if (existing.length > 0) {
+        await db.update(apiKeys).set({ encryptedKey: payload, updatedAt: new Date() }).where(eq(apiKeys.id, existing[0].id));
+      } else {
+        await db.insert(apiKeys).values({ userId: ctx.user.id, provider: "genei_webhook", encryptedKey: payload, label: "User Managed Webhook" });
+      }
+      return { success: true };
+    }),
+
+  translateText: protectedProcedure
+    .input(z.object({ text: z.string().min(1).max(10000), targetLanguage: z.enum(["en", "es", "fr", "ja"]) }))
+    .mutation(async ({ input }) => {
+      const langNames: Record<string, string> = { en: "English", es: "Spanish", fr: "French", ja: "Japanese" };
+      const targetName = langNames[input.targetLanguage] || "English";
+      const response = await invokeLLM({
+        messages: [
+          { role: "system", content: `You are a professional film localization assistant. Translate the following creative brief, script outline, or scene description into fluent ${targetName}, preserving all cinematic tone, formatting, and technical stage directions. Return only the translated text.` },
+          { role: "user", content: input.text },
+        ],
+      });
+      const translated = response.choices[0]?.message?.content || input.text;
+      return { translated };
+    }),
+});

@@ -13,6 +13,7 @@ import { z } from "zod/v4";
 import * as crypto from "crypto";
 import { compileDirectorGraph } from "./directorCompiler";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
+import { globalSettingsRouter } from "./routers/globalSettings";
 
 // Versioned authenticated encryption for user API keys.
 // Legacy values remain readable so existing connections can be migrated on update.
@@ -765,6 +766,9 @@ export const appRouter = router({
       return { success: true };
     }),
   }),
+
+  // ── Global Settings & Localization ──────────────────────────────────────
+  globalSettings: globalSettingsRouter,
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   stats: router({
