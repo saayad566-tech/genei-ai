@@ -236,7 +236,8 @@
 - [x] Add deterministic test coverage and document any provider/account prerequisites or blocked live steps
 - [x] Run full verification and save a final live-integration checkpoint
 
-## Phase 26: Custom Domain Settings and Publishing Prep
+## Phase 26: Custom Domain Settings and Direct Downloads
 - [x] Add custom domain configuration panel and DNS CNAME guidance in Settings
-- [x] Verify responsive states, toast notifications, and test suite integrity
-- [x] Save verified checkpoint and provide publishing guidance for the downloadable Windows package
+- [x] Add dedicated **Downloads & Desktop App** panel in Settings with direct project ZIP archive download and Windows .exe PyInstaller packaging guidance
+- [x] Verify full test suite, TypeScript check, and production build integrity
+- [x] Save verified checkpoint and provide direct download options

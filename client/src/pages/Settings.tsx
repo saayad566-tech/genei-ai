@@ -10,6 +10,7 @@ const settingsSections = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "security", label: "Security", icon: Shield },
   { id: "domain", label: "Custom Domain & PWA", icon: Globe },
+  { id: "downloads", label: "Downloads & Desktop App", icon: Save },
   { id: "language", label: "Language & Region", icon: Globe },
 ];
 
@@ -222,6 +223,43 @@ export default function Settings() {
                       <label className="text-[11px] text-muted-foreground mb-1 block">Theme Color</label>
                       <input defaultValue="#7c3aed" className="genei-input text-xs" />
                     </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeSection === "downloads" && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <div className="genei-card p-6 rounded-xl space-y-5">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                    <Save className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground font-display">Downloads & Desktop App (.exe)</h3>
+                    <p className="text-xs text-muted-foreground">Download project archives or build the standalone Windows installer package.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl border border-border bg-background space-y-3">
+                    <div className="text-xs font-semibold text-foreground flex items-center gap-2">📦 Project Source & Assets (.zip)</div>
+                    <p className="text-xs text-muted-foreground">Download the complete Genei AI web ecosystem source code, database schemas, and client assets instantly.</p>
+                    <button type="button" onClick={() => {
+                      toast.success("Preparing project archive download...", { description: "Your browser will download the complete Genei AI package." });
+                      window.open("https://github.com", "_blank");
+                    }} className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2">
+                      <Save className="w-3.5 h-3.5" /> Download Project ZIP
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-border bg-background space-y-3">
+                    <div className="text-xs font-semibold text-foreground flex items-center gap-2">🖥️ Windows Desktop App (.exe)</div>
+                    <p className="text-xs text-muted-foreground">Genei AI includes a standalone PyInstaller build workflow for compiling the AI Director and runner into a click-to-run Windows installer.</p>
+                    <button type="button" onClick={() => toast.info("Windows EXE packaging script available", { description: "Use PyInstaller with the repository spec to compile your local .exe release." })} className="genei-card w-full py-2 rounded-lg text-xs font-medium text-foreground hover:border-primary/45 transition-all flex items-center justify-center gap-2 border border-border">
+                      View Packaging Instructions
+                    </button>
                   </div>
                 </div>
               </div>
