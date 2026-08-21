@@ -1,7 +1,7 @@
 import express from "express";
 import crypto from "crypto";
 import { getDb } from "./db";
-import { directorJobs, directorShots, directorWebhookReceipts, directorJobAssets, directorNodeLogs } from "../drizzle/schema";
+import { directorJobs, directorShots, directorWebhookReceipts, directorJobAssets, directorNodeLogs, apiKeys } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { storagePut } from "./storage";
 
@@ -11,18 +11,6 @@ export function registerDirectorWebhookRoutes(app: express.Express) {
     const rawBody = JSON.stringify(req.body);
     const payloadHash = crypto.createHash("sha256").update(rawBody).digest("hex");
     const signature = req.headers["x-webhook-signature"] || req.headers["x-signature"] || "";
-
-    const secret = process.env.DIRECTOR_WEBHOOK_SECRET || (process.env.NODE_ENV === "production" ? "" : "genei-dev-webhook-secret");
-    if (!secret) {
-      return res.status(500).json({ success: false, error: "Webhook secret not configured on server" });
-    }
-    const computedSignature = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-
-    const isSignedValid = typeof signature === "string" && signature.length === computedSignature.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(computedSignature));
-
-    if (!isSignedValid && process.env.NODE_ENV === "production") {
-      return res.status(401).json({ success: false, error: "Invalid or missing webhook signature" });
-    }
 
     const db = await getDb();
     if (!db) {
@@ -37,6 +25,45 @@ export function registerDirectorWebhookRoutes(app: express.Express) {
       return res.status(400).json({ success: false, error: "Missing external task id in webhook payload" });
     }
 
+    // Find matching job to resolve user-specific webhook secret
+    const allJobs = await db.select().from(directorJobs);
+    const targetJob = allJobs.find((j) => {
+      try {
+        const meta = j.metadata ? JSON.parse(j.metadata) : {};
+        return meta.externalTaskId === externalTaskId || meta.taskId === externalTaskId;
+      } catch {
+        return false;
+      }
+    });
+
+    let resolvedSecret = process.env.DIRECTOR_WEBHOOK_SECRET || (process.env.NODE_ENV === "production" ? "" : "genei-dev-webhook-secret");
+
+    if (targetJob) {
+      const userKeyRows = await db.select().from(apiKeys).where(and(eq(apiKeys.userId, targetJob.userId), eq(apiKeys.provider, "genei_webhook")));
+      for (const row of userKeyRows) {
+        try {
+          const configData = JSON.parse(row.encryptedKey);
+          if (configData.webhookSecret && typeof configData.webhookSecret === "string") {
+            resolvedSecret = configData.webhookSecret;
+            break;
+          }
+        } catch {
+          // ignore parse error
+        }
+      }
+    }
+
+    if (!resolvedSecret) {
+      return res.status(500).json({ success: false, error: "Webhook secret not configured" });
+    }
+
+    const computedSignature = crypto.createHmac("sha256", resolvedSecret).update(rawBody).digest("hex");
+    const isSignedValid = typeof signature === "string" && signature.length === computedSignature.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(computedSignature));
+
+    if (!isSignedValid && process.env.NODE_ENV === "production") {
+      return res.status(401).json({ success: false, error: "Invalid or missing webhook signature" });
+    }
+
     const existing = await db.select().from(directorWebhookReceipts).where(and(eq(directorWebhookReceipts.provider, provider), eq(directorWebhookReceipts.externalTaskId, externalTaskId), eq(directorWebhookReceipts.payloadHash, payloadHash))).limit(1);
 
     if (existing.length > 0 && existing[0].status === "applied") {
@@ -47,16 +74,6 @@ export function registerDirectorWebhookRoutes(app: express.Express) {
     let errorMessage: string | null = null;
 
     try {
-      const allJobs = await db.select().from(directorJobs);
-      const targetJob = allJobs.find((j) => {
-        try {
-          const meta = j.metadata ? JSON.parse(j.metadata) : {};
-          return meta.externalTaskId === externalTaskId || meta.taskId === externalTaskId;
-        } catch {
-          return false;
-        }
-      });
-
       if (!targetJob) {
         receiptStatus = "ignored";
         throw new Error(`No matching job found for external task ID ${externalTaskId}`);
@@ -73,6 +90,7 @@ export function registerDirectorWebhookRoutes(app: express.Express) {
         progress: nextProgress,
         error: isFailed ? String(payload.message || payload.error || "Provider reported task failure") : null,
         updatedAt: new Date(),
+        finishedAt: isSuccess || isFailed ? new Date() : undefined,
       }).where(eq(directorJobs.id, targetJob.id));
 
       if (targetJob.shotId) {
@@ -127,7 +145,7 @@ export function registerDirectorWebhookRoutes(app: express.Express) {
         jobId: targetJob.id,
         nodeId: targetJob.shotId ? `shot-${targetJob.shotId}` : targetJob.sceneId ? `scene-${targetJob.sceneId}` : `job-${targetJob.id}`,
         level: isFailed ? "error" : "info",
-        message: `Authenticated webhook from ${provider}: task ${externalTaskId} status ${eventType}`,
+        message: `User-verified webhook from ${provider}: task ${externalTaskId} status ${eventType}`,
         metadata: JSON.stringify(payload),
       });
     } catch (error) {
@@ -137,7 +155,7 @@ export function registerDirectorWebhookRoutes(app: express.Express) {
       errorMessage = error instanceof Error ? error.message : String(error);
     } finally {
       await db.insert(directorWebhookReceipts).values({
-        userId: 1,
+        userId: targetJob?.userId || 1,
         provider,
         externalTaskId,
         eventType,

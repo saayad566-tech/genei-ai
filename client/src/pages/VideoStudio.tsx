@@ -48,8 +48,11 @@ export default function VideoStudio() {
   const [fps, setFps] = useState("24");
   const [publishTarget, setPublishTarget] = useState("download");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [enableTranslation, setEnableTranslation] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState<"en" | "es" | "fr" | "ja">("en");
   const [, navigate] = useLocation();
 
+  const translateMutation = trpc.globalSettings.translateText.useMutation();
   const createDirectorProject = trpc.director.createProject.useMutation();
   const retryShot = trpc.director.retryShot.useMutation({
     onSuccess: () => toast.success("Shot queued for targeted regeneration"),
@@ -80,10 +83,17 @@ export default function VideoStudio() {
     if (!prompt.trim()) { toast.error("Enter a video description first"); return; }
     setIsGenerating(true);
     try {
+      let finalBrief = prompt.trim();
+      if (enableTranslation && targetLanguage !== "en") {
+        toast.info("Translating prompt brief...", { description: `Converting description into ${targetLanguage.toUpperCase()}` });
+        const trRes = await translateMutation.mutateAsync({ text: finalBrief, targetLanguage });
+        finalBrief = typeof trRes.translated === "string" ? trRes.translated : finalBrief;
+      }
+
       const result = await createDirectorProject.mutateAsync({
         projectId: projectId ?? undefined,
         title: `${videoType} production`,
-        brief: prompt.trim(),
+        brief: finalBrief,
         aspectRatio,
         resolution,
         fps: Number(fps),
@@ -228,7 +238,7 @@ export default function VideoStudio() {
                   className="w-full genei-input resize-none"
                 />
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Aspect Ratio</label>
                     <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="w-full genei-input text-sm py-2">
@@ -238,6 +248,19 @@ export default function VideoStudio() {
                       <option value="4:3">4:3 Classic</option>
                       <option value="21:9">21:9 Cinematic</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Automated Script Translation</label>
+                    <div className="flex items-center gap-2 py-1.5">
+                      <input type="checkbox" checked={enableTranslation} onChange={(e) => setEnableTranslation(e.target.checked)} className="rounded border-border accent-primary" />
+                      <span className="text-xs text-foreground">Translate brief</span>
+                      <select aria-label="Target translation language" disabled={!enableTranslation} value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value as any)} className="genei-input text-xs py-1 px-2 disabled:opacity-50">
+                        <option value="en">English (EN)</option>
+                        <option value="es">Spanish (ES)</option>
+                        <option value="fr">French (FR)</option>
+                        <option value="ja">Japanese (JA)</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Duration: {duration}s</label>

@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { generateImage } from "./_core/imageGeneration";
+import { invokeLLM } from "./_core/llm";
 import { generateWithModel, getModelCapabilities } from "./modelGateway";
 import { checkVideoProviderHealth } from "./videoProviders";
 import { storagePut } from "./storage";
@@ -522,10 +523,30 @@ export const appRouter = router({
         aspectRatio: z.string().default("16:9"),
         resolution: z.string().default("1080p"),
         fps: z.number().int().min(1).max(120).default(24),
+        targetLanguage: z.enum(["en", "es", "fr", "ja"]).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("Database unavailable");
+        let finalBrief = input.brief;
+        if (input.targetLanguage && input.targetLanguage !== "en") {
+          try {
+            const langNames: Record<string, string> = { es: "Spanish", fr: "French", ja: "Japanese" };
+            const targetName = langNames[input.targetLanguage] || "English";
+            const res = await invokeLLM({
+              messages: [
+                { role: "system", content: `You are a professional film localization assistant. Translate the following creative brief into fluent ${targetName}, preserving all cinematic tone and stage directions. Return only the translated text.` },
+                { role: "user", content: input.brief },
+              ],
+            });
+            const translated = res.choices[0]?.message?.content;
+            if (typeof translated === "string" && translated.trim().length > 0) {
+              finalBrief = translated.trim();
+            }
+          } catch {
+            // Fallback to original brief if translation fails
+          }
+        }
         let projectId = input.projectId;
         if (projectId) {
           const owned = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.userId, ctx.user.id))).limit(1);
@@ -547,10 +568,10 @@ export const appRouter = router({
         let graphPlan;
         let compilerSource = "python-ai-director";
         try {
-          graphPlan = await compileDirectorGraphWithPython({ projectId, title: input.title, brief: input.brief, aspectRatio: input.aspectRatio, fps: input.fps });
+          graphPlan = await compileDirectorGraphWithPython({ projectId, title: input.title, brief: finalBrief, aspectRatio: input.aspectRatio, fps: input.fps });
         } catch {
           compilerSource = "typescript-fallback";
-          graphPlan = compileDirectorGraph({ title: input.title, brief: input.brief, aspectRatio: input.aspectRatio });
+          graphPlan = compileDirectorGraph({ title: input.title, brief: finalBrief, aspectRatio: input.aspectRatio });
         }
         const sceneIdByKey = new Map<string, number>();
         const shotIdByKey = new Map<string, number>();

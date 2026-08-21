@@ -191,3 +191,9 @@
 - [x] Add visual execution timeline view to the DAG node inspection panel
 - [ ] Configure automated release tagging and optional Windows code signing in GitHub Actions
 - [x] Run test suite and TypeScript verification checks
+
+## Phase 20: Per-User Webhook Verification, Prompt Translation, and Windows Code Signing
+- [x] Resolve per-user webhook secrets from saved apiKeys in `webhookRouter.ts` during callback signature verification
+- [x] Add translation toggles and target language selectors to Director prompt intake UI and backend `createProject` procedure
+- [x] Configure GitHub Actions workflow and packaging scripts for automated release tagging and optional Windows certificate signing
+- [x] Verify test suite, TypeScript check, production build, and save final handoff checkpoint

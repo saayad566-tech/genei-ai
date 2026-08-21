@@ -19,6 +19,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create automated release tag if missing
+        shell: pwsh
+        run: |
+          $version = "v1.0.$(Get-Date -Format 'yyyyMMdd.HHmm')"
+          git config user.name "Genei Release Bot"
+          git config user.email "bot@genei.ai"
+          try {
+            git tag -a $version -m "Automated Windows runner release $version"
+            git push origin $version
+            Write-Host "Created and pushed release tag $version"
+          } catch {
+            Write-Host "Tag $version already exists or push skipped."
+          }
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -44,6 +60,22 @@ jobs:
           } else {
             Write-Error "GeneiRunner.exe not found in dist/"
             exit 1
+          }
+
+      - name: Optional Windows Code Signing
+        shell: pwsh
+        env:
+          CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        run: |
+          if ($env:CERT_BASE64) {
+            Write-Host "Signing GeneiRunner.exe with provided certificate..."
+            $certPath = "$env:TEMP\signing_cert.pfx"
+            [System.IO.File]::WriteAllBytes($certPath, [System.Convert]::FromBase64String($env:CERT_BASE64))
+            & signtool sign /f $certPath /p $env:CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "dist/GeneiRunner.exe"
+            Remove-Item $certPath -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "No Windows code-signing certificate provided; skipping signing step."
           }
 
       - name: Upload workflow artifact

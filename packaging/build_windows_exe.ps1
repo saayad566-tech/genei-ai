@@ -15,6 +15,11 @@ if (-not (Test-Path $Output)) {
   throw "Expected EXE was not produced at $Output"
 }
 
+if ($env:SIGNING_CERT_PATH -and $env:SIGNING_CERT_PASSWORD) {
+  Write-Host "[Genei] Signing EXE locally using provided cert..."
+  & signtool sign /f $env:SIGNING_CERT_PATH /p $env:SIGNING_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $Output
+}
+
 $Hash = (Get-FileHash $Output -Algorithm SHA256).Hash
 $Hash | Out-File -Encoding ascii (Join-Path $ProjectRoot "dist\GeneiRunner.exe.sha256")
 Write-Host "[Genei] EXE ready: $Output"
