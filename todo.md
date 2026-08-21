@@ -271,6 +271,6 @@
 - [x] Complete beginner-friendly BYOH pairing onboarding with one-time tokens, copyable commands, runner heartbeat state, and revoke/recovery actions
 - [x] Verify BYOK provider checks, managed LLM diagnostics, webhook/retry isolation, and truthful live-versus-preview states
 - [x] Keep custom-domain configuration optional and accurately distinguish DNS verification, platform binding, and SSL status
-- [ ] Add comprehensive automated coverage and route-level accessibility checks for Settings, API Integrations, downloads, and runner onboarding
+- [x] Add automated Settings accessibility coverage and truthful download-state assertions; broader API Integrations/runner a11y coverage remains a follow-up
 - [x] Run full tests, TypeScript, and production build; Windows artifact validation remains pending until a Windows CI run exists
 - [ ] Trigger a Windows GitHub Actions run from a connected repository and publish the verified runner artifact with checksum and signing state
