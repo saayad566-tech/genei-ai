@@ -8,6 +8,7 @@ import GeneiLayout from "./components/GeneiLayout";
 import Home from "./pages/Home";
 import MusicStudio from "./pages/MusicStudio";
 import VideoStudio from "./pages/VideoStudio";
+import DirectorConsole from "./pages/DirectorConsole";
 import ImageGenerator from "./pages/ImageGenerator";
 import AppBuilder from "./pages/AppBuilder";
 import WebsiteBuilder from "./pages/WebsiteBuilder";
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/music" component={MusicStudio} />
         <Route path="/video" component={VideoStudio} />
+        <Route path="/director" component={DirectorConsole} />
         <Route path="/image" component={ImageGenerator} />
         <Route path="/app-builder" component={AppBuilder} />
         <Route path="/app" component={AppBuilder} />

@@ -7,7 +7,7 @@ import {
   Settings, Plus, Clock, Bot, LayoutTemplate, Upload,
   Cloud, Palette, BarChart3, CreditCard, ChevronLeft,
   ChevronRight, Bell, Search, Menu, X, Sparkles, LogOut,
-  Cpu, ChevronDown
+  Cpu, ChevronDown, Activity
 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -27,6 +27,7 @@ const mainNavItems = [
   { id: "home", label: "Home", icon: Home, path: "/" },
   { id: "music", label: "Music Studio", icon: Music, path: "/music", badge: "AI", badgeColor: "purple" },
   { id: "video", label: "Video Studio", icon: Video, path: "/video", badge: "AI", badgeColor: "pink" },
+  { id: "director", label: "Director Console", icon: Activity, path: "/director", badge: "LIVE", badgeColor: "purple" },
   { id: "image", label: "Image Generator", icon: Image, path: "/image", badge: "AI", badgeColor: "cyan" },
   { id: "app", label: "App Builder", icon: Smartphone, path: "/app" },
   { id: "website", label: "Website Builder", icon: Globe, path: "/website" },

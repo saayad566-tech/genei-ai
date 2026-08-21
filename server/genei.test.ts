@@ -177,3 +177,12 @@ describe("assets importRemote", () => {
     })).rejects.toThrow();
   });
 });
+
+describe("director orchestration controls", () => {
+  it("rejects unknown control actions before database mutation", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.director.controlProject({ projectId: 1, action: "delete-all" as never })).rejects.toThrow();
+    await expect(caller.director.controlProject({ projectId: 1, action: "cancel" })).rejects.toThrow();
+  });
+});

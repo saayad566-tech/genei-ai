@@ -11,6 +11,8 @@ import { assets, apiKeys, byohRunners, chatMessages, exportJobs, projects, direc
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import * as crypto from "crypto";
+import { compileDirectorGraph } from "./directorCompiler";
+import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 
 // Versioned authenticated encryption for user API keys.
 // Legacy values remain readable so existing connections can be migrated on update.
@@ -540,52 +542,77 @@ export const appRouter = router({
           projectId = Number(created[0].insertId);
         }
 
-        const scene = await db.insert(directorScenes).values({
+        if (!projectId) throw new Error("Project could not be created");
+        let graphPlan;
+        let compilerSource = "python-ai-director";
+        try {
+          graphPlan = await compileDirectorGraphWithPython({ projectId, title: input.title, brief: input.brief, aspectRatio: input.aspectRatio, fps: input.fps });
+        } catch {
+          compilerSource = "typescript-fallback";
+          graphPlan = compileDirectorGraph({ title: input.title, brief: input.brief, aspectRatio: input.aspectRatio });
+        }
+        const sceneIdByKey = new Map<string, number>();
+        const shotIdByKey = new Map<string, number>();
+        const sceneIds: number[] = [];
+        const shotIds: number[] = [];
+
+        for (const scenePlan of graphPlan.scenes) {
+          const sceneResult = await db.insert(directorScenes).values({
+            userId: ctx.user.id,
+            projectId,
+            sceneKey: scenePlan.sceneKey,
+            sceneIndex: scenePlan.sceneIndex,
+            title: scenePlan.title,
+            objective: scenePlan.objective,
+            location: scenePlan.location,
+            timeOfDay: scenePlan.timeOfDay,
+            status: "pending",
+            contract: JSON.stringify({ dependencyIds: scenePlan.dependencies, acceptanceCriteria: ["All compiled shots pass QC", "Scene stitches cleanly"], boundaryConstraints: ["Preserve location, lighting, camera axis, and action phase"] }),
+          });
+          const sceneId = Number(sceneResult[0].insertId);
+          sceneIds.push(sceneId);
+          sceneIdByKey.set(scenePlan.sceneKey, sceneId);
+          for (const shotPlan of scenePlan.shots) {
+            const shotResult = await db.insert(directorShots).values({
+              userId: ctx.user.id,
+              projectId,
+              sceneId,
+              shotKey: shotPlan.shotKey,
+              sequenceIndex: shotPlan.sequenceIndex,
+              prompt: shotPlan.prompt,
+              status: "pending",
+              contract: JSON.stringify({ requiredInputs: shotPlan.dependencies.map((dependency) => `${dependency}.end_continuity`), dependencyIds: shotPlan.dependencies, acceptanceCriteria: shotPlan.acceptanceCriteria, continuityConstraints: shotPlan.continuityConstraints, cameraMotion: shotPlan.cameraMotion }),
+            });
+            const shotId = Number(shotResult[0].insertId);
+            shotIds.push(shotId);
+            shotIdByKey.set(shotPlan.shotKey, shotId);
+          }
+        }
+
+        await db.update(projects).set({ metadata: JSON.stringify({ aspectRatio: input.aspectRatio, resolution: input.resolution, fps: input.fps, director: "continuity-v2", compilerSource, compilerVersion: graphPlan.compilerVersion, sceneCount: graphPlan.scenes.length, shotCount: shotIds.length, logicalNodes: graphPlan.logicalNodes }) }).where(and(eq(projects.id, projectId), eq(projects.userId, ctx.user.id)));
+
+        const rootJob = await db.insert(directorJobs).values({
           userId: ctx.user.id,
           projectId,
-          sceneKey: "scene-1",
-          sceneIndex: 1,
-          title: "Introduction",
-          objective: `Establish setting and premise for: ${input.brief}`,
-          location: "Cinematic Studio",
-          timeOfDay: "Day",
-          status: "pending",
-          contract: JSON.stringify({ acceptanceCriteria: ["Setting is legible", "Character identity is stable"], boundaryConstraints: ["Preserve location, lighting, and camera axis"] }),
-        });
-        const sceneId = Number(scene[0].insertId);
-        const firstShot = await db.insert(directorShots).values({
-          userId: ctx.user.id,
-          projectId,
-          sceneId,
-          shotKey: "shot-1-1",
-          sequenceIndex: 1,
-          prompt: `Cinematic wide establishing shot: ${input.brief}; action: establishing movement`,
-          status: "pending",
-          contract: JSON.stringify({ acceptanceCriteria: ["Wide establishing composition", "Readable movement direction"], continuityConstraints: ["Create a stable end frame for the next shot"] }),
-        });
-        const firstShotId = Number(firstShot[0].insertId);
-        const secondShot = await db.insert(directorShots).values({
-          userId: ctx.user.id,
-          projectId,
-          sceneId,
-          shotKey: "shot-1-2",
-          sequenceIndex: 2,
-          prompt: "Close-up character portrait with cinematic lighting and expressive emotion; action: continue movement from previous shot",
-          status: "pending",
-          contract: JSON.stringify({ requiredInputs: ["shot-1-1.end_continuity"], dependencyIds: ["shot-1-1"], acceptanceCriteria: ["Match previous character identity", "Preserve camera axis and light"], continuityConstraints: ["Previous shot end state is mandatory conditioning"] }),
-        });
-        const secondShotId = Number(secondShot[0].insertId);
-        const job = await db.insert(directorJobs).values({
-          userId: ctx.user.id,
-          projectId,
-          sceneId,
+          sceneId: sceneIds[0] ?? null,
           kind: "project",
           stage: "planning",
           status: "queued",
           progress: 0,
-          metadata: JSON.stringify({ shotIds: [firstShotId, secondShotId], continuityRequired: true }),
+          metadata: JSON.stringify({ compilerSource, compilerVersion: graphPlan.compilerVersion, sceneIds, shotIds, logicalNodes: graphPlan.logicalNodes, continuityRequired: true }),
         });
-        return { projectId, sceneId, shotIds: [firstShotId, secondShotId], jobId: Number(job[0].insertId), status: "queued" as const };
+        for (const scenePlan of graphPlan.scenes) {
+          const sceneId = sceneIdByKey.get(scenePlan.sceneKey);
+          if (!sceneId) continue;
+          const sceneShotIds = scenePlan.shots.map((shot) => shotIdByKey.get(shot.shotKey)).filter((id): id is number => Boolean(id));
+          await db.insert(directorJobs).values({ userId: ctx.user.id, projectId, sceneId, kind: "scene", stage: "scene_render", status: "queued", progress: 0, metadata: JSON.stringify({ logicalNodeId: scenePlan.sceneKey, dependencySceneIds: scenePlan.dependencies.map((dependency) => sceneIdByKey.get(dependency)).filter(Boolean), shotIds: sceneShotIds }) });
+          for (const shotPlan of scenePlan.shots) {
+            const shotId = shotIdByKey.get(shotPlan.shotKey);
+            if (!shotId) continue;
+            await db.insert(directorJobs).values({ userId: ctx.user.id, projectId, sceneId, shotId, kind: "shot", stage: "shot_generation", status: "queued", progress: 0, attempt: 0, metadata: JSON.stringify({ logicalNodeId: shotPlan.shotKey, dependencyShotIds: shotPlan.dependencies.map((dependency) => shotIdByKey.get(dependency)).filter(Boolean), continuityRequired: true, cameraMotion: shotPlan.cameraMotion }) });
+          }
+        }
+        return { projectId, sceneId: sceneIds[0] ?? 0, sceneIds, shotIds, jobId: Number(rootJob[0].insertId), status: "queued" as const, compilerVersion: graphPlan.compilerVersion, compilerSource };
       }),
 
     getProject: protectedProcedure
@@ -599,7 +626,35 @@ export const appRouter = router({
         const shots = await db.select().from(directorShots).where(and(eq(directorShots.projectId, input.projectId), eq(directorShots.userId, ctx.user.id))).orderBy(directorShots.sequenceIndex);
         const jobs = await db.select().from(directorJobs).where(and(eq(directorJobs.projectId, input.projectId), eq(directorJobs.userId, ctx.user.id))).orderBy(desc(directorJobs.createdAt));
         const qc = await db.select().from(directorQcReports).where(and(eq(directorQcReports.projectId, input.projectId), eq(directorQcReports.userId, ctx.user.id))).orderBy(desc(directorQcReports.createdAt));
-        return { project: owned[0], scenes, shots, jobs, qc };
+
+        type DagNode = { id: string; kind: "project" | "scene" | "shot" | "job"; label: string; status: string; progress: number; sceneId?: number; shotId?: number; jobId?: number };
+        type DagEdge = { id: string; source: string; target: string; kind: "contains" | "dependency" | "assembly" | "execution" };
+        const dagNodes: DagNode[] = [{ id: `project-${owned[0].id}`, kind: "project", label: owned[0].title, status: owned[0].status, progress: 0 }];
+        const dagEdges: DagEdge[] = [];
+        for (const scene of scenes) {
+          const sceneShots = shots.filter((shot) => shot.sceneId === scene.id).sort((a, b) => a.sequenceIndex - b.sequenceIndex);
+          const sceneJobs = jobs.filter((job) => job.sceneId === scene.id);
+          const sceneProgress = sceneJobs.length ? Math.round(sceneJobs.reduce((sum, job) => sum + job.progress, 0) / sceneJobs.length) : sceneShots.length ? Math.round(sceneShots.reduce((sum, shot) => sum + (shot.status === "generated" || shot.status === "approved" ? 100 : shot.status === "generating" ? 50 : 0), 0) / sceneShots.length) : 0;
+          const sceneNodeId = `scene-${scene.id}`;
+          dagNodes.push({ id: sceneNodeId, kind: "scene", label: `${scene.sceneKey} · ${scene.title}`, status: scene.status, progress: sceneProgress, sceneId: scene.id });
+          dagEdges.push({ id: `edge-project-${scene.id}`, source: `project-${owned[0].id}`, target: sceneNodeId, kind: "contains" });
+          let previousShotId: number | null = null;
+          for (const shot of sceneShots) {
+            const shotNodeId = `shot-${shot.id}`;
+            const shotJob = jobs.find((job) => job.shotId === shot.id);
+            dagNodes.push({ id: shotNodeId, kind: "shot", label: shot.shotKey, status: shot.status, progress: shotJob?.progress ?? (shot.status === "generated" || shot.status === "approved" ? 100 : 0), sceneId: scene.id, shotId: shot.id });
+            if (previousShotId !== null) dagEdges.push({ id: `edge-shot-${previousShotId}-${shot.id}`, source: `shot-${previousShotId}`, target: shotNodeId, kind: "dependency" });
+            dagEdges.push({ id: `edge-shot-scene-${shot.id}-${scene.id}`, source: shotNodeId, target: sceneNodeId, kind: "assembly" });
+            previousShotId = shot.id;
+          }
+        }
+        for (const job of jobs) {
+          const jobNodeId = `job-${job.id}`;
+          dagNodes.push({ id: jobNodeId, kind: "job", label: `${job.stage} · ${job.kind}`, status: job.status, progress: job.progress, sceneId: job.sceneId ?? undefined, shotId: job.shotId ?? undefined, jobId: job.id });
+          if (job.shotId) dagEdges.push({ id: `edge-shot-job-${job.shotId}-${job.id}`, source: `shot-${job.shotId}`, target: jobNodeId, kind: "execution" });
+          else if (job.sceneId) dagEdges.push({ id: `edge-scene-job-${job.sceneId}-${job.id}`, source: `scene-${job.sceneId}`, target: jobNodeId, kind: "execution" });
+        }
+        return { project: owned[0], scenes, shots, jobs, qc, dag: { nodes: dagNodes, edges: dagEdges } };
       }),
 
     jobs: protectedProcedure
@@ -618,6 +673,25 @@ export const appRouter = router({
         if (!db) throw new Error("Database unavailable");
         await db.update(directorJobs).set({ status: input.status, stage: input.stage, progress: input.progress, error: input.error, metadata: input.metadata === undefined ? undefined : JSON.stringify(input.metadata), updatedAt: new Date() }).where(and(eq(directorJobs.id, input.id), eq(directorJobs.userId, ctx.user.id)));
         return { success: true };
+      }),
+
+    controlProject: protectedProcedure
+      .input(z.object({ projectId: z.number(), action: z.enum(["pause", "resume", "cancel", "stop"]) }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const owned = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.userId, ctx.user.id))).limit(1);
+        if (!owned.length) throw new Error("Project not found");
+        const projectJobs = await db.select({ id: directorJobs.id, status: directorJobs.status }).from(directorJobs).where(and(eq(directorJobs.projectId, input.projectId), eq(directorJobs.userId, ctx.user.id)));
+        const affectedJobIds: number[] = [];
+        for (const job of projectJobs) {
+          const nextStatus = input.action === "pause" && ["queued", "running"].includes(job.status) ? "paused" : input.action === "resume" && job.status === "paused" ? "queued" : (input.action === "cancel" || input.action === "stop") && !["completed", "cancelled"].includes(job.status) ? "cancelled" : null;
+          if (!nextStatus) continue;
+          await db.update(directorJobs).set({ status: nextStatus, error: input.action === "stop" ? "Stopped by Director Console" : input.action === "cancel" ? "Cancelled by Director Console" : undefined, updatedAt: new Date() }).where(and(eq(directorJobs.id, job.id), eq(directorJobs.userId, ctx.user.id)));
+          affectedJobIds.push(job.id);
+        }
+        await db.update(projects).set({ status: input.action === "stop" || input.action === "cancel" ? "failed" : "processing", metadata: JSON.stringify({ directorControl: input.action, controlledAt: new Date().toISOString() }) }).where(and(eq(projects.id, input.projectId), eq(projects.userId, ctx.user.id)));
+        return { success: true, action: input.action, affectedJobIds };
       }),
 
     saveBoundary: protectedProcedure

@@ -38,6 +38,8 @@ def compile_production_dag(project_id: str, brain: ProjectBrain, constitution: P
     nodes: List[DAGNode] = []
     jobs: List[DAGJob] = []
     warnings: List[str] = []
+    previous_scene_id: Optional[str] = None
+    previous_shot_id: Optional[str] = None
 
     # Compile a multi-scene structure from the brain events and entities
     num_scenes = max(1, len(brain.events))
@@ -53,12 +55,12 @@ def compile_production_dag(project_id: str, brain: ProjectBrain, constitution: P
             ("establishing", "Wide establishing shot with clear spatial geometry and cinematic framing"),
             ("action", "Close-up action or dialogue matching previous boundary continuation and character locks"),
         ]
-        prev_shot_id: Optional[str] = None
+        scene_dependency_ids = [previous_scene_id] if previous_scene_id else []
         for s_idx, (s_kind, s_desc) in enumerate(shot_types):
             shot_seq = s_idx + 1
             shot_id = f"shot_{scene_index}_{shot_seq}_{uuid.uuid4().hex[:8]}"
             contract = ShotContract(
-                required_inputs=[prev_shot_id] if prev_shot_id else [],
+                required_inputs=[previous_shot_id] if previous_shot_id else [],
                 acceptance_criteria=[
                     f"Maintain visual identity for participants",
                     f"Legible composition adhering to {constitution.visual_grammar.get('aspect_ratio', '16:9')}",
@@ -67,7 +69,7 @@ def compile_production_dag(project_id: str, brain: ProjectBrain, constitution: P
                     "Preserve lighting, camera axis, and wardrobe",
                     "Condition start state on previous shot end state",
                 ],
-                dependency_ids=[prev_shot_id] if prev_shot_id else [],
+                dependency_ids=[previous_shot_id] if previous_shot_id else [],
             )
             shot = Shot(
                 id=shot_id,
@@ -84,10 +86,10 @@ def compile_production_dag(project_id: str, brain: ProjectBrain, constitution: P
                 node_id=f"node_{shot_id}",
                 kind="shot",
                 subject_id=shot_id,
-                dependencies=[f"node_{prev_shot_id}"] if prev_shot_id else [],
+                dependencies=[f"node_{previous_shot_id}"] if previous_shot_id else [],
                 retry_budget=3,
             ))
-            prev_shot_id = shot_id
+            previous_shot_id = shot_id
 
         scene = Scene(
             id=scene_id,
@@ -98,15 +100,16 @@ def compile_production_dag(project_id: str, brain: ProjectBrain, constitution: P
             time_of_day="Day",
             shots=shots,
             status="pending",
-            contract=SceneContract(acceptance_criteria=["All shots passed QC", "Scene stitches cleanly"]),
+            contract=SceneContract(dependency_ids=scene_dependency_ids, acceptance_criteria=["All shots passed QC", "Scene stitches cleanly"]),
         )
         scenes.append(scene)
         nodes.append(DAGNode(
             node_id=f"node_{scene_id}",
             kind="scene",
             subject_id=scene_id,
-            dependencies=[f"node_{s.id}" for s in shots],
+            dependencies=[f"node_{previous_scene_id}"] + [f"node_{s.id}" for s in shots] if previous_scene_id else [f"node_{s.id}" for s in shots],
         ))
+        previous_scene_id = scene_id
         jobs.append(DAGJob(
             id=f"job_{scene_id}_{uuid.uuid4().hex[:6]}",
             kind="scene_render",

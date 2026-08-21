@@ -129,14 +129,14 @@
 - [x] Verify production build, TypeScript checks, tests, and save final handoff checkpoint
 
 ## Phase 15: Continuity-Aware AI Director and Video Pipeline Upgrade
-- [ ] Add typed scene, shot, continuity packet, provenance, QC, repair, and DAG job contracts to ai_director
-- [ ] Replace linear mock orchestration with continuity-aware end-state extraction, next-shot conditioning, bridge planning, transition QC, and smallest-unit repair
-- [ ] Add anti-artifact warning categories and approval/repair states to the AI Director quality layer
-- [ ] Replace Video Studio mock generation, timeline, storyboard, and export actions with real tRPC job state and error flows
-- [ ] Add provider/BYOH capability routing, durable job telemetry, and provider quick-test UX
-- [ ] Add database persistence and server procedures for scene/shot contracts, continuity snapshots, lineage, QC, and repair attempts
-- [ ] Add Python, server, and frontend integration tests for continuity, retry, QC, buttons, and provider flows
-- [ ] Verify TypeScript, Python tests, Vitest, production build, browser smoke checks, and save final handoff checkpoint
+- [x] Add typed scene, shot, continuity packet, provenance, QC, repair, and DAG job contracts to ai_director
+- [x] Replace linear mock orchestration with continuity-aware end-state extraction, next-shot conditioning, bridge planning, transition QC, and smallest-unit repair
+- [x] Add anti-artifact warning categories and approval/repair states to the AI Director quality layer
+- [x] Replace Video Studio mock generation, timeline, storyboard, and export actions with real tRPC job state and error flows
+- [x] Add provider/BYOH capability routing, durable job telemetry, and provider quick-test UX
+- [x] Add database persistence and server procedures for scene/shot contracts, continuity snapshots, lineage, QC, and repair attempts
+- [x] Add Python, server, and frontend integration tests for continuity, retry, QC, buttons, and provider flows
+- [x] Verify TypeScript, Python tests, Vitest, production build, browser smoke checks, and save final handoff checkpoint
 
 
 - [x] Add typed scene, shot, continuity packet, provenance, QC, repair, and DAG job contracts to ai_director
@@ -149,11 +149,29 @@
 - [x] Verify TypeScript, Python tests, Vitest, production build, browser smoke checks, and save final handoff checkpoint
 
 ## Phase 16: AI Director 200-Point Master Specification Upgrades
-- [ ] Phase 16A: Project Brain, source ingestion, and production constitution persistence & APIs
-- [ ] Phase 16B: Multi-scene graph DAG compiler and durable job orchestration runtime
-- [ ] Phase 16C: Advanced continuity extraction and Continuity Inspector UI
-- [ ] Phase 16D: Capability router and open-source tool plugin catalog
-- [ ] Phase 16E: Secure BYOH worker job leasing and ffmpeg media rendering pipeline
-- [ ] Phase 16F: Multi-pass QC passes, anti-artifact policy, and smallest-unit repair manager
-- [ ] Phase 16G: Director Console workspace, natural-language commands, and guest identity
-- [ ] Phase 16H: Governance, security vault, prompt-injection defense, and verification tests
+- [x] Phase 16A foundation: Project Brain, source evidence contracts, and production constitution validation; full media extraction remains staged
+- [x] Phase 16B foundation: multi-scene graph compiler, explicit DAG nodes/edges, and durable Director job state
+- [x] Phase 16C foundation: continuity fields and boundary inspection in the dashboard; frame-level analyzers remain staged
+- [x] Phase 16D foundation: capability router and provider metadata; signed open-source plugin lifecycle remains staged
+- [x] Phase 16E foundation: BYOH installer/telemetry and render-plan contract; Windows worker execution and real ffmpeg assembly remain staged
+- [x] Phase 16F foundation: QC/repair manager, blocked-path highlighting, and smallest-unit retry policy
+- [x] Phase 16G foundation: Director Console workspace and live orchestration controls; natural-language command layer and guest identity remain staged
+- [x] Phase 16H foundation: server-owned procedures, provider-key safeguards, tests, and verification; full governance suite remains staged
+
+## Phase 17: Real-Time DAG Dashboard and Windows EXE Packaging
+- [x] Implement `DagOrchestrationDashboard.tsx` component to visualize scenes, shots, node dependencies, job stages, and live progress in real-time
+- [x] Integrate the DAG orchestration dashboard into the Video Studio and Director Console
+- [x] Create PyInstaller packaging script and build documentation for native Windows EXE compilation
+- [x] Verify TypeScript, test suites, build output, and save final handoff checkpoint
+- [x] Expose explicit DAG node IDs, dependency IDs, and graph edges from the Director backend
+- [x] Render dependency relationships and blocked downstream paths in the DAG dashboard
+- [x] Add integration coverage asserting dependency relationships are visible in the dashboard
+- [x] Reconcile Phase 16A–16H checklist items with implemented scope before final handoff
+- [x] Highlight blocked DAG nodes and downstream dependent edges or paths in the dashboard
+- [x] Add integration coverage verifying blocked dependency paths are visually indicated
+- [x] Wire the actual Python `ai_director.dag_compiler` into `director.createProject` through `server/pythonDirectorCompiler.ts`, with a typed fallback
+- [x] Add a true continuity boundary inspector with field-level diffs, warnings, and persisted manual review/edit actions
+- [x] Implement protected orchestration pause, resume, cancel, and stop procedures with durable job-state transitions and dashboard/console controls
+- [x] Re-run Phase 16 scope reconciliation after the compiler, inspector, and controls are implemented and verified
+- [x] Add a protected `cancel` orchestration action with durable job transitions and dashboard/console controls
+- [x] Update the Phase 16 scope reconciliation to distinguish the Python compiler bridge and full control set

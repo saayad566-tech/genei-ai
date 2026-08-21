@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import DagOrchestrationDashboard from "@/components/DagOrchestrationDashboard";
 
 const videoTypes = [
   { id: "cinematic", label: "Cinematic", icon: Film, color: "oklch(0.65 0.22 285)" },
@@ -61,6 +62,14 @@ export default function VideoStudio() {
     { projectId: projectId ?? 0 },
     { enabled: projectId !== null, refetchInterval: projectId !== null ? 3000 : false },
   );
+  const saveBoundary = trpc.director.saveBoundary.useMutation({
+    onSuccess: () => { toast.success("Continuity boundary saved"); void directorQuery.refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const controlProject = trpc.director.controlProject.useMutation({
+    onSuccess: (_, variables) => { const label = variables.action === "pause" ? "paused" : variables.action === "resume" ? "resumed" : variables.action === "cancel" ? "cancelled" : "stopped"; toast.success(`Orchestration ${label}`); void directorQuery.refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Enter a video description first"); return; }
@@ -98,7 +107,8 @@ export default function VideoStudio() {
             <p className="text-xs text-muted-foreground">AI cinematic video creation</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => navigate("/director")} className="flex items-center gap-1.5 rounded-lg border border-primary/30 px-3 py-1.5 text-xs text-primary hover:bg-primary/10"><LayoutGrid className="h-3.5 w-3.5" /> Director Console</button>
           <span className="genei-badge-pink">Cinematic AI</span>
           <span className="genei-badge-purple">Auto Subtitles</span>
         </div>
@@ -129,6 +139,17 @@ export default function VideoStudio() {
           </motion.button>
         ))}
       </div>
+
+      {projectId !== null && <DagOrchestrationDashboard
+        project={directorQuery.data}
+        isFetching={directorQuery.isFetching}
+        onRetry={(shotId) => retryShot.mutate({ projectId, shotId, reason: "DAG dashboard requested targeted shot retry." })}
+        onSaveBoundary={(shotId, payload) => saveBoundary.mutate({ shotId, ...payload })}
+        onPause={() => controlProject.mutate({ projectId, action: "pause" })}
+        onResume={() => controlProject.mutate({ projectId, action: "resume" })}
+        onCancel={() => controlProject.mutate({ projectId, action: "cancel" })}
+        onStop={() => controlProject.mutate({ projectId, action: "stop" })}
+      />}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Main Panel */}

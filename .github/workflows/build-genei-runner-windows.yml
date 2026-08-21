@@ -1,0 +1,35 @@
+name: Build GeneiRunner Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "ai_director/**"
+      - "packaging/**"
+      - ".github/workflows/build-genei-runner-windows.yml"
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build EXE
+        shell: pwsh
+        run: ./packaging/build_windows_exe.ps1
+
+      - name: Validate packaged binary
+        shell: pwsh
+        run: ./dist/GeneiRunner.exe --help
+
+      - name: Upload downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GeneiRunner-windows-x64
+          path: |
+            dist/GeneiRunner.exe
+            dist/GeneiRunner.exe.sha256
+          if-no-files-found: error
