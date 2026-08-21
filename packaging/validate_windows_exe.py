@@ -12,7 +12,7 @@ def inspect_pe(path: Path) -> dict[str, object]:
         raise ValueError("File is not a Windows PE executable: missing MZ header")
 
     pe_offset = struct.unpack_from("<I", data, 0x3C)[0]
-    if pe_offset + 26 > len(data) or data[pe_offset : pe_offset + 4] != b"PE\\x00\\x00":
+    if pe_offset + 26 > len(data) or data[pe_offset : pe_offset + 4] != b"PE\x00\x00":
         raise ValueError("File is not a Windows PE executable: missing PE signature")
 
     machine = struct.unpack_from("<H", data, pe_offset + 4)[0]
