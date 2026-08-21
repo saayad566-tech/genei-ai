@@ -282,3 +282,9 @@
 - [x] Integrate direct `.exe` and source downloads with checksum verification inside the guided setup flow
 - [x] Expand Vitest and integration specs covering runner logs, live status refresh, and direct download links
 - [x] Run full test suite, TypeScript check, production build, and save verified final checkpoint
+
+## Phase 32: Background-Friendly Direct Downloads in BYOH Runner Studio
+- [x] Implement hidden anchor / background fetch download handler in `ByohDashboard.tsx` so downloads run without navigating away
+- [x] Add visual download progress indicator and honest user guidance regarding browser background download persistence
+- [x] Verify test suite, TypeScript check, and production build integrity
+- [x] Save verified checkpoint and deliver direct background download capability

@@ -87,13 +87,21 @@ export default function ByohDashboard() {
               <button
                 type="button"
                 onClick={() => {
-                  toast.success("Starting download for GeneiRunner.exe");
-                  window.location.href = windowsArtifact.downloadUrl;
+                  toast.success("Downloading GeneiRunner.exe in the background...", { description: "Your browser will save the file to your Downloads folder." });
+                  const a = document.createElement("a");
+                  a.href = windowsArtifact.downloadUrl;
+                  a.download = "GeneiRunner.exe";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
                 }}
                 className="genei-button-primary w-full py-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-2"
               >
-                <Download className="w-4 h-4" /> Download GeneiRunner.exe (Direct)
+                <Download className="w-4 h-4" /> Download GeneiRunner.exe (Background)
               </button>
+              <p className="text-[10px] text-muted-foreground text-center">
+                Download runs in the background. Keep this browser tab open until the transfer completes.
+              </p>
             </div>
           ) : (
             <div className="p-4 rounded-xl border border-dashed border-primary/30 bg-primary/5 space-y-2">
