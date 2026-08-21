@@ -209,9 +209,14 @@ describe("webhook notification history", () => {
 
 
 describe("downloads", () => {
-  it("returns no executable or archive URL until a published artifact exists", async () => {
+  it("returns only published artifacts with real safe download paths", async () => {
     const caller = appRouter.createCaller(createPublicContext());
     const result = await caller.downloads.listArtifacts();
-    expect(result).toEqual([]);
+    expect(result.every((artifact) =>
+      artifact.downloadUrl.startsWith("https://") ||
+      artifact.downloadUrl.startsWith("/api/downloads/") ||
+      artifact.downloadUrl.startsWith("/manus-storage/")
+    )).toBe(true);
+    expect(result.some((artifact) => artifact.downloadUrl.includes("#"))).toBe(false);
   });
 });

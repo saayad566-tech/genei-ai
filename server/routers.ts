@@ -886,7 +886,9 @@ export const appRouter = router({
         .where(eq(releaseArtifacts.isPublished, true))
         .orderBy(desc(releaseArtifacts.createdAt));
       return items.filter((artifact) =>
-        artifact.downloadUrl.startsWith("https://") || artifact.downloadUrl.startsWith("/api/downloads/")
+        artifact.downloadUrl.startsWith("https://") ||
+        artifact.downloadUrl.startsWith("/api/downloads/") ||
+        artifact.downloadUrl.startsWith("/manus-storage/")
       );
     }),
   }),
