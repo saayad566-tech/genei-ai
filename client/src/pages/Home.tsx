@@ -110,6 +110,13 @@ export default function Home() {
                 <Play className="w-3.5 h-3.5" /> Explore Templates
               </button>
             </Link>
+            <a
+              href="https://genieai-tc7qfq5i.manus.space/manus-storage/GeneiRunner_2324a4e1.exe"
+              download="GeneiRunner.exe"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 transition-all"
+            >
+              <Archive className="w-4 h-4" /> Download Windows App (.exe)
+            </a>
           </div>
         </div>
       </motion.div>

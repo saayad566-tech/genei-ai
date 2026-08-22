@@ -301,3 +301,17 @@
 - [x] Integrate ComfyUI Graph Studio into the main sidebar navigation with proper routing and icons
 - [x] Expand Vitest suite, TypeScript checks, and production build checks (all 68 tests passing, clean bundle)
 - [x] Save verified final desktop application checkpoint and deliver direct Windows executable download link
+
+## Phase 35: Five-in-One Full Desktop Application Architecture & Packaging
+- [x] Define the 5 built-in software suites: (1) Creator Suite & AI Director, (2) ComfyUI Visual Graph Studio, (3) BYOH Workstation & Local Runtime, (4) BYOK API Hub & Gateway, (5) Project/Asset/Export Manager
+- [x] Create a unified desktop launcher view (`DesktopLauncher.tsx`) and register it as an embedded home/landing experience for desktop app users
+- [x] Register Desktop Launcher route and icons in navigation
+- [x] Run full test suite, TypeScript check, and production build
+- [x] Save verified checkpoint and deliver unified executable download instructions
+
+## Phase 36: Unified Hook-Like Desktop Application Finalization
+- [x] Unify all creator studios, AI chat, visual node graphs, local hardware pairing, and asset management into a single native desktop workspace
+- [x] Add direct `.exe` download action directly into the primary hero command center
+- [x] Run full test suite (68 tests passing), TypeScript checks, and clean production build
+- [x] Save final verified checkpoint and present direct executable download
+
