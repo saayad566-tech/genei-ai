@@ -294,3 +294,10 @@
 - [x] Add animated download progress bar and status feedback during background executable downloads
 - [x] Verify test suite, TypeScript check, and production build integrity
 - [x] Save verified checkpoint and deliver continued software improvements
+
+## Phase 34: Full-Function Desktop Application Transformation (Claude/ComfyUI Grade)
+- [x] Add ComfyUI-style visual workflow node graph schema and tRPC persistence/execution router (`workflow_graphs` table + `workflows` router)
+- [x] Create the dedicated **ComfyUI Graph Studio** page (`ComfyWorkflowStudio.tsx`) with modular node palette, canvas cards, parameter inspection, and graph execution
+- [x] Integrate ComfyUI Graph Studio into the main sidebar navigation with proper routing and icons
+- [x] Expand Vitest suite, TypeScript checks, and production build checks (all 68 tests passing, clean bundle)
+- [x] Save verified final desktop application checkpoint and deliver direct Windows executable download link

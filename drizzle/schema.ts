@@ -238,6 +238,21 @@ export const directorQcReports = mysqlTable("director_qc_reports", {
 export type DirectorQcReport = typeof directorQcReports.$inferSelect;
 export type InsertDirectorQcReport = typeof directorQcReports.$inferInsert;
 
+export const workflowGraphs = mysqlTable("workflow_graphs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId"),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  nodes: text("nodes").notNull(),
+  edges: text("edges").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WorkflowGraph = typeof workflowGraphs.$inferSelect;
+export type InsertWorkflowGraph = typeof workflowGraphs.$inferInsert;
+
 export const directorNodeLogs = mysqlTable("director_node_logs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
