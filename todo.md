@@ -288,3 +288,9 @@
 - [x] Add visual download progress indicator and honest user guidance regarding browser background download persistence
 - [x] Verify test suite, TypeScript check, and production build integrity
 - [x] Save verified checkpoint and deliver direct background download capability
+
+## Phase 33: Continued BYOH Software Improvements — Live Polling and Progress
+- [x] Add automatic polling interval (every 10s) to `ByohDashboard.tsx` for runner heartbeats and activity logs
+- [x] Add animated download progress bar and status feedback during background executable downloads
+- [x] Verify test suite, TypeScript check, and production build integrity
+- [x] Save verified checkpoint and deliver continued software improvements

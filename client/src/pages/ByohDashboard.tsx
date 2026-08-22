@@ -10,11 +10,16 @@ export default function ByohDashboard() {
   const [pairedToken, setPairedToken] = useState<string | null>(null);
   const [selectedRunnerId, setSelectedRunnerId] = useState<number | null>(null);
 
-  const { data: runners, refetch: refetchRunners, isLoading } = trpc.runners.list.useQuery();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const { data: runners, refetch: refetchRunners, isLoading } = trpc.runners.list.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
   const { data: artifacts } = trpc.downloads.listArtifacts.useQuery();
   const { data: runnerLogs, refetch: refetchLogs } = trpc.runners.logs.useQuery(
     { runnerId: selectedRunnerId ?? (runners?.[0]?.id || 0), limit: 50 },
-    { enabled: !!selectedRunnerId || !!runners?.length }
+    { enabled: !!selectedRunnerId || !!runners?.length, refetchInterval: 8000 }
   );
 
   const pairRunnerMutation = trpc.runners.pair.useMutation({
@@ -86,19 +91,50 @@ export default function ByohDashboard() {
               <div className="text-[10px] font-mono text-muted-foreground bg-black/40 p-2 rounded truncate">SHA256: {windowsArtifact.sha256}</div>
               <button
                 type="button"
+                disabled={isDownloading}
                 onClick={() => {
-                  toast.success("Downloading GeneiRunner.exe in the background...", { description: "Your browser will save the file to your Downloads folder." });
+                  setIsDownloading(true);
+                  setDownloadProgress(10);
+                  toast.success("Downloading GeneiRunner.exe in the background...", { description: "Your browser will save the executable to your Downloads folder." });
+                  
+                  const interval = setInterval(() => {
+                    setDownloadProgress((prev) => {
+                      if (prev >= 90) {
+                        clearInterval(interval);
+                        return 90;
+                      }
+                      return prev + 25;
+                    });
+                  }, 300);
+
                   const a = document.createElement("a");
                   a.href = windowsArtifact.downloadUrl;
                   a.download = "GeneiRunner.exe";
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
+
+                  setTimeout(() => {
+                    setDownloadProgress(100);
+                    setTimeout(() => {
+                      setIsDownloading(false);
+                      setDownloadProgress(0);
+                      toast.success("Download transfer initiated successfully!");
+                    }, 600);
+                  }, 1200);
                 }}
-                className="genei-button-primary w-full py-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-2"
+                className="genei-button-primary w-full py-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-75"
               >
-                <Download className="w-4 h-4" /> Download GeneiRunner.exe (Background)
+                <Download className={`w-4 h-4 ${isDownloading ? "animate-bounce" : ""}`} />
+                {isDownloading ? `Downloading... ${downloadProgress}%` : "Download GeneiRunner.exe (Background)"}
               </button>
+
+              {isDownloading && (
+                <div className="w-full bg-black/40 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-primary h-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
+                </div>
+              )}
+
               <p className="text-[10px] text-muted-foreground text-center">
                 Download runs in the background. Keep this browser tab open until the transfer completes.
               </p>
