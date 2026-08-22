@@ -315,3 +315,10 @@
 - [x] Run full test suite (68 tests passing), TypeScript checks, and clean production build
 - [x] Save final verified checkpoint and present direct executable download
 
+
+## Phase 37: Full-Stack Self-Contained Windows Desktop Application
+- [x] Define full-stack desktop packaging spec combining built-in hardware detection, local AI model execution, ComfyUI node graphs, creator studios, and cloud BYOK routing in a single installable app
+- [x] Create hardware capability detection and auto-configuration helper in Python (`ai_director/hardware_detector.py`)
+- [x] Bundle local hardware auto-detection into the packaged executable and server startup
+- [x] Run full test suite (68 tests passing), TypeScript checks, and clean production build
+- [x] Save verified checkpoint and provide direct full-stack app download instructions
