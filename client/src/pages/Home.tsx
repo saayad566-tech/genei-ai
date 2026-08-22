@@ -127,7 +127,7 @@ export default function Home() {
               href="/setup-wizard"
               className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 transition-all"
             >
-              <MonitorIcon /> Open Desktop Setup
+              <MonitorIcon /> View Desktop Capabilities
             </Link>
           </div>
         </div>

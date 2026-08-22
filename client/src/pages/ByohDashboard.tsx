@@ -120,7 +120,7 @@ export default function ByohDashboard() {
           </div>
           <div className="genei-card rounded-2xl p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Cloud className="h-4 w-4 text-sky-300" /> Optional local models</div>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">When a tool needs a local model, Genei will show one in-app download with progress and verification. Nothing is downloaded during first launch unless you choose it.</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Nothing is downloaded during first launch. The current build keeps local model installation optional while the cloud and BYOK paths remain available.</p>
             <Link href="/settings"><button type="button" className="mt-4 min-h-10 w-full rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:bg-primary/15">Open advanced settings</button></Link>
           </div>
         </aside>

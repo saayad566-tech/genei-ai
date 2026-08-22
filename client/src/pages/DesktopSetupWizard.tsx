@@ -73,7 +73,7 @@ export default function DesktopSetupWizard() {
   const runtimeLabel = useMemo(() => {
     if (checking) return "Detecting automatically";
     if (profile?.status === "browser-preview") return "Browser preview";
-    if (localReady) return "Local execution ready";
+    if (localReady) return "Hardware detected";
     return "Cloud fallback ready";
   }, [checking, localReady, profile?.status]);
 
@@ -158,7 +158,7 @@ export default function DesktopSetupWizard() {
             <div className="mt-3 space-y-3 text-xs text-muted-foreground">
               <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span>Hardware detection is embedded in Genei AI Desktop.</span></div>
               <div className="flex items-start gap-2"><Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" /><span>Cloud fallback is available when local hardware is not ready.</span></div>
-              <div className="flex items-start gap-2"><HardDrive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-300" /><span>Optional local model downloads are managed from inside the app.</span></div>
+              <div className="flex items-start gap-2"><HardDrive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-300" /><span>Optional local models are capability-gated and never downloaded during first launch.</span></div>
             </div>
             <Link href="/settings">
               <button type="button" className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:bg-primary/15"><Download className="h-3.5 w-3.5" /> Advanced settings</button>
