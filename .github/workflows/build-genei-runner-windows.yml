@@ -104,6 +104,10 @@ jobs:
             Write-Host "Artifact: $($artifact.FullName) ($($artifact.Length) bytes)"
           }
 
+      - name: Smoke test the installed embedded workspace
+        shell: pwsh
+        run: .\packaging\smoke_windows_desktop.ps1 -InstalledDir (Join-Path $PWD 'release\\win-unpacked')
+
       - name: Finalize checksums and metadata
         id: metadata
         shell: pwsh

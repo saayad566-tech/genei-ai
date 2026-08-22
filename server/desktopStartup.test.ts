@@ -53,6 +53,18 @@ describe("Genei AI desktop startup recovery contract", () => {
     expect(server).toContain("Server running on http://localhost:${actualPort}/");
   });
 
+  it("requires the native Windows workflow to smoke-test the installed workspace before publishing", () => {
+    const workflow = read(".github/workflows/build-genei-runner-windows.yml");
+    const smokeScript = read("packaging/smoke_windows_desktop.ps1");
+
+    expect(workflow).toContain("Smoke test the installed embedded workspace");
+    expect(workflow).toContain("smoke_windows_desktop.ps1");
+    expect(smokeScript).toContain("ELECTRON_RUN_AS_NODE");
+    expect(smokeScript).toContain("Server running on http://localhost:");
+    expect(smokeScript).toContain("Embedded server exited before readiness");
+    expect(smokeScript).toContain("Invoke-WebRequest");
+  });
+
   it("tracks and cleans up the server and hardware children", () => {
     const host = read("desktop/main.cjs");
 
