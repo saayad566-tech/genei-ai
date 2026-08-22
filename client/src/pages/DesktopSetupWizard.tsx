@@ -101,7 +101,7 @@ export default function DesktopSetupWizard() {
           </div>
           <div className="min-w-[250px] rounded-2xl border border-primary/25 bg-black/30 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Monitor className="h-4 w-4 text-primary" /> Automatic setup</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Monitor className="h-4 w-4 text-primary" /> Automatic detection</div>
               {checking ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
             </div>
             <div className="mt-3 text-xs font-semibold text-primary">{runtimeLabel}</div>

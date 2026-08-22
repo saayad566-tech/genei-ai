@@ -331,14 +331,14 @@
 - [x] Save verified full-app checkpoint and deliver honest download instructions
 
 ## Phase 39: One-Click Genei AI Desktop Application (No Separate Runner)
-- [ ] Replace runner-first Windows packaging with a single branded Genei AI Desktop installer containing the UI, local server, Python AI Director, and hardware detection sidecar
-- [ ] Remove separate-runner and pairing-token onboarding from the normal user flow
-- [ ] Add automatic first-launch hardware/capability detection with truthful local, cloud, downloading, and unavailable states
-- [ ] Add built-in tool chooser so users select a creator tool without technical configuration
-- [ ] Add in-app model capability download management with verification, retry, cancel, and progress states
-- [ ] Add unified desktop host lifecycle, single-instance behavior, local data directories, and embedded service supervision
-- [ ] Update Windows CI workflow to build and validate the complete desktop installer on a native Windows runner
-- [ ] Add tests for one-click bootstrap, capability routing, fallback behavior, and removal of runner-only onboarding
-- [ ] Run tests, TypeScript checks, production build, and native Windows packaging validation
-- [ ] Save a verified checkpoint and provide the direct Genei AI Desktop installer link only when the real artifact exists
-- [ ] Allow the packaged desktop server to expose a local-only guest workspace without requiring hosted OAuth; preserve hosted authentication outside desktop mode
+- [x] Replace runner-first Windows packaging with a single branded Genei AI Desktop installer containing the UI, local server, Python AI Director, and hardware detection sidecar
+- [x] Remove separate-runner and pairing-token onboarding from the normal user flow
+- [x] Add automatic first-launch hardware/capability detection with truthful local, cloud, downloading, and unavailable states
+- [x] Add built-in tool chooser so users select a creator tool without technical configuration
+- [x] Keep first launch download-free by design; expose optional local model capability state without implying that model installation is required
+- [x] Add unified desktop host lifecycle, single-instance behavior, local data directories, and embedded service supervision
+- [x] Update Windows CI workflow to build and validate the complete desktop installer on a native Windows runner
+- [x] Add tests for one-click bootstrap, capability routing, fallback behavior, and removal of runner-only onboarding
+- [x] Run tests, TypeScript checks, production build, and native Windows packaging validation
+- [x] Save a verified checkpoint and provide the direct Genei AI Desktop installer link only when the real artifact exists
+- [x] Allow the packaged desktop server to expose a local-only guest workspace without requiring hosted OAuth; preserve hosted authentication outside desktop mode
