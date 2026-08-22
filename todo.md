@@ -353,7 +353,7 @@
 - [x] Save a verified checkpoint and provide corrected installer and portable download links
 
 ## Phase 41: Full-Function Preservation During EXE Repair
-- [ ] Preserve every existing creator studio, AI Director, ComfyUI workflow, BYOK/BYOH, project, asset, webhook, localization, and export function while changing only desktop delivery reliability
-- [ ] Add preservation checks for application routes, server procedures, embedded runtime resources, and full desktop packaging
-- [ ] Rebuild and verify the complete Windows EXE distributions without reducing feature scope
-- [ ] Save a final verified checkpoint and provide the direct full-function Genei AI EXE links
+- [x] Preserve every existing creator studio, AI Director, ComfyUI workflow, BYOK/BYOH, project, asset, webhook, localization, and export function while changing only desktop delivery reliability
+- [x] Add preservation checks for application routes, server procedures, embedded runtime resources, and full desktop packaging
+- [x] Rebuild and verify the complete Windows EXE distributions without reducing feature scope
+- [x] Save a final verified checkpoint and provide the direct full-function Genei AI EXE links
