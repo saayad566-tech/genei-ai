@@ -3,10 +3,15 @@ import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
 
 export async function setupVite(app: Express, server: Server) {
+  // Keep Vite and the development config out of the production module graph.
+  // The packaged desktop server calls serveStatic() only; importing Vite here
+  // makes a Windows bundle fail before the localhost readiness line is printed.
+  const [{ createServer: createViteServer }, { default: viteConfig }] = await Promise.all([
+    import("vite"),
+    import("../../vite.config"),
+  ]);
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },

@@ -48,9 +48,21 @@ describe("Settings accessibility and truthful release states", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Genei AI Desktop" }));
 
-    expect(screen.getByText("Desktop installer build pending")).toBeInTheDocument();
-    expect(screen.getByText(/complete Windows installer is built on a native Windows environment/)).toBeInTheDocument();
+    expect(screen.getByText("Desktop app is being prepared")).toBeInTheDocument();
+    expect(screen.getByText(/download will appear here when the complete Genei AI application is ready/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Download Genei AI Desktop/i })).not.toBeInTheDocument();
+  });
+
+  it("does not present a small sidecar as the complete desktop app", () => {
+    artifacts.value = [
+      { id: "sidecar", name: "GeneiAI-Director.exe", version: "1.1.4", platform: "win-x64", fileSize: "12 MB", sha256: "sidecar-sha", signingState: "unsigned", downloadUrl: "/sidecar.exe" },
+    ];
+
+    render(<Settings />);
+    fireEvent.click(screen.getByRole("button", { name: "Genei AI Desktop" }));
+
+    expect(screen.getByText("Desktop app is being prepared")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Download Genei AI for Windows" })).not.toBeInTheDocument();
   });
 
   it("offers the installer and portable fallback with recovery guidance", () => {
@@ -62,10 +74,11 @@ describe("Settings accessibility and truthful release states", () => {
     render(<Settings />);
     fireEvent.click(screen.getByRole("button", { name: "Genei AI Desktop" }));
 
-    expect(screen.getByText("Windows installation help")).toBeInTheDocument();
-    expect(screen.getByText("Installer · recommended")).toBeInTheDocument();
-    expect(screen.getByText("Portable · no installation")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download Installer" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download Portable App" })).toBeInTheDocument();
+    expect(screen.getByText("Ready when you are")).toBeInTheDocument();
+    expect(screen.getByText(/automatically detects your computer/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download Genei AI for Windows" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open portable app" })).toBeInTheDocument();
+    expect(screen.queryByText(/Signing:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SHA256:/)).not.toBeInTheDocument();
   });
 });

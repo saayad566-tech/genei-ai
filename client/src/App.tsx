@@ -20,7 +20,8 @@ import AssetLibrary from "./pages/AssetLibrary";
 import ApiIntegrations from "@/pages/ApiIntegrations";
 import ByohDashboard from "@/pages/ByohDashboard";
 import ComfyWorkflowStudio from "@/pages/ComfyWorkflowStudio";
-import DesktopSetupWizard from "@/pages/DesktopSetupWizard";
+import DesktopSetupWizard from "./pages/DesktopSetupWizard";
+import ModelLibrary from "./pages/ModelLibrary";
 import TeamWorkspace from "./pages/TeamWorkspace";
 import Monetization from "./pages/Monetization";
 import ExportCenter from "./pages/ExportCenter";
@@ -46,6 +47,7 @@ function Router() {
         <Route path="/byoh" component={ByohDashboard} />
         <Route path="/comfy" component={ComfyWorkflowStudio} />
         <Route path="/setup-wizard" component={DesktopSetupWizard} />
+        <Route path="/library" component={ModelLibrary} />
         <Route path="/team" component={TeamWorkspace} />
         <Route path="/monetization" component={Monetization} />
         <Route path="/export" component={ExportCenter} />

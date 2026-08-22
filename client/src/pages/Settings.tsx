@@ -122,7 +122,23 @@ function CustomDomainSettingsSection() {
 
 function DownloadsArtifactsSection() {
   const { data: artifacts, isLoading } = trpc.downloads.listArtifacts.useQuery();
-  const desktopArtifacts = artifacts?.filter((artifact) => artifact.platform === "win-x64" && /desktop/i.test(artifact.name)) ?? [];
+  const sizeInBytes = (value: string) => {
+    const number = Number.parseFloat(value.replace(/,/g, ""));
+    if (!Number.isFinite(number)) return 0;
+    if (/GB/i.test(value)) return number * 1024 * 1024 * 1024;
+    if (/MB/i.test(value)) return number * 1024 * 1024;
+    if (/KB/i.test(value)) return number * 1024;
+    return number;
+  };
+  const desktopArtifacts = artifacts?.filter((artifact) => artifact.platform === "win-x64" && /desktop/i.test(artifact.name) && sizeInBytes(artifact.fileSize) >= 40 * 1024 * 1024) ?? [];
+  const installer = desktopArtifacts.find((artifact) => !/portable/i.test(artifact.name));
+  const portable = desktopArtifacts.find((artifact) => /portable/i.test(artifact.name));
+
+  const startDownload = (artifact: typeof installer) => {
+    if (!artifact) return;
+    toast.success("Your Genei AI download is starting", { description: "Genei AI will open as one complete desktop application." });
+    window.location.href = artifact.downloadUrl;
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -130,41 +146,40 @@ function DownloadsArtifactsSection() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Monitor className="h-5 w-5" /></div>
           <div>
-            <h3 className="font-semibold text-foreground font-display">Genei AI Desktop for Windows</h3>
-            <p className="text-xs text-muted-foreground">One application containing the full Genei workspace, local hardware detection, and embedded runtime services.</p>
+            <h3 className="font-semibold text-foreground font-display">Genei AI Desktop</h3>
+            <p className="text-xs text-muted-foreground">One app for the complete Genei AI workspace. Install once and start creating.</p>
           </div>
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : desktopArtifacts.length > 0 ? (
+        ) : installer ? (
           <>
-            <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 space-y-1.5">
-              <div className="text-xs font-semibold text-amber-200">Windows installation help</div>
-              <p className="text-[11px] leading-relaxed text-muted-foreground">This release is unsigned, so Windows may show a publisher warning. That warning is expected for this build. If the installer says Genei AI Desktop is still running or stays on “Installing, please wait…”, close the older Genei window and retry once. If it still cannot install, use the Portable option below. It is the same Genei AI application and needs no installation.</p>
+            <div className="rounded-2xl border border-primary/25 bg-primary/5 p-5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-primary/15 p-2 text-primary"><Monitor className="h-5 w-5" /></div>
+                <div>
+                  <div className="text-base font-semibold text-foreground">Ready when you are</div>
+                  <p className="text-xs text-muted-foreground">Genei automatically detects your computer and opens every studio inside one app.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => startDownload(installer)} className="genei-button-primary w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"><Save className="w-4 h-4" /> Download Genei AI for Windows</button>
+              <p className="text-[11px] text-center text-muted-foreground">This is the complete Genei AI Desktop package, including the workspace, local server, and built-in hardware detection.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {desktopArtifacts.map((artifact) => {
-                const isPortable = /portable/i.test(artifact.name);
-                return (
-                  <div key={artifact.id} className={`p-4 rounded-xl border bg-background space-y-3 flex flex-col justify-between ${isPortable ? "border-cyan-400/30" : "border-border"}`}>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-foreground">{isPortable ? "Portable · no installation" : "Installer · recommended"}</span><span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{artifact.version}</span></div>
-                      <p className="text-[11px] text-muted-foreground">Windows x64 · {artifact.fileSize} · Signing: {artifact.signingState}</p>
-                      <p className="text-[11px] leading-relaxed text-muted-foreground">{isPortable ? "Runs the same full Genei AI Desktop without writing an installation entry. Use this when Windows blocks or holds the installer." : "Per-user setup for the same full Genei AI Desktop application. Close any older Genei window before retrying."}</p>
-                      <div className="text-[10px] font-mono text-muted-foreground bg-black/30 p-1.5 rounded truncate">SHA256: {artifact.sha256}</div>
-                    </div>
-                    <button type="button" onClick={() => { toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` }); window.location.href = artifact.downloadUrl; }} className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"><Save className="w-3.5 h-3.5" /> {isPortable ? "Download Portable App" : "Download Installer"}</button>
-                  </div>
-                );
-              })}
-            </div>
+            {portable && (
+              <div className="rounded-xl border border-border bg-background p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-foreground">Prefer not to install?</div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Open the same complete Genei AI app without installation.</p>
+                </div>
+                <button type="button" onClick={() => startDownload(portable)} className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/15">Open portable app</button>
+              </div>
+            )}
           </>
         ) : (
           <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-5 space-y-2">
-            <div className="text-sm font-semibold text-foreground">Desktop installer build pending</div>
-            <p className="text-xs text-muted-foreground">The complete Windows installer is built on a native Windows environment. It will appear here only after the full application, embedded hardware probe, installer, checksum, and startup smoke test pass.</p>
-            <p className="text-[11px] text-muted-foreground">No runner-only binary or placeholder download is shown. Until the installer is ready, use the browser workspace or open the in-app hardware studio.</p>
+            <div className="text-sm font-semibold text-foreground">Desktop app is being prepared</div>
+            <p className="text-xs text-muted-foreground">The download will appear here when the complete Genei AI application is ready.</p>
           </div>
         )}
       </div>

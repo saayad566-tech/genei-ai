@@ -7,7 +7,7 @@ import {
   Settings, Plus, Clock, Bot, LayoutTemplate, Upload,
   Cloud, Palette, BarChart3, CreditCard, ChevronLeft,
   ChevronRight, Bell, Search, Menu, X, Sparkles, LogOut,
-  Cpu, ChevronDown, Activity, Monitor, Workflow
+  Cpu, ChevronDown, Activity, Monitor, Workflow, PackageOpen
 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -38,6 +38,7 @@ const mainNavItems = [
   { id: "assets", label: "Asset Library", icon: Archive, path: "/assets" },
   { id: "api", label: "API Integrations", icon: Key, path: "/api" },
   { id: "byoh", label: "Hardware & Runtime", icon: Monitor, path: "/byoh", badge: "BUILT-IN", badgeColor: "cyan" },
+  { id: "library", label: "Capability Library", icon: PackageOpen, path: "/library", badge: "LOCAL", badgeColor: "cyan" },
   { id: "comfy", label: "ComfyUI Graph Studio", icon: Workflow, path: "/comfy", badge: "PRO", badgeColor: "purple" },
   { id: "team", label: "Team Workspace", icon: Users, path: "/team" },
   { id: "monetization", label: "Monetization", icon: DollarSign, path: "/monetization" },

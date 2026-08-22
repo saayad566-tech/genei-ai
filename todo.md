@@ -359,8 +359,62 @@
 - [x] Save a final verified checkpoint and provide the direct full-function Genei AI EXE links
 
 ## Phase 42: Windows ENOENT Launch-Path Repair
-- [ ] Align Electron executable identity, installer shortcuts, and post-install launch behavior so Windows never spawns a missing executable
-- [ ] Add installed and portable path validation with a clear in-app startup error instead of a raw ENOENT dialog
-- [ ] Preserve and test the complete Genei AI application resources and route surface
-- [ ] Rebuild and validate repaired full-function Windows installer and portable executable artifacts
-- [ ] Save a verified checkpoint and provide the corrected direct Genei AI EXE link
+- [x] Align Electron executable identity, installer shortcuts, and post-install launch behavior so Windows never spawns a missing executable
+- [x] Add installed and portable path validation with a clear in-app startup error instead of a raw ENOENT dialog
+- [x] Preserve and test the complete Genei AI application resources and route surface
+- [x] Rebuild and validate repaired full-function Windows installer and portable executable artifacts
+- [x] Save a verified checkpoint and provide the corrected direct Genei AI EXE link
+
+## Phase 43: Consumer-Simple Genei AI Experience
+- [x] Preserve the complete Genei AI feature surface while changing only user-facing setup complexity
+- [x] Remove certificate, GitHub, pairing, command-line, and hardware configuration instructions from normal end-user UI
+- [x] Present one clear Genei AI Desktop download action with automatic detection and built-in tool selection
+- [x] Keep code-signing configuration developer-only and document it outside the end-user flow
+- [x] Verify the simplified first-launch journey and save a final checkpoint
+
+## Phase 44: Local-First Model Library and Cross-Platform Delivery
+- [x] Repair the Windows embedded workspace code-1 startup failure without removing existing Genei AI features
+- [x] Define a truthful local-first runtime contract with automatic hardware profiling, safe capability detection, and cloud/provider fallback
+- [ ] Add an in-app model and tool catalog with categories, compatibility, install, update, remove, progress, verification, and recovery states
+- [x] Keep login/session behavior clear across hosted, local-only, and hybrid execution modes without exposing secrets
+- [x] Preserve and verify all existing creator studios, AI Director scene/shot pipelines, ComfyUI graphs, BYOK/BYOH routing, projects, assets, webhooks, localization, and exports
+- [x] Assess and implement the feasible Android APK path with the same user-facing model/tool library and truthful hardware limitations
+- [ ] Build and platform-test Windows and Android deliverables; do not claim unsupported hardware or unverified features
+
+## Phase 44: Packaged Startup Repair and Capability Store
+- [x] Remove duplicate Express imports and keep Vite as a production-safe lazy dependency
+- [x] Add regression coverage for packaged server startup without development-only Vite loading
+- [x] Verify packaged Electron startup locally and capture actionable diagnostics for failures
+- [x] Add truthful in-app model and open-source tool catalog with official sources, hardware requirements, licenses, and install states
+- [x] Add category filters and user-managed capability enable/disable state without exposing runner or pairing terminology
+- [x] Add Android-compatible capability guidance that routes heavy local models to the unified desktop host or a configured BYOK provider
+- [ ] Verify native Windows build artifacts and document direct installer/portable download handoff
+- [x] Verify Android APK path and clearly distinguish a real APK artifact from the browser/PWA experience
+- [x] Run final TypeScript, Vitest, Python, packaging, and browser smoke checks
+- [x] Save final release checkpoint
+
+## Phase 44: Research record
+- [x] Verify official HunyuanVideo source and high-end CUDA hardware constraints; preserve findings in docs/LOCAL_MODEL_SOURCES.md
+
+## Current user request: Up-to-date Windows executable
+- [x] Locate and validate a genuine Windows `.exe` built from the latest Genei AI checkpoint, then provide its direct download link if available
+
+## Current request: full desktop application and reusable release skill
+- [x] Confirm the difference between a bootstrap/sidecar file and the complete Genei AI Desktop artifact in the release process
+- [x] Create and validate a reusable skill for building, packaging, testing, and handing off the complete Genei AI Desktop application
+- [x] Ensure the skill prevents small sidecar or setup files from being presented as the full product
+- [x] Re-validate the complete desktop artifact and report the correct download target without wasting work on unrelated features
+
+## Current request: rebuild from latest source
+- [ ] Build and validate the complete Genei AI Desktop Windows artifact from the latest source checkpoint, then provide its newest genuine download link
+
+## Current request: simple matched source and executable handoff
+- [x] Prepare a source archive from the latest Genei AI checkpoint with clear one-click download guidance
+- [x] Match the Windows executable to the same latest source revision, or clearly disclose the external native-build blocker
+- [x] Provide a non-technical handoff that identifies the full app versus sidecar/helper files
+
+## Current request: all deliverables latest
+- [ ] Freeze one latest Genei AI source-of-truth revision for source archive, Windows installer, portable build, and metadata
+- [ ] Regenerate or trigger complete Windows artifacts from that exact revision; never substitute 1.1.4 or a helper file
+- [ ] Validate matching version, commit, package contents, checksums, and direct download URLs
+- [ ] Deliver the latest matched artifacts or clearly disclose the remaining native-build dependency

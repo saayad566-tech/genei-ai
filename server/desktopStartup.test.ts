@@ -15,6 +15,7 @@ describe("Genei AI desktop startup recovery contract", () => {
     expect(host).toContain("The embedded workspace did not become ready within 30 seconds.");
     expect(host).toContain("checkLocalServer(port)");
     expect(host).toContain("desktopWorkingDirectory()");
+    expect(host).toContain("app.asar.unpacked");
     expect(host).toContain("validatePackagedLayout()");
     expect(host).toContain("app.getPath(\"userData\")");
   });
@@ -32,6 +33,16 @@ describe("Genei AI desktop startup recovery contract", () => {
     expect(packageJson.build.portable.artifactName).toContain("Genei-AI-Desktop-Portable");
     expect(host).toContain("use the portable Genei AI Desktop download");
     expect(host).not.toContain("GeneiRunner.exe");
+  });
+
+  it("keeps development-only Vite loading lazy for packaged startup", () => {
+    const viteBridge = read("server/_core/vite.ts");
+
+    expect(viteBridge).toContain('import express, { type Express } from "express";');
+    expect(viteBridge).toContain('import("vite")');
+    expect(viteBridge).toContain('import("../../vite.config")');
+    expect(viteBridge).not.toMatch(/from ["']vite["']/);
+    expect(viteBridge).not.toMatch(/import \{\s*type Express\s*\} from "express"/);
   });
 
   it("logs the real bound port when desktop mode requests an ephemeral port", () => {

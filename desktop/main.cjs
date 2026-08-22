@@ -28,7 +28,9 @@ function runtimeRoot() {
 }
 
 function serverEntry() {
-  return path.join(applicationRoot(), "dist", "index.js");
+  if (isDevelopment) return path.join(applicationRoot(), "dist", "index.js");
+  const unpackedEntry = path.join(process.resourcesPath, "app.asar.unpacked", "dist", "index.js");
+  return fs.existsSync(unpackedEntry) ? unpackedEntry : path.join(applicationRoot(), "dist", "index.js");
 }
 
 function desktopWorkingDirectory() {

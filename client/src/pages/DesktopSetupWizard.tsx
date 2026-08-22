@@ -5,7 +5,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Cloud,
-  Cpu,
   Download,
   HardDrive,
   Image,
@@ -46,7 +45,6 @@ export default function DesktopSetupWizard() {
   const [status, setStatus] = useState<DesktopStatus | null>(null);
   const [profile, setProfile] = useState<DesktopHardwareProfile | null>(null);
   const [checking, setChecking] = useState(true);
-  const [preference, setPreference] = useState<"auto" | "local" | "cloud">("auto");
 
   const refresh = async () => {
     setChecking(true);
@@ -96,7 +94,7 @@ export default function DesktopSetupWizard() {
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold font-display text-foreground">Install once. Create immediately.</h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Genei detects your computer inside this application, chooses the best available execution path, and keeps cloud fallback ready. There is no separate runner, pairing token, command line, or hardware utility to install.
+              Genei automatically understands your computer and chooses the best way to power each creation. Just pick what you want to make and begin.
             </p>
           </div>
           <div className="min-w-[250px] rounded-2xl border border-primary/25 bg-black/30 p-4">
@@ -142,26 +140,19 @@ export default function DesktopSetupWizard() {
 
         <aside className="space-y-4">
           <div className="genei-card rounded-2xl p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Cpu className="h-4 w-4 text-cyan-300" /> Execution preference</div>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Automatic is recommended. This is a preference, not a setup step.</p>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {(["auto", "local", "cloud"] as const).map((value) => (
-                <button key={value} type="button" onClick={() => { setPreference(value); toast.success(value === "auto" ? "Genei will choose automatically" : `Genei will prefer ${value} execution`); }} className={`rounded-lg border px-2 py-2 text-[11px] font-semibold capitalize transition ${preference === value ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
-                  {value === "auto" ? "Automatic" : value}
-                </button>
-              ))}
-            </div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Genei is ready</div>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Choose a tool and Genei automatically selects the best way to run it on this computer.</p>
+            <div className="mt-4 rounded-xl border border-border bg-black/20 px-3 py-2 text-[11px] text-muted-foreground">No configuration is needed to begin.</div>
           </div>
 
           <div className="genei-card rounded-2xl p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Nothing else is required</div>
             <div className="mt-3 space-y-3 text-xs text-muted-foreground">
               <div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span>Hardware detection is embedded in Genei AI Desktop.</span></div>
-              <div className="flex items-start gap-2"><Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" /><span>Cloud fallback is available when local hardware is not ready.</span></div>
-              <div className="flex items-start gap-2"><HardDrive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-300" /><span>Optional local models are capability-gated and never downloaded during first launch.</span></div>
+              <div className="flex items-start gap-2"><Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" /><span>Genei keeps working when a creation needs online help.</span></div>
             </div>
             <Link href="/settings">
-              <button type="button" className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:bg-primary/15"><Download className="h-3.5 w-3.5" /> Advanced settings</button>
+              <button type="button" className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:bg-primary/15"><Download className="h-3.5 w-3.5" /> More options</button>
             </Link>
           </div>
         </aside>
@@ -169,7 +160,7 @@ export default function DesktopSetupWizard() {
 
       {status?.packaged === false && profile?.status === "browser-preview" && (
         <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-3 text-xs text-amber-200/80">
-          This is the browser preview. The installed Genei AI Desktop build performs the same check with direct access to the computer’s hardware; this preview intentionally does not claim to inspect the host machine.
+          You are viewing Genei in a browser. The installed app can automatically use this computer while you create.
         </div>
       )}
     </div>

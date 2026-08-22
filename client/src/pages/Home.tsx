@@ -137,11 +137,11 @@ export default function Home() {
         <div className="flex items-center gap-3">
           {desktopStatus ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Loader2 className="h-4 w-4 animate-spin text-primary" />}
           <div>
-            <div className="text-xs font-semibold text-foreground">{desktopIsReady ? "Computer detected automatically" : desktopStatus?.hardware?.status === "browser-preview" ? "Desktop detection ready on install" : "Preparing Genei workspace"}</div>
-            <div className="text-[11px] text-muted-foreground">{desktopStatus?.hardware?.message || "Genei chooses local hardware, your providers, or a secure fallback for each tool."}</div>
+            <div className="text-xs font-semibold text-foreground">{desktopIsReady ? "Your computer is ready" : desktopStatus?.hardware?.status === "browser-preview" ? "Ready when you install Genei" : "Getting Genei ready"}</div>
+            <div className="text-[11px] text-muted-foreground">{desktopStatus?.hardware?.status === "browser-preview" ? "Genei automatically finds the best way to run each creation." : desktopStatus?.hardware?.message || "Genei automatically chooses the best way to power each tool."}</div>
           </div>
         </div>
-        <Link href="/byoh" className="text-xs font-semibold text-primary hover:underline">View capabilities →</Link>
+        <Link href="/byoh" className="text-xs font-semibold text-primary hover:underline">See how it works →</Link>
       </div>
 
       {/* Stats */}
