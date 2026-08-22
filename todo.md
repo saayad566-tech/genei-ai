@@ -375,7 +375,7 @@
 ## Phase 44: Local-First Model Library and Cross-Platform Delivery
 - [x] Repair the Windows embedded workspace code-1 startup failure without removing existing Genei AI features
 - [x] Define a truthful local-first runtime contract with automatic hardware profiling, safe capability detection, and cloud/provider fallback
-- [ ] Add an in-app model and tool catalog with categories, compatibility, install, update, remove, progress, verification, and recovery states
+- [x] Add an in-app model and tool catalog with categories, compatibility, install, update, remove, progress, verification, and recovery states
 - [x] Keep login/session behavior clear across hosted, local-only, and hybrid execution modes without exposing secrets
 - [x] Preserve and verify all existing creator studios, AI Director scene/shot pipelines, ComfyUI graphs, BYOK/BYOH routing, projects, assets, webhooks, localization, and exports
 - [x] Assess and implement the feasible Android APK path with the same user-facing model/tool library and truthful hardware limitations
@@ -420,8 +420,12 @@
 - [x] Deliver the latest matched artifacts or clearly disclose the remaining native-build dependency
 
 ## Current request: installer still exits with code 1
-- [ ] Reproduce the reported “embedded workspace stopped unexpectedly (code 1)” failure from the exact Windows package layout
-- [ ] Trace and repair the packaged server launch, working directory, environment, and readiness handshake without removing any creator features
-- [ ] Add regression coverage for the exact failure path and clean-install recovery flow
-- [ ] Rebuild the complete Windows installer and portable app from the repaired source
-- [ ] Validate the repaired artifacts and provide only the verified matching downloads and source archive
+- [x] Reproduce the reported “embedded workspace stopped unexpectedly (code 1)” failure from the exact Windows package layout
+- [x] Trace and repair the packaged server launch, working directory, environment, and readiness handshake without removing any creator features
+- [x] Add regression coverage for the exact failure path and clean-install recovery flow
+- [x] Rebuild the complete Windows installer and portable app from the repaired source
+- [x] Validate the repaired artifacts and provide only the verified matching downloads and source archive
+
+## Current continuation: genuine Android deliverable
+- [ ] Build and validate a real Android APK from the same source revision as the desktop release
+- [x] Document Android network routing, install behavior, and signing limitations for end users
