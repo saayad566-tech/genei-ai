@@ -37,7 +37,7 @@ const mainNavItems = [
   { id: "marketplace", label: "Marketplace", icon: ShoppingBag, path: "/marketplace" },
   { id: "assets", label: "Asset Library", icon: Archive, path: "/assets" },
   { id: "api", label: "API Integrations", icon: Key, path: "/api" },
-  { id: "byoh", label: "BYOH Runners", icon: Monitor, path: "/byoh", badge: "HARDWARE", badgeColor: "cyan" },
+  { id: "byoh", label: "Hardware & Runtime", icon: Monitor, path: "/byoh", badge: "BUILT-IN", badgeColor: "cyan" },
   { id: "comfy", label: "ComfyUI Graph Studio", icon: Workflow, path: "/comfy", badge: "PRO", badgeColor: "purple" },
   { id: "team", label: "Team Workspace", icon: Users, path: "/team" },
   { id: "monetization", label: "Monetization", icon: DollarSign, path: "/monetization" },

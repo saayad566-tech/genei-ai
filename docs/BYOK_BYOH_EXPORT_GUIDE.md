@@ -1,29 +1,25 @@
-# Genei AI BYOK, BYOH, and Export Center Guide
+# Genei AI BYOK, Embedded Hardware, and Export Center Guide
 
 ## BYOK provider connections
 
 Open **API Integrations**, choose a provider, enter its key, and select **Save Key**. Genei AI encrypts the key on the server and never returns it to browser code. For supported providers, select **Test** to run a server-side health check. A healthy result means the provider accepted the credential at the time of testing; it does not guarantee future quota or availability. Providers without a configured adapter remain stored securely but display an explicit unsupported-health state.
 
-The current live health checks cover OpenAI, Anthropic, and ElevenLabs. Other provider cards can be connected and stored securely while their provider-specific adapters are added. Users should never place credentials in source files, the browser console, or the BYOH runner environment.
+The current live health checks cover OpenAI, Anthropic, and ElevenLabs. Other provider cards can be connected and stored securely while their provider-specific adapters are added. Users should never place credentials in source files or the browser console.
 
-## BYOH workstation pairing
+## Embedded hardware detection
 
-In the **Bring Your Own Hardware** section of API Integrations, enter a workstation name and platform, then select **Pair workstation**. Genei AI displays a one-time token. Copy it into the runner on the target Windows, macOS, or Linux computer through environment variables:
+The installed **Genei AI Desktop** application probes CPU, memory, disk, GPU, accelerator, and optional local runtime capabilities from inside its own bundle. Open **Hardware & Runtime** to review the detected profile. This is a status view, not a pairing workflow.
 
-```bash
-GENEI_SERVER_URL=https://your-genei-origin.example \
-GENEI_RUNNER_TOKEN=genei_... \
-python -m ai_director.runner_client
-```
+For each job, Genei prefers a compatible local path when one is available. If local hardware or a local capability is unavailable, Genei reports the reason and falls back to a saved provider or the managed gateway. Optional local model downloads are presented inside the relevant studio with progress, verification, retry, and cancel states.
 
-The runner reports platform and capability metadata through an outbound connection. It does not receive provider keys and does not accept arbitrary browser shell commands. After the first heartbeat, the workstation appears in the dashboard with its status and capability count. Revoke a runner from the same panel if the device is lost or should no longer execute work.
+There is no separate runner executable, one-time pairing token, command-line setup, Python installation, or hardware utility required for normal desktop use. Historical runner modules remain in the source tree only for compatibility with old server records and are not shipped or linked by the desktop application.
 
 ## Export Center
 
-Choose an output preset such as YouTube 4K, YouTube 1080p, Shorts/Reels, Square Social, or Production Master. Then select one or more output formats and a destination. Download-only jobs are intended for direct delivery; Asset Library jobs are intended for cloud persistence; BYOH worker jobs are intended for local rendering; cloud queue jobs require a configured execution worker.
+Choose an output preset such as YouTube 4K, YouTube 1080p, Shorts/Reels, Square Social, or Production Master. Then select one or more output formats and a destination. Download-only jobs are intended for direct delivery; Asset Library jobs are intended for cloud persistence; local jobs use the embedded desktop capability path; cloud queue jobs use a configured provider or managed fallback.
 
-Selecting **Queue** creates a persistent export job with the selected format, preset, destination, and status. A download link is displayed only after a worker reports a completed output. The current release does not pretend that a queued job has completed when no worker is configured.
+Selecting **Queue** creates a persistent export job with the selected format, preset, destination, and status. A download link is displayed only after an execution path reports a completed output. The current release does not pretend that a queued job has completed when no compatible path is configured.
 
 ## Security boundary
 
-BYOK credentials remain server-side. BYOH runners receive short-lived work instructions and capability metadata only. Heavy generation, video stitching, and upscaling require a configured cloud adapter or paired local worker. The browser remains the orchestration and review surface rather than the location for long-running GPU workloads.
+BYOK credentials remain server-side. The embedded local runtime is supervised by the desktop host and receives only the task contract needed for the selected capability. The application keeps orchestration, review, rendering, and export within the same Genei workspace.

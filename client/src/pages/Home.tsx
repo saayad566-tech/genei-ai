@@ -4,8 +4,10 @@ import { Link } from "wouter";
 import {
   Music, Video, Image, Smartphone, Globe, Mic, Zap, Sparkles,
   TrendingUp, Users, Archive, Clock, ArrowRight, Play,
-  Wand2, Bot, Pen, Megaphone, Code2, Film, Palette
+  Wand2, Bot, Pen, Megaphone, Code2, Film, Palette, Monitor, CheckCircle2, Loader2
 } from "lucide-react";
+import { useEffect } from "react";
+import { readDesktopStatus, type DesktopStatus } from "@/lib/desktop";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -42,13 +44,24 @@ const trendingStyles = [
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" as const } } };
 
+function MonitorIcon() {
+  return <Monitor className="w-4 h-4" />;
+}
+
 export default function Home() {
   const { user, isAuthenticated } = useAuth();
+  const [desktopStatus, setDesktopStatus] = useState<DesktopStatus | null>(null);
   const statsQuery = trpc.stats.overview.useQuery(undefined, { enabled: isAuthenticated });
   const projectsQuery = trpc.projects.list.useQuery(undefined, { enabled: isAuthenticated });
 
   const stats = statsQuery.data || { totalAssets: 0, totalProjects: 0, totalApiKeys: 0, totalMessages: 0 };
   const recentProjects = projectsQuery.data?.slice(0, 4) || [];
+
+  useEffect(() => {
+    void readDesktopStatus().then(setDesktopStatus).catch(() => setDesktopStatus(null));
+  }, []);
+
+  const desktopIsReady = desktopStatus?.hardware?.status === "ready";
 
   return (
     <div className="p-5 max-w-[1400px] mx-auto space-y-7">
@@ -110,16 +123,26 @@ export default function Home() {
                 <Play className="w-3.5 h-3.5" /> Explore Templates
               </button>
             </Link>
-            <a
-              href="https://genieai-tc7qfq5i.manus.space/manus-storage/GeneiRunner_2324a4e1.exe"
-              download="GeneiRunner.exe"
+            <Link
+              href="/setup-wizard"
               className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 transition-all"
             >
-              <Archive className="w-4 h-4" /> Download Windows App (.exe)
-            </a>
+              <MonitorIcon /> Open Desktop Setup
+            </Link>
           </div>
         </div>
       </motion.div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          {desktopStatus ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+          <div>
+            <div className="text-xs font-semibold text-foreground">{desktopIsReady ? "Computer detected automatically" : desktopStatus?.hardware?.status === "browser-preview" ? "Desktop detection ready on install" : "Preparing Genei workspace"}</div>
+            <div className="text-[11px] text-muted-foreground">{desktopStatus?.hardware?.message || "Genei chooses local hardware, your providers, or a secure fallback for each tool."}</div>
+          </div>
+        </div>
+        <Link href="/byoh" className="text-xs font-semibold text-primary hover:underline">View capabilities →</Link>
+      </div>
 
       {/* Stats */}
       <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3">

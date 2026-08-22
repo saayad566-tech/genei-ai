@@ -1,10 +1,10 @@
-name: Build Genei BYOH Windows Runner
+name: Build Genei AI Desktop for Windows
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified runner as a GitHub Release asset
+        description: Publish the verified Genei AI Desktop installer as a GitHub Release asset
         required: false
         default: false
         type: boolean
@@ -12,7 +12,13 @@ on:
     branches: [main, master]
     paths:
       - "ai_director/**"
+      - "client/**"
+      - "server/**"
+      - "shared/**"
+      - "desktop/**"
       - "packaging/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/build-genei-runner-windows.yml"
   release:
     types: [published]
@@ -21,7 +27,7 @@ permissions:
   contents: write
 
 jobs:
-  build-windows-exe:
+  build-windows-desktop:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -29,16 +35,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set release metadata
-        id: version
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Enable pnpm
         shell: pwsh
-        run: |
-          $tag = "${{ github.event.release.tag_name }}"
-          if (-not $tag) {
-            $tag = "genei-runner-v1.0.${{ github.run_number }}"
-          }
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-          "artifact_name=GeneiRunner-$tag-Windows-x64" >> $env:GITHUB_OUTPUT
+        run: corepack enable
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -47,77 +52,80 @@ jobs:
           cache: "pip"
           cache-dependency-path: "ai_director/requirements.txt"
 
-      - name: Build standalone Windows runner
+      - name: Install JavaScript dependencies
         shell: pwsh
-        run: .\packaging\build_windows_exe.ps1
+        run: pnpm install --frozen-lockfile
 
-      - name: Validate PE metadata and runner help
+      - name: Build embedded hardware sidecar
         shell: pwsh
-        run: |
-          python .\packaging\validate_windows_exe.py .\dist\GeneiRunner.exe --json
-          & .\dist\GeneiRunner.exe --help
-          if ($LASTEXITCODE -ne 0) {
-            throw "GeneiRunner.exe --help failed with exit code $LASTEXITCODE"
-          }
+        run: .\packaging\build_windows_desktop.ps1
 
-      - name: Optional Windows code signing
-        if: ${{ env.WINDOWS_SIGNING_CERT_BASE64 != '' }}
+      - name: Build the full Genei workspace
+        shell: pwsh
+        run: pnpm build
+
+      - name: Build the one-click Windows installer
         shell: pwsh
         env:
-          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
-          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+          CSC_LINK: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        run: pnpm exec electron-builder --win nsis --x64 --publish never
+
+      - name: Validate embedded sidecar PE and installer output
+        shell: pwsh
         run: |
-          $certPath = Join-Path $env:RUNNER_TEMP "genei-signing-cert.pfx"
-          [System.IO.File]::WriteAllBytes($certPath, [System.Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_BASE64))
-          & signtool sign /f $certPath /p $env:WINDOWS_SIGNING_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 .\dist\GeneiRunner.exe
-          if ($LASTEXITCODE -ne 0) {
-            throw "signtool failed with exit code $LASTEXITCODE"
-          }
-          Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+          python .\packaging\validate_windows_exe.py .\runtime\GeneiAI-Director.exe --json
+          $installer = Get-ChildItem .\release\Genei-AI-Desktop-Setup-*.exe | Select-Object -First 1
+          if (-not $installer) { throw "Genei AI Desktop installer was not produced." }
+          if ($installer.Length -lt 1000000) { throw "Installer is unexpectedly small; refusing to publish a likely incomplete package." }
+          Write-Host "Installer: $($installer.FullName) ($($installer.Length) bytes)"
 
       - name: Finalize checksum and metadata
+        id: metadata
         shell: pwsh
         env:
           WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
         run: |
-          $exe = Get-Item .\dist\GeneiRunner.exe
-          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  GeneiRunner.exe" | Out-File -Encoding ascii .\dist\GeneiRunner.exe.sha256
-          $signed = [bool]$env:WINDOWS_SIGNING_CERT_BASE64
+          $installer = Get-ChildItem .\release\Genei-AI-Desktop-Setup-*.exe | Select-Object -First 1
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Out-File -Encoding ascii (Join-Path $installer.DirectoryName "$($installer.Name).sha256")
+          $tag = "genei-desktop-v1.1.${{ github.run_number }}"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
           $metadata = [ordered]@{
-            name = "Genei BYOH Windows Runner"
-            version = "${{ steps.version.outputs.tag }}"
-            product = "Genei AI"
+            product = "Genei AI Desktop"
+            version = "1.1.${{ github.run_number }}"
             target = "win-x64"
-            artifact = $exe.Name
-            fileSizeBytes = $exe.Length
+            artifact = $installer.Name
+            fileSizeBytes = $installer.Length
             sha256 = $hash
-            signingState = if ($signed) { "signed" } else { "unsigned" }
+            signingState = if ($env:WINDOWS_SIGNING_CERT_BASE64) { "signed" } else { "unsigned" }
+            runnerRequired = $false
+            hardwareDetection = "embedded"
             workflowRun = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             commit = "${{ github.sha }}"
           }
-          $metadata | ConvertTo-Json | Out-File -Encoding utf8 .\dist\GeneiRunner.metadata.json
+          $metadata | ConvertTo-Json | Out-File -Encoding utf8 (Join-Path $installer.DirectoryName "Genei-AI-Desktop.metadata.json")
           Write-Host "SHA-256: $hash"
 
-      - name: Upload verified workflow artifacts
+      - name: Upload verified desktop artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.version.outputs.artifact_name }}
+          name: Genei-AI-Desktop-Windows-x64-${{ github.run_number }}
           path: |
-            dist/GeneiRunner.exe
-            dist/GeneiRunner.exe.sha256
-            dist/GeneiRunner.metadata.json
+            release/Genei-AI-Desktop-Setup-*.exe
+            release/Genei-AI-Desktop-Setup-*.exe.sha256
+            release/Genei-AI-Desktop.metadata.json
           if-no-files-found: error
 
       - name: Publish verified GitHub Release asset
         if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true) }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
+          tag_name: ${{ steps.metadata.outputs.tag }}
           files: |
-            dist/GeneiRunner.exe
-            dist/GeneiRunner.exe.sha256
-            dist/GeneiRunner.metadata.json
+            release/Genei-AI-Desktop-Setup-*.exe
+            release/Genei-AI-Desktop-Setup-*.exe.sha256
+            release/Genei-AI-Desktop.metadata.json
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

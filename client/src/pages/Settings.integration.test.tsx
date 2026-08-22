@@ -38,13 +38,13 @@ describe("Settings accessibility and truthful release states", () => {
     render(<Settings />);
 
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Downloads & Desktop App" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Genei AI Desktop" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Custom Domain & PWA" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Downloads & Desktop App" }));
+    fireEvent.click(screen.getByRole("button", { name: "Genei AI Desktop" }));
 
-    expect(screen.getByText("No verified release artifact is available yet")).toBeInTheDocument();
-    expect(screen.getByText(/must first be compiled on a Windows GitHub Actions runner/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Download Windows Runner/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Desktop installer build pending")).toBeInTheDocument();
+    expect(screen.getByText(/complete Windows installer is built on a native Windows environment/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Download Genei AI Desktop/i })).not.toBeInTheDocument();
   });
 });

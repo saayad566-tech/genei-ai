@@ -1,8 +1,15 @@
 {
   "name": "genei-ai",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "license": "MIT",
+  "description": "Genei AI Desktop — unified local-first AI creator workspace with embedded hardware detection.",
+  "author": "Genei AI",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saayad566-tech/genei-ai.git"
+  },
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
     "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
@@ -10,7 +17,10 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "desktop:dev": "pnpm build && electron .",
+    "desktop:build": "pnpm build && electron-builder --win nsis --x64 --publish never",
+    "desktop:build:dir": "pnpm build && electron-builder --dir --publish never"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
@@ -93,6 +103,8 @@
     "add": "^2.0.6",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.31.4",
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.0",
     "esbuild": "^0.25.0",
     "jsdom": "^30.0.1",
     "pnpm": "^10.15.1",
@@ -105,6 +117,40 @@
     "vite": "^7.1.7",
     "vite-plugin-manus-runtime": "^0.0.57",
     "vitest": "^2.1.4"
+  },
+  "build": {
+    "appId": "ai.genei.desktop",
+    "productName": "Genei AI Desktop",
+    "asar": true,
+    "files": [
+      "dist/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime",
+        "to": "runtime",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": ["runtime/**/*"],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "Genei-AI-Desktop-Setup-${version}.${ext}",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Genei AI Desktop"
+    }
   },
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
   "pnpm": {

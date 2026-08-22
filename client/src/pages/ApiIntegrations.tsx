@@ -2,12 +2,11 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Key, Plus, Trash2, Check, X, Shield,
-  Activity, DollarSign, ChevronDown, Loader2, Edit2, Zap, Monitor, Copy
+  Activity, DollarSign, ChevronDown, Loader2, Edit2, Zap, Monitor, Cpu, Cloud
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { ModelRuntimeStatus } from "@/components/ModelRuntimeStatus";
-import { ByohMonitorPanel } from "@/components/ByohMonitorPanel";
 import WebhookSettingsPanel from "@/components/WebhookSettingsPanel";
 import WebhookHistoryPanel from "@/components/WebhookHistoryPanel";
 
@@ -48,10 +47,6 @@ export default function ApiIntegrations() {
   const [newKey, setNewKey] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [healthByKey, setHealthByKey] = useState<Record<number, { status: string; message: string }>>({});
-  const [runnerName, setRunnerName] = useState("");
-  const [runnerPlatform, setRunnerPlatform] = useState("Windows");
-  const [pairedToken, setPairedToken] = useState<string | null>(null);
-
   const { data: apiKeys, refetch } = trpc.apiKeys.list.useQuery();
   const addKeyMutation = trpc.apiKeys.add.useMutation({
     onSuccess: () => { refetch(); setAddingProvider(null); setNewKey(""); setNewLabel(""); toast.success("API key added securely!"); },
@@ -62,14 +57,6 @@ export default function ApiIntegrations() {
   });
   const toggleKeyMutation = trpc.apiKeys.toggle.useMutation({
     onSuccess: () => refetch(),
-  });
-  const { data: runners, refetch: refetchRunners } = trpc.runners.list.useQuery();
-  const pairRunnerMutation = trpc.runners.pair.useMutation({
-    onSuccess: (result) => { setPairedToken(result.token); setRunnerName(""); refetchRunners(); toast.success("BYOH runner paired. Copy the token into the runner once."); },
-    onError: (error) => toast.error(error.message || "Unable to pair runner"),
-  });
-  const revokeRunnerMutation = trpc.runners.revoke.useMutation({
-    onSuccess: () => { refetchRunners(); toast.success("Runner revoked"); },
   });
   const healthCheckMutation = trpc.apiKeys.healthCheck.useMutation({
     onSuccess: (result, variables) => {
@@ -131,35 +118,14 @@ export default function ApiIntegrations() {
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15"><Monitor className="h-5 w-5 text-primary" /></div>
           <div className="flex-1">
-            <h2 className="font-semibold text-foreground font-display">Bring Your Own Hardware</h2>
-            <p className="text-xs text-muted-foreground">Pair a workstation to run heavy video, image, audio, and upscaling tools locally. The runner connects outbound and never receives provider secrets.</p>
+            <h2 className="font-semibold text-foreground font-display">Automatic local hardware</h2>
+            <p className="text-xs text-muted-foreground">Genei AI Desktop detects your hardware from inside the application. Provider keys stay encrypted, and the router automatically chooses local, BYOK, or managed execution per task.</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_auto] gap-2">
-          <input value={runnerName} onChange={(event) => setRunnerName(event.target.value)} placeholder="Workstation name" className="genei-input text-sm" />
-          <select value={runnerPlatform} onChange={(event) => setRunnerPlatform(event.target.value)} className="genei-input text-sm">
-            <option>Windows</option><option>macOS</option><option>Linux</option>
-          </select>
-          <button type="button" disabled={!runnerName.trim() || pairRunnerMutation.isPending} onClick={() => pairRunnerMutation.mutate({ name: runnerName.trim(), platform: runnerPlatform })} className="genei-btn-primary min-h-11 px-4 text-sm disabled:opacity-50">{pairRunnerMutation.isPending ? "Pairing..." : "Pair workstation"}</button>
-        </div>
-        {pairedToken && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2" aria-live="polite">
-            <div className="text-xs font-semibold text-foreground">One-time runner pairing token</div>
-            <div className="flex gap-2">
-              <code className="flex-1 overflow-x-auto rounded bg-black/30 p-2 text-[11px] text-primary">{pairedToken}</code>
-              <button type="button" onClick={() => { void navigator.clipboard?.writeText(pairedToken); toast.success("Runner token copied"); }} className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground" aria-label="Copy runner token"><Copy className="h-4 w-4" /></button>
-            </div>
-            <p className="text-[10px] text-muted-foreground">Keep this token private. It is shown once for pairing and is not recoverable after leaving this page; create a new pairing if it is lost.</p>
-            <button type="button" onClick={() => setPairedToken(null)} className="text-[10px] text-primary hover:underline">Hide token after copying</button>
-          </div>
-        )}
-        <div className="space-y-3 pt-2">
-          <div className="rounded-lg bg-black/40 border border-border p-3 font-mono text-[11px] text-primary flex items-center gap-2">
-            <code className="flex-1 overflow-x-auto">.\\GeneiRunner.exe --server-url {window.location.origin} --token {pairedToken || "YOUR_TOKEN"}</code>
-            <button type="button" onClick={() => { const command = `.\\GeneiRunner.exe --server-url ${window.location.origin} --token ${pairedToken || "YOUR_TOKEN"}`; void navigator.clipboard?.writeText(command); toast.success("Windows runner command copied"); }} className="rounded border border-border p-1.5 text-muted-foreground hover:text-foreground" aria-label="Copy Windows runner command"><Copy className="h-3.5 w-3.5" /></button>
-          </div>
-          <p className="text-[10px] text-muted-foreground">The Windows binary is a BYOH workstation runner. It connects outbound and reports capabilities; it is not the full Genei dashboard application.</p>
-          <ByohMonitorPanel />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-black/20 p-3"><Cpu className="h-4 w-4 text-cyan-300" /><div className="mt-2 text-xs font-semibold text-foreground">Local first</div><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">Use detected CPU/GPU capacity when a compatible local capability is available.</p></div>
+          <div className="rounded-lg border border-border bg-black/20 p-3"><Key className="h-4 w-4 text-amber-300" /><div className="mt-2 text-xs font-semibold text-foreground">Your providers</div><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">Add provider keys below; Genei never sends them to the browser or an external runner.</p></div>
+          <div className="rounded-lg border border-border bg-black/20 p-3"><Cloud className="h-4 w-4 text-purple-300" /><div className="mt-2 text-xs font-semibold text-foreground">Safe fallback</div><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">If local execution is unavailable, Genei reports the reason and uses the managed gateway.</p></div>
         </div>
       </div>
 

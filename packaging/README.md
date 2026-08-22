@@ -1,37 +1,36 @@
-# Genei BYOH Windows Runner
+# Genei AI Desktop Windows Packaging
 
-The Windows artifact produced by this directory is the **Genei BYOH Workstation Runner**. It is a paired background runner that reports local hardware and installed-tool capabilities to a Genei workspace. It is not the complete Genei dashboard or a standalone desktop editor.
+Genei AI is distributed as one Windows x64 application. The installer contains the Electron desktop shell, the bundled React workspace, the production Node server, and the internal Python capability probe. Users do not install or pair a separate runner.
 
-## Build locally on Windows
+## Native Windows build
 
-Open PowerShell in the repository root and run:
-
-```powershell
-.\packaging\build_windows_exe.ps1
-python .\packaging\validate_windows_exe.py .\dist\GeneiRunner.exe
-.\dist\GeneiRunner.exe --help
-```
-
-The build creates `dist/GeneiRunner.exe`, `dist/GeneiRunner.exe.sha256`, and `dist/GeneiRunner.metadata.json`. The executable is labelled unsigned unless a signing certificate is supplied to the build environment.
-
-## Build with GitHub Actions
-
-Use `.github/workflows/build-genei-runner-windows.yml` on a repository with Actions enabled. A manual run creates a workflow artifact. A release-triggered run attaches the executable, checksum, and metadata to the release. The workflow refuses to publish when the executable is missing or when PE validation or the `--help` smoke test fails.
-
-To enable Authenticode signing, add `WINDOWS_SIGNING_CERT_BASE64` and `WINDOWS_SIGNING_CERT_PASSWORD` as repository or environment secrets. Without those secrets, the release must remain visibly marked **unsigned**.
-
-## Pair a runner
-
-1. Sign in to the Genei control plane and open **API Integrations**.
-2. Pair a new BYOH workstation and copy the one-time runner token.
-3. Run the published executable with the workspace origin and token:
+Run the build on a native Windows machine or through the repository workflow on `windows-latest`:
 
 ```powershell
-.\GeneiRunner.exe --server-url https://your-genei-origin.example --token genei_one_time_token
+.\packaging\build_windows_desktop.ps1
+pnpm install --frozen-lockfile
+pnpm build
+pnpm exec electron-builder --win nsis --x64 --publish never
 ```
 
-The runner sends heartbeat and capability telemetry only. It does not receive provider API keys and does not execute arbitrary remote shell commands. Revoke the runner from Genei when the workstation should no longer connect.
+The helper creates a temporary Python environment, installs the AI Director probe dependencies, compiles `GeneiAI-Director.exe` with PyInstaller, and places it under `runtime/`. Electron Builder then embeds that internal executable into the one-click NSIS installer.
 
-## Release truth requirements
+The resulting files are written to `release/`:
 
-Do not upload a renamed placeholder file. A release is valid only when the executable has a Windows PE header, targets x64, starts successfully with `--help`, has an independently computed SHA-256 checksum, and has an explicit signed or unsigned state. The Genei Settings download panel must remain in a build-pending state until all of those conditions are satisfied.
+```text
+Genei-AI-Desktop-Setup-<version>.exe
+Genei-AI-Desktop-Setup-<version>.exe.sha256
+Genei-AI-Desktop.metadata.json
+```
+
+The GitHub Actions workflow `.github/workflows/build-genei-runner-windows.yml` is retained for repository compatibility, but now builds the complete **Genei AI Desktop** application. It validates the embedded PE sidecar and installer size, records a checksum, reports whether code signing was available, and uploads the installer as an artifact. It never publishes a runner-only binary.
+
+## Signing
+
+Code signing is optional in development and controlled by the native workflow secrets `WINDOWS_SIGNING_CERT_BASE64` and `WINDOWS_SIGNING_CERT_PASSWORD`. A release marked unsigned must be labelled clearly when distributed. The checksum file must accompany every installer.
+
+## Runtime behavior
+
+On first launch, the desktop host starts its bundled local server on an available port and runs the internal hardware probe. The probe reports CPU, memory, disk, GPU, accelerator, and optional runtime capabilities. Genei then routes each tool to local execution, a user-configured provider, or the managed fallback. Missing GPU hardware is not an installation failure.
+
+The legacy runner source and pairing procedures remain in the repository only for compatibility with historical server records. They are not part of the installer, are not linked from the user interface, and are not required for any normal desktop workflow.

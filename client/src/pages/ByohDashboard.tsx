@@ -1,314 +1,132 @@
-import React, { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Monitor, Cpu, Activity, RefreshCw, Trash2, CheckCircle2, AlertCircle, Copy, Terminal, Shield, Download, HardDrive } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import {
+  Activity,
+  CheckCircle2,
+  Cloud,
+  Cpu,
+  HardDrive,
+  Image,
+  Loader2,
+  Mic,
+  Monitor,
+  Music,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Video,
+  Workflow,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
+import { readDesktopStatus, type DesktopHardwareProfile, type DesktopStatus } from "@/lib/desktop";
+
+const capabilityTools = [
+  { name: "Image generation", path: "/image", icon: Image, local: "GPU or CPU", cloud: "Managed gateway", accent: "oklch(0.72 0.18 210)" },
+  { name: "Music creation", path: "/music", icon: Music, local: "CPU-ready", cloud: "BYOK providers", accent: "oklch(0.65 0.22 285)" },
+  { name: "Video production", path: "/video", icon: Video, local: "GPU preferred", cloud: "Provider adapters", accent: "oklch(0.60 0.25 310)" },
+  { name: "AI Director", path: "/director", icon: Sparkles, local: "CPU-ready", cloud: "Managed LLM", accent: "oklch(0.78 0.18 75)" },
+  { name: "Visual workflows", path: "/comfy", icon: Workflow, local: "GPU preferred", cloud: "Hybrid routing", accent: "oklch(0.68 0.20 155)" },
+  { name: "Voice & podcasts", path: "/voice", icon: Mic, local: "CPU-ready", cloud: "Speech providers", accent: "oklch(0.65 0.22 285)" },
+];
+
+function valueOrUnknown(value: string | number | null | undefined) {
+  return value === null || value === undefined || value === "" ? "Not reported" : String(value);
+}
+
+function StatusBadge({ ready, label }: { ready: boolean; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${ready ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-border bg-secondary/40 text-muted-foreground"}`}>
+      {ready ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+      {label}
+    </span>
+  );
+}
 
 export default function ByohDashboard() {
-  const [runnerName, setRunnerName] = useState("");
-  const [runnerPlatform, setRunnerPlatform] = useState("Windows");
-  const [pairedToken, setPairedToken] = useState<string | null>(null);
-  const [selectedRunnerId, setSelectedRunnerId] = useState<number | null>(null);
+  const [status, setStatus] = useState<DesktopStatus | null>(null);
+  const [profile, setProfile] = useState<DesktopHardwareProfile | null>(null);
+  const [checking, setChecking] = useState(true);
 
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
+  const detect = async () => {
+    setChecking(true);
+    try {
+      const nextStatus = await readDesktopStatus();
+      setStatus(nextStatus);
+      setProfile(nextStatus.hardware);
+    } catch {
+      setProfile({ status: "probe-error", message: "The internal probe could not complete. Cloud execution remains available." });
+      toast.error("Hardware detection could not complete");
+    } finally {
+      setChecking(false);
+    }
+  };
 
-  const { data: runners, refetch: refetchRunners, isLoading } = trpc.runners.list.useQuery(undefined, {
-    refetchInterval: 10000,
-  });
-  const { data: artifacts } = trpc.downloads.listArtifacts.useQuery();
-  const { data: runnerLogs, refetch: refetchLogs } = trpc.runners.logs.useQuery(
-    { runnerId: selectedRunnerId ?? (runners?.[0]?.id || 0), limit: 50 },
-    { enabled: !!selectedRunnerId || !!runners?.length, refetchInterval: 8000 }
-  );
+  useEffect(() => {
+    void detect();
+  }, []);
 
-  const pairRunnerMutation = trpc.runners.pair.useMutation({
-    onSuccess: (result) => {
-      setPairedToken(result.token);
-      setRunnerName("");
-      refetchRunners();
-      toast.success("BYOH workstation paired successfully!", { description: "Copy the pairing token and run the GeneiRunner.exe command below." });
-    },
-    onError: (err) => toast.error(err.message || "Failed to pair workstation"),
-  });
-
-  const revokeRunnerMutation = trpc.runners.revoke.useMutation({
-    onSuccess: () => {
-      refetchRunners();
-      toast.success("Workstation runner revoked");
-    },
-  });
-
-  const windowsArtifact = artifacts?.find((item) => item.platform === "win-x64");
-  const activeRunner = runners?.find((r) => r.id === (selectedRunnerId ?? runners[0]?.id));
+  const localReady = profile?.status === "ready";
+  const gpuReady = Boolean(profile?.gpu_count);
+  const runtimeCount = useMemo(() => Object.values(profile?.runtimes ?? {}).filter(Boolean).length, [profile?.runtimes]);
 
   return (
-    <div className="p-5 max-w-[1400px] mx-auto space-y-7">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="genei-card p-6 rounded-2xl space-y-3">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1">
+    <div className="p-5 sm:p-7 max-w-[1400px] mx-auto space-y-6">
+      <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="genei-card rounded-2xl p-6 sm:p-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">BYOH HARDWARE STUDIO</span>
-              <span className="text-xs text-muted-foreground">Local-first node orchestration</span>
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-300">BUILT-IN HARDWARE & RUNTIME</span>
+              <span className="text-xs text-muted-foreground">No runner. No pairing. No extra app.</span>
             </div>
-            <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">BYOH Windows Runner & Hardware Dashboard</h1>
-            <p className="text-xs text-muted-foreground max-w-2xl">
-              Monitor connected local workstations in real time, inspect hardware capability telemetry, stream runner logs, and download the verified Windows executable directly.
-            </p>
+            <h1 className="mt-3 text-2xl font-bold font-display tracking-tight text-foreground">Your Genei computer</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">Genei detects this computer from inside the desktop application and automatically routes each tool to local hardware, your saved provider, or the managed fallback. This page is informational; it never asks you to install or pair another program.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => { void refetchRunners(); toast.info("Refreshed workstation runner status"); }}
-            className="genei-btn-secondary px-4 py-2 text-xs flex items-center gap-2"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh Status
+          <button type="button" onClick={() => void detect()} disabled={checking} className="genei-btn-secondary inline-flex min-h-11 items-center justify-center gap-2 px-4 text-xs disabled:opacity-60">
+            <RefreshCw className={`h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} /> Refresh detection
           </button>
         </div>
-      </motion.div>
+      </motion.section>
 
-      {/* Guided Setup & Direct Download Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="genei-card p-6 rounded-2xl space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
-              <Download className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground font-display">1. Download Genei BYOH Runner (.exe)</h2>
-              <p className="text-xs text-muted-foreground">Standalone Windows x64 executable compiled via GitHub Actions.</p>
-            </div>
-          </div>
-          {windowsArtifact ? (
-            <div className="p-4 rounded-xl border border-border bg-black/30 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-foreground">{windowsArtifact.name}</div>
-                  <div className="text-[10px] text-muted-foreground">Version: {windowsArtifact.version} · Size: {windowsArtifact.fileSize} · Signing: {windowsArtifact.signingState}</div>
-                </div>
-                <span className="px-2 py-0.5 text-[10px] rounded bg-green-500/15 text-green-400 border border-green-500/30">Ready</span>
-              </div>
-              <div className="text-[10px] font-mono text-muted-foreground bg-black/40 p-2 rounded truncate">SHA256: {windowsArtifact.sha256}</div>
-              <button
-                type="button"
-                disabled={isDownloading}
-                onClick={() => {
-                  setIsDownloading(true);
-                  setDownloadProgress(10);
-                  toast.success("Downloading GeneiRunner.exe in the background...", { description: "Your browser will save the executable to your Downloads folder." });
-                  
-                  const interval = setInterval(() => {
-                    setDownloadProgress((prev) => {
-                      if (prev >= 90) {
-                        clearInterval(interval);
-                        return 90;
-                      }
-                      return prev + 25;
-                    });
-                  }, 300);
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="genei-card rounded-xl p-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Monitor className="h-4 w-4 text-cyan-300" /> Application</div><div className="mt-2 text-sm font-semibold text-foreground">{status?.product ?? "Genei AI Desktop"}</div><div className="mt-1 text-[11px] text-muted-foreground">{status?.packaged ? "Installed desktop build" : "Browser preview"}</div></div>
+        <div className="genei-card rounded-xl p-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Cpu className="h-4 w-4 text-purple-300" /> Processor</div><div className="mt-2 text-sm font-semibold text-foreground">{valueOrUnknown(profile?.cpu_count)} cores</div><div className="mt-1 truncate text-[11px] text-muted-foreground">{valueOrUnknown(profile?.processor)}</div></div>
+        <div className="genei-card rounded-xl p-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><HardDrive className="h-4 w-4 text-amber-300" /> Memory & disk</div><div className="mt-2 text-sm font-semibold text-foreground">{valueOrUnknown(profile?.memory_total_gb)} GB memory</div><div className="mt-1 text-[11px] text-muted-foreground">{valueOrUnknown(profile?.disk_free_gb)} GB free disk</div></div>
+        <div className="genei-card rounded-xl p-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Activity className="h-4 w-4 text-emerald-300" /> Local readiness</div><div className="mt-2 text-sm font-semibold text-foreground">{checking ? "Checking…" : localReady ? "Detected" : "Cloud fallback"}</div><div className="mt-1 text-[11px] text-muted-foreground">{runtimeCount} optional runtimes found</div></div>
+      </section>
 
-                  const a = document.createElement("a");
-                  a.href = windowsArtifact.downloadUrl;
-                  a.download = "GeneiRunner.exe";
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-
-                  setTimeout(() => {
-                    setDownloadProgress(100);
-                    setTimeout(() => {
-                      setIsDownloading(false);
-                      setDownloadProgress(0);
-                      toast.success("Download transfer initiated successfully!");
-                    }, 600);
-                  }, 1200);
-                }}
-                className="genei-button-primary w-full py-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-75"
-              >
-                <Download className={`w-4 h-4 ${isDownloading ? "animate-bounce" : ""}`} />
-                {isDownloading ? `Downloading... ${downloadProgress}%` : "Download GeneiRunner.exe (Background)"}
-              </button>
-
-              {isDownloading && (
-                <div className="w-full bg-black/40 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-primary h-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
-                </div>
-              )}
-
-              <p className="text-[10px] text-muted-foreground text-center">
-                Download runs in the background. Keep this browser tab open until the transfer completes.
-              </p>
-            </div>
-          ) : (
-            <div className="p-4 rounded-xl border border-dashed border-primary/30 bg-primary/5 space-y-2">
-              <div className="text-xs font-semibold text-foreground">Windows Release Build Pending</div>
-              <p className="text-[11px] text-muted-foreground">The runner executable is compiled from source on Windows. You can download the complete project source archive from Settings while the build is staged.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="genei-card p-6 rounded-2xl space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-cyan-500/10 p-2.5 text-cyan-400">
-              <Terminal className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground font-display">2. Pair & Run on Workstation</h2>
-              <p className="text-xs text-muted-foreground">Generate a secure pairing token and connect your hardware.</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-2">
-              <input
-                value={runnerName}
-                onChange={(e) => setRunnerName(e.target.value)}
-                placeholder="Workstation node name (e.g. RTX-4090-Node)"
-                className="genei-input text-xs"
-              />
-              <button
-                type="button"
-                disabled={!runnerName.trim() || pairRunnerMutation.isPending}
-                onClick={() => pairRunnerMutation.mutate({ name: runnerName.trim(), platform: runnerPlatform })}
-                className="genei-button-primary py-2 rounded-lg text-xs font-medium disabled:opacity-50"
-              >
-                {pairRunnerMutation.isPending ? "Pairing..." : "Generate Token"}
-              </button>
-            </div>
-            {pairedToken && (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2" aria-live="polite">
-                <div className="text-xs font-semibold text-foreground">One-time pairing token (shown once):</div>
-                <div className="flex gap-2">
-                  <code className="flex-1 overflow-x-auto rounded bg-black/40 p-2 text-[11px] text-primary">{pairedToken}</code>
-                  <button
-                    type="button"
-                    onClick={() => { void navigator.clipboard?.writeText(pairedToken); toast.success("Token copied"); }}
-                    className="rounded border border-border p-2 text-muted-foreground hover:text-foreground"
-                    aria-label="Copy token"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="rounded bg-black/40 p-2 font-mono text-[10px] text-primary">
-                  .\GeneiRunner.exe --server-url {window.location.origin} --token {pairedToken}
-                </div>
-              </div>
-            )}
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_360px]">
+        <div className="genei-card rounded-2xl p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3 mb-5"><div><h2 className="text-lg font-bold font-display text-foreground">Choose a built-in capability</h2><p className="mt-1 text-xs text-muted-foreground">Open a studio. Genei handles the execution path automatically.</p></div><StatusBadge ready={localReady || profile?.status === "browser-preview"} label={profile?.status === "browser-preview" ? "Desktop probe on install" : localReady ? "Local path detected" : "Cloud path ready"} /></div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {capabilityTools.map((tool) => (
+              <Link key={tool.path} href={tool.path}>
+                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} className="group flex min-h-[122px] cursor-pointer items-center gap-4 rounded-xl border border-border bg-black/20 p-4 transition hover:border-primary/40 hover:bg-primary/5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: `${tool.accent} / 0.15` }}><tool.icon className="h-5 w-5" style={{ color: tool.accent }} /></div>
+                  <div className="min-w-0 flex-1"><div className="text-sm font-semibold text-foreground">{tool.name}</div><div className="mt-1 text-[11px] text-muted-foreground">Local: {tool.local}</div><div className="text-[11px] text-muted-foreground">Fallback: {tool.cloud}</div></div>
+                  <span className="text-lg text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary">→</span>
+                </motion.div>
+              </Link>
+            ))}
           </div>
         </div>
-      </div>
 
-      {/* Connected Runners Grid & Live Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-foreground font-display text-sm">Registered Workstations</h3>
-            <span className="text-xs text-muted-foreground">{runners?.length || 0} nodes</span>
+        <aside className="space-y-4">
+          <div className="genei-card rounded-2xl p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Automatic routing</div>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Genei prefers local execution when the required capability is detected. If not, it uses a configured provider or the managed gateway. You do not need to decide where a job runs.</p>
+            <div className="mt-4 space-y-2"><StatusBadge ready={Boolean(profile?.status === "ready" || profile?.status === "browser-preview")} label="Hardware probe" /><StatusBadge ready={true} label="Cloud fallback" /><StatusBadge ready={gpuReady || profile?.status === "browser-preview"} label={gpuReady ? "GPU path" : "GPU path optional"} /></div>
           </div>
-          {isLoading ? (
-            <div className="genei-card p-8 text-center text-xs text-muted-foreground">Loading workstations...</div>
-          ) : runners && runners.length > 0 ? (
-            <div className="space-y-3">
-              {runners.map((runner) => {
-                const isOnline = runner.lastHeartbeat && Date.now() - new Date(runner.lastHeartbeat).getTime() < 120000;
-                const isSelected = (selectedRunnerId ?? runners[0]?.id) === runner.id;
-                return (
-                  <div
-                    key={runner.id}
-                    onClick={() => setSelectedRunnerId(runner.id)}
-                    className={`genei-card p-4 rounded-xl cursor-pointer transition-all border ${isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <Monitor className="w-4 h-4 text-primary" />
-                        <div>
-                          <div className="text-xs font-semibold text-foreground">{runner.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{runner.platform} · {runner.status}</div>
-                        </div>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${isOnline ? "bg-green-500/15 text-green-400 border border-green-500/30" : "bg-zinc-500/15 text-zinc-400 border border-zinc-500/30"}`}>
-                        {isOnline ? "Online" : "Offline"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="genei-card p-6 rounded-xl text-center space-y-3">
-              <Monitor className="w-8 h-8 text-muted-foreground mx-auto opacity-50" />
-              <div className="text-xs font-semibold text-foreground">No workstations paired yet</div>
-              <p className="text-[11px] text-muted-foreground">Generate a pairing token above and run your Windows executable to connect local hardware.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Live Logs and Hardware Telemetry Panel */}
-        <div className="lg:col-span-2 genei-card p-6 rounded-2xl space-y-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-primary" />
-              <h3 className="font-semibold text-foreground font-display text-sm">Real-Time Runner Telemetry & Logs</h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => { void refetchLogs(); toast.success("Refreshed runner logs"); }}
-              className="genei-btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5"
-            >
-              <RefreshCw className="w-3 h-3" /> Refresh Logs
-            </button>
+          <div className="genei-card rounded-2xl p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Cloud className="h-4 w-4 text-sky-300" /> Optional local models</div>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">When a tool needs a local model, Genei will show one in-app download with progress and verification. Nothing is downloaded during first launch unless you choose it.</p>
+            <Link href="/settings"><button type="button" className="mt-4 min-h-10 w-full rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:bg-primary/15">Open advanced settings</button></Link>
           </div>
+        </aside>
+      </section>
 
-          {activeRunner ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 rounded-xl border border-border bg-black/30">
-                  <div className="text-[10px] text-muted-foreground">Node Status</div>
-                  <div className="text-xs font-semibold text-foreground mt-0.5 uppercase">{activeRunner.status}</div>
-                </div>
-                <div className="p-3 rounded-xl border border-border bg-black/30">
-                  <div className="text-[10px] text-muted-foreground">Platform</div>
-                  <div className="text-xs font-semibold text-foreground mt-0.5">{activeRunner.platform}</div>
-                </div>
-                <div className="p-3 rounded-xl border border-border bg-black/30">
-                  <div className="text-[10px] text-muted-foreground">Last Heartbeat</div>
-                  <div className="text-xs font-semibold text-foreground mt-0.5">{activeRunner.lastHeartbeat ? new Date(activeRunner.lastHeartbeat).toLocaleTimeString() : "Never"}</div>
-                </div>
-                <div className="p-3 rounded-xl border border-border bg-black/30">
-                  <div className="text-[10px] text-muted-foreground">Action</div>
-                  <button
-                    type="button"
-                    onClick={() => revokeRunnerMutation.mutate({ id: activeRunner.id })}
-                    className="text-xs font-medium text-destructive hover:underline mt-0.5 block"
-                  >
-                    Revoke Runner
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-foreground">Activity & Heartbeat Log Stream</div>
-                <div className="rounded-xl border border-border bg-black/50 p-4 font-mono text-[11px] h-64 overflow-y-auto space-y-2">
-                  {runnerLogs && runnerLogs.length > 0 ? (
-                    runnerLogs.map((log) => (
-                      <div key={log.id} className="flex items-start gap-2 border-b border-border/40 pb-2">
-                        <span className="text-muted-foreground text-[10px]">{new Date(log.createdAt).toLocaleTimeString()}</span>
-                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${log.level === "error" ? "bg-destructive/20 text-destructive" : log.level === "warn" ? "bg-amber-500/20 text-amber-400" : "bg-primary/20 text-primary"}`}>
-                          {log.level.toUpperCase()}
-                        </span>
-                        <span className="flex-1 text-foreground">{log.message}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-muted-foreground text-center py-10">Waiting for runner heartbeat activity... Run GeneiRunner.exe to begin streaming logs.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="py-20 text-center text-xs text-muted-foreground">Select or pair a workstation runner to monitor live logs and hardware telemetry.</div>
-          )}
-        </div>
-      </div>
+      {checking && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin text-primary" /> Reading the built-in capability profile…</div>}
     </div>
   );
 }

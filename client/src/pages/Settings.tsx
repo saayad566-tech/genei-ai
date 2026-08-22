@@ -10,7 +10,7 @@ const settingsSections = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "security", label: "Security", icon: Shield },
   { id: "domain", label: "Custom Domain & PWA", icon: Globe },
-  { id: "downloads", label: "Downloads & Desktop App", icon: Save },
+  { id: "downloads", label: "Genei AI Desktop", icon: Monitor },
   { id: "language", label: "Language & Region", icon: Globe },
 ];
 
@@ -122,52 +122,39 @@ function CustomDomainSettingsSection() {
 
 function DownloadsArtifactsSection() {
   const { data: artifacts, isLoading } = trpc.downloads.listArtifacts.useQuery();
+  const desktopArtifacts = artifacts?.filter((artifact) => artifact.platform === "win-x64" && /desktop/i.test(artifact.name)) ?? [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <div className="genei-card p-6 rounded-xl space-y-5">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
-            <Save className="h-5 w-5" />
-          </div>
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Monitor className="h-5 w-5" /></div>
           <div>
-            <h3 className="font-semibold text-foreground font-display">Downloads & Windows Workstation Runner</h3>
-            <p className="text-xs text-muted-foreground">Download verified source archives and the standalone BYOH runner when a Windows build is published.</p>
+            <h3 className="font-semibold text-foreground font-display">Genei AI Desktop for Windows</h3>
+            <p className="text-xs text-muted-foreground">One application containing the full Genei workspace, local hardware detection, and embedded runtime services.</p>
           </div>
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : artifacts && artifacts.length > 0 ? (
+        ) : desktopArtifacts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {artifacts.map((artifact) => (
+            {desktopArtifacts.map((artifact) => (
               <div key={artifact.id} className="p-4 rounded-xl border border-border bg-background space-y-3 flex flex-col justify-between">
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">{artifact.name}</span>
-                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{artifact.version}</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">Platform: {artifact.platform} · Size: {artifact.fileSize} · Signing: {artifact.signingState}</p>
+                  <div className="flex items-center justify-between"><span className="text-xs font-semibold text-foreground">{artifact.name}</span><span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{artifact.version}</span></div>
+                  <p className="text-[11px] text-muted-foreground">Windows x64 · {artifact.fileSize} · Signing: {artifact.signingState}</p>
                   <div className="text-[10px] font-mono text-muted-foreground bg-black/30 p-1.5 rounded truncate">SHA256: {artifact.sha256}</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` });
-                    window.location.href = artifact.downloadUrl;
-                  }}
-                  className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"
-                >
-                  <Save className="w-3.5 h-3.5" /> Download {artifact.platform === "source-zip" ? "Source ZIP" : "Windows Runner"}
-                </button>
+                <button type="button" onClick={() => { toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` }); window.location.href = artifact.downloadUrl; }} className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"><Save className="w-3.5 h-3.5" /> Download Genei AI Desktop</button>
               </div>
             ))}
           </div>
         ) : (
           <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-5 space-y-2">
-            <div className="text-sm font-semibold text-foreground">No verified release artifact is available yet</div>
-            <p className="text-xs text-muted-foreground">The Windows BYOH runner must first be compiled on a Windows GitHub Actions runner. Once the build passes PE validation, checksum generation, and the `--help` smoke test, its immutable release URL will appear here.</p>
-            <p className="text-[11px] text-muted-foreground">This state is intentional: Genei will never offer a renamed or placeholder `.exe` as a software download.</p>
+            <div className="text-sm font-semibold text-foreground">Desktop installer build pending</div>
+            <p className="text-xs text-muted-foreground">The complete Windows installer is built on a native Windows environment. It will appear here only after the full application, embedded hardware probe, installer, checksum, and startup smoke test pass.</p>
+            <p className="text-[11px] text-muted-foreground">No runner-only binary or placeholder download is shown. Until the installer is ready, use the browser workspace or open the in-app hardware studio.</p>
           </div>
         )}
       </div>

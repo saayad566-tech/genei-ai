@@ -2,26 +2,34 @@
 
 This guide details the exact prerequisites, compilation commands, and signing steps for producing genuine Windows `.exe` executables and Android `.apk` / `.aab` packages for Genei AI.
 
-## 1. Windows Standalone EXE (`GeneiRunner.exe`)
+## 1. Unified Windows Desktop Installer (`Genei AI Desktop`)
 
-The BYOH workstation runner client can be bundled into a standalone Windows executable using PyInstaller.
+The complete Genei AI application is packaged as a one-click x64 Windows installer. Electron contains the React workspace and production Node server, while PyInstaller compiles the internal Python hardware probe into `runtime/GeneiAI-Director.exe`. The internal probe is not a separately installed user application.
 
 ### Prerequisites (on a Windows build environment)
-- Python 3.10+ installed and added to `PATH`
-- PyInstaller (`pip install pyinstaller`)
+- Python 3.12 and Node.js 22 with pnpm
+- A native Windows environment for PE and NSIS output
+- Optional Windows code-signing certificate
 
 ### Build Command
-```cmd
-cd ai_director
-pyinstaller genei_runner.spec
+```powershell
+.\packaging\build_windows_desktop.ps1
+pnpm install --frozen-lockfile
+pnpm build
+pnpm exec electron-builder --win nsis --x64 --publish never
 ```
 
-The resulting standalone executable will be placed in `ai_director/dist/GeneiRunner.exe`.
+The resulting installer is written to `release/Genei-AI-Desktop-Setup-<version>.exe`. Validate the internal probe with:
+
+```powershell
+python .\packaging\validate_windows_exe.py .\runtime\GeneiAI-Director.exe --json
+```
 
 ### Code Signing (Windows)
-To sign the executable for Windows Defender trust:
+The GitHub Actions workflow accepts a base64-encoded certificate through `WINDOWS_SIGNING_CERT_BASE64` and its password through `WINDOWS_SIGNING_CERT_PASSWORD`. If signing locally with `signtool`, sign the final installer rather than a hidden internal component:
+
 ```cmd
-signtool sign /f my_certificate.pfx /p password /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist/GeneiRunner.exe
+signtool sign /f my_certificate.pfx /p password /tr http://timestamp.digicert.com /td sha256 /fd sha256 release\Genei-AI-Desktop-Setup-<version>.exe
 ```
 
 ---
