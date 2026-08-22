@@ -322,3 +322,10 @@
 - [x] Bundle local hardware auto-detection into the packaged executable and server startup
 - [x] Run full test suite (68 tests passing), TypeScript checks, and clean production build
 - [x] Save verified checkpoint and provide direct full-stack app download instructions
+
+## Phase 38: Unified Full Genei AI Desktop Application Bundle (Embedded BYOH & Studios)
+- [x] Create a unified desktop host specification and build script (`ai_director/desktop_host.py`) integrating hardware detection, local AI model management, and embedded UI launcher
+- [x] Create a first-run setup wizard view in the frontend (`DesktopSetupWizard.tsx`) guiding users through local hardware profiling, model selection, and embedded runner pairing
+- [x] Register Desktop Setup Wizard route in `App.tsx`
+- [x] Run full test suite (68 tests passing), TypeScript checks, and clean production build
+- [x] Save verified full-app checkpoint and deliver honest download instructions
