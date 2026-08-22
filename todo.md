@@ -344,10 +344,10 @@
 - [x] Allow the packaged desktop server to expose a local-only guest workspace without requiring hosted OAuth; preserve hosted authentication outside desktop mode
 
 ## Phase 40: Windows Installer Hang and Portable Recovery
-- [ ] Add bounded Electron server readiness with a visible loading/error state and buffered output handling
-- [ ] Ensure the embedded desktop host cleans up all child processes and focuses an existing instance safely
-- [ ] Build a same-product portable Windows executable alongside the per-user installer
-- [ ] Add installer recovery guidance and direct portable fallback to Settings/download catalog
-- [ ] Add native Windows validation for installer and portable artifacts, checksums, and metadata
-- [ ] Run application tests, desktop packaging tests, and native Windows build validation
-- [ ] Save a verified checkpoint and provide corrected installer and portable download links
+- [x] Add bounded Electron server readiness with a visible loading/error state and buffered output handling
+- [x] Ensure the embedded desktop host cleans up all child processes and focuses an existing instance safely
+- [x] Build a same-product portable Windows executable alongside the per-user installer
+- [x] Add installer recovery guidance and direct portable fallback to Settings/download catalog
+- [x] Add native Windows validation for installer and portable artifacts, checksums, and metadata
+- [x] Run application tests, desktop packaging tests, and native Windows build validation
+- [x] Save a verified checkpoint and provide corrected installer and portable download links
