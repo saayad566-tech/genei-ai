@@ -28,7 +28,7 @@ describe("Genei AI desktop startup recovery contract", () => {
 
     expect(packageJson.build.productName).toBe("Genei AI Desktop");
     expect(packageJson.build.executableName).toBe("GeneiAI");
-    expect(packageJson.build.asarUnpack).toEqual(expect.arrayContaining(["dist/**/*", "runtime/**/*"]));
+    expect(packageJson.build.asarUnpack).toEqual(expect.arrayContaining(["dist/**/*", "runtime/**/*", "node_modules/**/*"]));
     expect(packageJson.build.nsis.runAfterFinish).toBe(false);
     expect(packageJson.build.portable.artifactName).toContain("Genei-AI-Desktop-Portable");
     expect(host).toContain("use the portable Genei AI Desktop download");

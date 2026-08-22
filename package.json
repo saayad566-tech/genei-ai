@@ -1,6 +1,6 @@
 {
   "name": "genei-ai",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "type": "module",
   "license": "MIT",
   "description": "Genei AI Desktop — unified local-first AI creator workspace with embedded hardware detection.",
@@ -137,7 +137,7 @@
         "filter": ["**/*"]
       }
     ],
-    "asarUnpack": ["dist/**/*", "runtime/**/*"],
+    "asarUnpack": ["dist/**/*", "runtime/**/*", "node_modules/**/*"],
     "directories": {
       "output": "release"
     },

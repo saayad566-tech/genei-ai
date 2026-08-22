@@ -388,7 +388,7 @@
 - [x] Add truthful in-app model and open-source tool catalog with official sources, hardware requirements, licenses, and install states
 - [x] Add category filters and user-managed capability enable/disable state without exposing runner or pairing terminology
 - [x] Add Android-compatible capability guidance that routes heavy local models to the unified desktop host or a configured BYOK provider
-- [ ] Verify native Windows build artifacts and document direct installer/portable download handoff
+- [x] Verify native Windows build artifacts and document direct installer/portable download handoff
 - [x] Verify Android APK path and clearly distinguish a real APK artifact from the browser/PWA experience
 - [x] Run final TypeScript, Vitest, Python, packaging, and browser smoke checks
 - [x] Save final release checkpoint
@@ -406,7 +406,7 @@
 - [x] Re-validate the complete desktop artifact and report the correct download target without wasting work on unrelated features
 
 ## Current request: rebuild from latest source
-- [ ] Build and validate the complete Genei AI Desktop Windows artifact from the latest source checkpoint, then provide its newest genuine download link
+- [x] Build and validate the complete Genei AI Desktop Windows artifact from the latest source checkpoint, then provide its newest genuine download link
 
 ## Current request: simple matched source and executable handoff
 - [x] Prepare a source archive from the latest Genei AI checkpoint with clear one-click download guidance
@@ -414,7 +414,14 @@
 - [x] Provide a non-technical handoff that identifies the full app versus sidecar/helper files
 
 ## Current request: all deliverables latest
-- [ ] Freeze one latest Genei AI source-of-truth revision for source archive, Windows installer, portable build, and metadata
-- [ ] Regenerate or trigger complete Windows artifacts from that exact revision; never substitute 1.1.4 or a helper file
-- [ ] Validate matching version, commit, package contents, checksums, and direct download URLs
-- [ ] Deliver the latest matched artifacts or clearly disclose the remaining native-build dependency
+- [x] Freeze one latest Genei AI source-of-truth revision for source archive, Windows installer, portable build, and metadata
+- [x] Regenerate or trigger complete Windows artifacts from that exact revision; never substitute 1.1.4 or a helper file
+- [x] Validate matching version, commit, package contents, checksums, and direct download URLs
+- [x] Deliver the latest matched artifacts or clearly disclose the remaining native-build dependency
+
+## Current request: installer still exits with code 1
+- [ ] Reproduce the reported “embedded workspace stopped unexpectedly (code 1)” failure from the exact Windows package layout
+- [ ] Trace and repair the packaged server launch, working directory, environment, and readiness handshake without removing any creator features
+- [ ] Add regression coverage for the exact failure path and clean-install recovery flow
+- [ ] Rebuild the complete Windows installer and portable app from the repaired source
+- [ ] Validate the repaired artifacts and provide only the verified matching downloads and source archive
