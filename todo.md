@@ -379,7 +379,7 @@
 - [x] Keep login/session behavior clear across hosted, local-only, and hybrid execution modes without exposing secrets
 - [x] Preserve and verify all existing creator studios, AI Director scene/shot pipelines, ComfyUI graphs, BYOK/BYOH routing, projects, assets, webhooks, localization, and exports
 - [x] Assess and implement the feasible Android APK path with the same user-facing model/tool library and truthful hardware limitations
-- [ ] Build and platform-test Windows and Android deliverables; do not claim unsupported hardware or unverified features
+- [x] Build and platform-test Windows and Android deliverables; do not claim unsupported hardware or unverified features
 
 ## Phase 44: Packaged Startup Repair and Capability Store
 - [x] Remove duplicate Express imports and keep Vite as a production-safe lazy dependency
@@ -427,5 +427,10 @@
 - [x] Validate the repaired artifacts and provide only the verified matching downloads and source archive
 
 ## Current continuation: genuine Android deliverable
-- [ ] Build and validate a real Android APK from the same source revision as the desktop release
+- [x] Build and validate a real Android APK from the same source revision as the desktop release
 - [x] Document Android network routing, install behavior, and signing limitations for end users
+
+## Current request: app still not working
+- [x] Reproduce the user-reported 1.1.8 failure on the affected app path and capture the real error
+- [x] Repair the failing runtime, packaging, download, or startup path without removing features
+- [ ] Add regression coverage for the reproduced failure and validate the repaired deliverable

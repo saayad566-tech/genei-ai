@@ -1,9 +1,21 @@
 import type { Express } from "express";
 import { ENV } from "./env";
 
+const LEGACY_STORAGE_ALIASES: Record<string, string> = {
+  // A previous handoff contained an extra ".1" in this filename. Keep the
+  // old path recoverable instead of making users diagnose a storage 403.
+  "Genei-AI-Desktop-Portable-1.1.1.8_959b1753.exe":
+    "Genei-AI-Desktop-Portable-1.1.8_959b1753.exe",
+};
+
+export function normalizeStorageKey(key: string) {
+  return LEGACY_STORAGE_ALIASES[key] ?? key;
+}
+
 export function registerStorageProxy(app: Express) {
   app.get("/manus-storage/*", async (req, res) => {
-    const key = (req.params as Record<string, string>)[0];
+    const requestedKey = (req.params as Record<string, string>)[0];
+    const key = requestedKey ? normalizeStorageKey(requestedKey) : requestedKey;
     if (!key) {
       res.status(400).send("Missing storage key");
       return;
