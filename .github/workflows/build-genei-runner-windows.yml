@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified Genei AI Desktop installer as a GitHub Release asset
+        description: Publish the verified Genei AI Desktop artifacts as a GitHub Release
         required: false
         default: false
         type: boolean
@@ -65,48 +65,69 @@ jobs:
         shell: pwsh
         run: pnpm build
 
-      - name: Build the one-click Windows installer
+      - name: Build the per-user Windows installer
         shell: pwsh
         env:
           CSC_LINK: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
         run: pnpm exec electron-builder --win nsis --x64 --publish never
 
-      - name: Validate embedded sidecar PE and installer output
+      - name: Build the portable Windows executable
+        shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        run: pnpm exec electron-builder --win portable --x64 --publish never
+
+      - name: Validate embedded sidecar and desktop artifacts
         shell: pwsh
         run: |
           python .\packaging\validate_windows_exe.py .\runtime\GeneiAI-Director.exe --json
-          $installer = Get-ChildItem .\release\Genei-AI-Desktop-Setup-*.exe | Select-Object -First 1
+          $installer = @(Get-ChildItem .\release\Genei-AI-Desktop-Setup-*.exe | Where-Object { $_.Name -notlike '*uninstaller*' }) | Select-Object -First 1
+          $portable = @(Get-ChildItem .\release\Genei-AI-Desktop-Portable-*.exe) | Select-Object -First 1
           if (-not $installer) { throw "Genei AI Desktop installer was not produced." }
-          if ($installer.Length -lt 1000000) { throw "Installer is unexpectedly small; refusing to publish a likely incomplete package." }
-          Write-Host "Installer: $($installer.FullName) ($($installer.Length) bytes)"
+          if (-not $portable) { throw "Genei AI Desktop portable executable was not produced." }
+          foreach ($artifact in @($installer, $portable)) {
+            if ($artifact.Length -lt 1000000) { throw "$($artifact.Name) is unexpectedly small; refusing to publish a likely incomplete package." }
+            Write-Host "Artifact: $($artifact.FullName) ($($artifact.Length) bytes)"
+          }
 
-      - name: Finalize checksum and metadata
+      - name: Finalize checksums and metadata
         id: metadata
         shell: pwsh
         env:
           WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
         run: |
-          $installer = Get-ChildItem .\release\Genei-AI-Desktop-Setup-*.exe | Select-Object -First 1
-          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $($installer.Name)" | Out-File -Encoding ascii (Join-Path $installer.DirectoryName "$($installer.Name).sha256")
-          $tag = "genei-desktop-v1.1.${{ github.run_number }}"
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-          $metadata = [ordered]@{
-            product = "Genei AI Desktop"
-            version = "1.1.${{ github.run_number }}"
-            target = "win-x64"
-            artifact = $installer.Name
-            fileSizeBytes = $installer.Length
-            sha256 = $hash
-            signingState = if ($env:WINDOWS_SIGNING_CERT_BASE64) { "signed" } else { "unsigned" }
-            runnerRequired = $false
-            hardwareDetection = "embedded"
-            workflowRun = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            commit = "${{ github.sha }}"
+          $pkg = Get-Content .\package.json -Raw | ConvertFrom-Json
+          $version = $pkg.version
+          $installer = @(Get-ChildItem .\release\Genei-AI-Desktop-Setup-*.exe | Where-Object { $_.Name -notlike '*uninstaller*' }) | Select-Object -First 1
+          $portable = @(Get-ChildItem .\release\Genei-AI-Desktop-Portable-*.exe) | Select-Object -First 1
+          $entries = @(
+            @{ kind = 'installer'; file = $installer },
+            @{ kind = 'portable'; file = $portable }
+          )
+          $artifacts = foreach ($entry in $entries) {
+            $artifact = $entry.file
+            $hash = (Get-FileHash $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($artifact.Name)" | Out-File -Encoding ascii (Join-Path $artifact.DirectoryName "$($artifact.Name).sha256")
+            [ordered]@{
+              kind = $entry.kind
+              product = 'Genei AI Desktop'
+              version = $version
+              target = 'win-x64'
+              artifact = $artifact.Name
+              fileSizeBytes = $artifact.Length
+              sha256 = $hash
+              signingState = if ($env:WINDOWS_SIGNING_CERT_BASE64) { 'signed' } else { 'unsigned' }
+              runnerRequired = $false
+              hardwareDetection = 'embedded'
+              workflowRun = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              commit = "${{ github.sha }}"
+            }
+            Write-Host "$($entry.kind) SHA-256: $hash"
           }
-          $metadata | ConvertTo-Json | Out-File -Encoding utf8 (Join-Path $installer.DirectoryName "Genei-AI-Desktop.metadata.json")
-          Write-Host "SHA-256: $hash"
+          $artifacts | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8 .\release\Genei-AI-Desktop.metadata.json
+          "tag=genei-desktop-v$version" >> $env:GITHUB_OUTPUT
 
       - name: Upload verified desktop artifacts
         uses: actions/upload-artifact@v4
@@ -115,10 +136,12 @@ jobs:
           path: |
             release/Genei-AI-Desktop-Setup-*.exe
             release/Genei-AI-Desktop-Setup-*.exe.sha256
+            release/Genei-AI-Desktop-Portable-*.exe
+            release/Genei-AI-Desktop-Portable-*.exe.sha256
             release/Genei-AI-Desktop.metadata.json
           if-no-files-found: error
 
-      - name: Publish verified GitHub Release asset
+      - name: Publish verified GitHub Release assets
         if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true) }}
         uses: softprops/action-gh-release@v2
         with:
@@ -126,6 +149,8 @@ jobs:
           files: |
             release/Genei-AI-Desktop-Setup-*.exe
             release/Genei-AI-Desktop-Setup-*.exe.sha256
+            release/Genei-AI-Desktop-Portable-*.exe
+            release/Genei-AI-Desktop-Portable-*.exe.sha256
             release/Genei-AI-Desktop.metadata.json
           fail_on_unmatched_files: true
         env:

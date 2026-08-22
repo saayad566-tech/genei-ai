@@ -138,18 +138,28 @@ function DownloadsArtifactsSection() {
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : desktopArtifacts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {desktopArtifacts.map((artifact) => (
-              <div key={artifact.id} className="p-4 rounded-xl border border-border bg-background space-y-3 flex flex-col justify-between">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between"><span className="text-xs font-semibold text-foreground">{artifact.name}</span><span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{artifact.version}</span></div>
-                  <p className="text-[11px] text-muted-foreground">Windows x64 · {artifact.fileSize} · Signing: {artifact.signingState}</p>
-                  <div className="text-[10px] font-mono text-muted-foreground bg-black/30 p-1.5 rounded truncate">SHA256: {artifact.sha256}</div>
-                </div>
-                <button type="button" onClick={() => { toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` }); window.location.href = artifact.downloadUrl; }} className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"><Save className="w-3.5 h-3.5" /> Download Genei AI Desktop</button>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 space-y-1.5">
+              <div className="text-xs font-semibold text-amber-200">Windows installation help</div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">This release is unsigned, so Windows may show a publisher warning. That warning is expected for this build. If the installer says Genei AI Desktop is still running or stays on “Installing, please wait…”, close the older Genei window and retry once. If it still cannot install, use the Portable option below. It is the same Genei AI application and needs no installation.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {desktopArtifacts.map((artifact) => {
+                const isPortable = /portable/i.test(artifact.name);
+                return (
+                  <div key={artifact.id} className={`p-4 rounded-xl border bg-background space-y-3 flex flex-col justify-between ${isPortable ? "border-cyan-400/30" : "border-border"}`}>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-foreground">{isPortable ? "Portable · no installation" : "Installer · recommended"}</span><span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{artifact.version}</span></div>
+                      <p className="text-[11px] text-muted-foreground">Windows x64 · {artifact.fileSize} · Signing: {artifact.signingState}</p>
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">{isPortable ? "Runs the same full Genei AI Desktop without writing an installation entry. Use this when Windows blocks or holds the installer." : "Per-user setup for the same full Genei AI Desktop application. Close any older Genei window before retrying."}</p>
+                      <div className="text-[10px] font-mono text-muted-foreground bg-black/30 p-1.5 rounded truncate">SHA256: {artifact.sha256}</div>
+                    </div>
+                    <button type="button" onClick={() => { toast.success(`Starting download for ${artifact.name}`, { description: `File size: ${artifact.fileSize}` }); window.location.href = artifact.downloadUrl; }} className="genei-button-primary w-full py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2 mt-2"><Save className="w-3.5 h-3.5" /> {isPortable ? "Download Portable App" : "Download Installer"}</button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
           <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-5 space-y-2">
             <div className="text-sm font-semibold text-foreground">Desktop installer build pending</div>
