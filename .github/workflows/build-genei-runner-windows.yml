@@ -79,15 +79,27 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
         run: pnpm exec electron-builder --win portable --x64 --publish never
 
-      - name: Validate embedded sidecar and desktop artifacts
+      - name: Build installed layout validation package
+        shell: pwsh
+        run: pnpm exec electron-builder --win dir --x64 --publish never
+
+      - name: Validate embedded sidecar, installed layout, and desktop artifacts
         shell: pwsh
         run: |
           python .\packaging\validate_windows_exe.py .\runtime\GeneiAI-Director.exe --json
+          $installedDir = Join-Path $PWD 'release\win-unpacked'
+          $installedExe = Join-Path $installedDir 'GeneiAI.exe'
+          $asar = Join-Path $installedDir 'resources\app.asar'
+          $unpackedServer = Join-Path $installedDir 'resources\app.asar.unpacked\dist\index.js'
+          if (-not (Test-Path $installedExe)) { throw "Installed layout is missing the expected GeneiAI.exe launch target: $installedExe" }
+          if (-not (Test-Path $asar)) { throw "Installed layout is missing resources\app.asar." }
+          if (-not (Test-Path $unpackedServer)) { throw "Installed layout is missing the unpacked embedded server bundle." }
+          python .\packaging\validate_windows_exe.py $installedExe --json
           $installer = @(Get-ChildItem .\release\Genei-AI-Desktop-Setup-*.exe | Where-Object { $_.Name -notlike '*uninstaller*' }) | Select-Object -First 1
           $portable = @(Get-ChildItem .\release\Genei-AI-Desktop-Portable-*.exe) | Select-Object -First 1
           if (-not $installer) { throw "Genei AI Desktop installer was not produced." }
           if (-not $portable) { throw "Genei AI Desktop portable executable was not produced." }
-          foreach ($artifact in @($installer, $portable)) {
+          foreach ($artifact in @($installer, $portable, (Get-Item $installedExe))) {
             if ($artifact.Length -lt 1000000) { throw "$($artifact.Name) is unexpectedly small; refusing to publish a likely incomplete package." }
             Write-Host "Artifact: $($artifact.FullName) ($($artifact.Length) bytes)"
           }

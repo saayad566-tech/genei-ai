@@ -31,6 +31,27 @@ function serverEntry() {
   return path.join(applicationRoot(), "dist", "index.js");
 }
 
+function desktopWorkingDirectory() {
+  if (isDevelopment) return applicationRoot();
+  // app.getAppPath() points inside app.asar and is not a valid Windows spawn cwd.
+  // Use a real filesystem directory for the embedded child process instead.
+  const candidates = [process.resourcesPath, app.getPath("userData"), process.cwd()];
+  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || process.cwd();
+}
+
+function validatePackagedLayout() {
+  if (isDevelopment) return;
+  const required = [
+    ["desktop executable", process.execPath],
+    ["embedded server bundle", serverEntry()],
+    ["secure preload bridge", path.join(__dirname, "preload.cjs")],
+  ];
+  const missing = required.filter(([, candidate]) => !candidate || !fs.existsSync(candidate));
+  if (missing.length > 0) {
+    throw new Error(`Installed Genei AI files are incomplete: ${missing.map(([label, candidate]) => `${label} (${candidate})`).join("; ")}`);
+  }
+}
+
 function sidecarEntry() {
   const executable = process.platform === "win32" ? "GeneiAI-Director.exe" : "GeneiAI-Director";
   return path.join(runtimeRoot(), executable);
@@ -103,8 +124,10 @@ function checkLocalServer(port) {
 }
 
 function startLocalServer() {
-  if (!fs.existsSync(serverEntry())) {
-    return Promise.reject(new Error(`Genei server bundle was not found at ${serverEntry()}`));
+  try {
+    validatePackagedLayout();
+  } catch (error) {
+    return Promise.reject(error);
   }
 
   return new Promise((resolve, reject) => {
@@ -141,7 +164,7 @@ function startLocalServer() {
     }, STARTUP_TIMEOUT_MS);
 
     serverProcess = spawn(process.execPath, [serverEntry()], {
-      cwd: applicationRoot(),
+      cwd: desktopWorkingDirectory(),
       env: { ...childEnv, ELECTRON_RUN_AS_NODE: "1", NODE_OPTIONS: "" },
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
@@ -254,6 +277,7 @@ async function bootstrap() {
   });
 
   await app.whenReady();
+  app.setAppUserModelId("ai.genei.desktop");
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(["media"].includes(permission));
   });

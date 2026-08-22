@@ -357,3 +357,10 @@
 - [x] Add preservation checks for application routes, server procedures, embedded runtime resources, and full desktop packaging
 - [x] Rebuild and verify the complete Windows EXE distributions without reducing feature scope
 - [x] Save a final verified checkpoint and provide the direct full-function Genei AI EXE links
+
+## Phase 42: Windows ENOENT Launch-Path Repair
+- [ ] Align Electron executable identity, installer shortcuts, and post-install launch behavior so Windows never spawns a missing executable
+- [ ] Add installed and portable path validation with a clear in-app startup error instead of a raw ENOENT dialog
+- [ ] Preserve and test the complete Genei AI application resources and route surface
+- [ ] Rebuild and validate repaired full-function Windows installer and portable executable artifacts
+- [ ] Save a verified checkpoint and provide the corrected direct Genei AI EXE link

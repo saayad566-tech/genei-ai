@@ -14,19 +14,32 @@ describe("Genei AI desktop startup recovery contract", () => {
     expect(host).toContain("STARTUP_TIMEOUT_MS");
     expect(host).toContain("The embedded workspace did not become ready within 30 seconds.");
     expect(host).toContain("checkLocalServer(port)");
+    expect(host).toContain("desktopWorkingDirectory()");
+    expect(host).toContain("validatePackagedLayout()");
+    expect(host).toContain("app.getPath(\"userData\")");
   });
 
   it("keeps recovery inside the same Genei product", () => {
     const host = read("desktop/main.cjs");
     const packageJson = JSON.parse(read("package.json")) as {
-      build: { productName: string; nsis: { runAfterFinish: boolean }; portable: { artifactName: string } };
+      build: { productName: string; executableName: string; asarUnpack: string[]; nsis: { runAfterFinish: boolean }; portable: { artifactName: string } };
     };
 
     expect(packageJson.build.productName).toBe("Genei AI Desktop");
+    expect(packageJson.build.executableName).toBe("GeneiAI");
+    expect(packageJson.build.asarUnpack).toEqual(expect.arrayContaining(["dist/**/*", "runtime/**/*"]));
     expect(packageJson.build.nsis.runAfterFinish).toBe(false);
     expect(packageJson.build.portable.artifactName).toContain("Genei-AI-Desktop-Portable");
     expect(host).toContain("use the portable Genei AI Desktop download");
     expect(host).not.toContain("GeneiRunner.exe");
+  });
+
+  it("logs the real bound port when desktop mode requests an ephemeral port", () => {
+    const server = read("server/_core/index.ts");
+
+    expect(server).toContain("const address = server.address()");
+    expect(server).toContain("const actualPort = typeof address === \"object\" && address ? address.port : port");
+    expect(server).toContain("Server running on http://localhost:${actualPort}/");
   });
 
   it("tracks and cleans up the server and hardware children", () => {
