@@ -145,8 +145,13 @@ jobs:
           $artifacts | ConvertTo-Json -Depth 5 | Out-File -Encoding utf8 .\release\Genei-AI-Desktop.metadata.json
           "tag=genei-desktop-v$version" >> $env:GITHUB_OUTPUT
 
+      # Artifact storage is a convenience, not the delivery channel: hitting the
+      # account artifact-storage quota must not stop the verified installer from
+      # being published as a release asset. The publish step below still fails
+      # when the expected files are missing (fail_on_unmatched_files: true).
       - name: Upload verified desktop artifacts
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Genei-AI-Desktop-Windows-x64-${{ github.run_number }}
           path: |
