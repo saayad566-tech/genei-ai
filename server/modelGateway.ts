@@ -79,16 +79,24 @@ export async function getModelCapabilities(runtime?: ClientRuntimeHints): Promis
     fallback: "server" as const,
   };
 
-  if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-    return { models: [{ ...DEFAULT_MODEL, status: "not-configured" }], source: "fallback", runtime: runtimeState };
-  }
+  // Resolve the managed endpoint the same way `_core/llm.ts` does: honour an
+  // explicitly configured URL, otherwise fall back to the public Forge host.
+  // The live catalog must still be attempted when only the base URL or only
+  // the key is configured, so the gateway can degrade to the managed model
+  // instead of silently reporting an empty catalog.
+  const resolvedBaseUrl = ENV.forgeApiUrl.trim().length > 0
+    ? ENV.forgeApiUrl.replace(/\/$/, "")
+    : "https://forge.manus.im";
+  const managedModel: ModelCapability = ENV.forgeApiKey
+    ? DEFAULT_MODEL
+    : { ...DEFAULT_MODEL, status: "not-configured" };
 
   try {
-    const response = await fetch(`${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/models`, {
+    const response = await fetch(`${resolvedBaseUrl}/v1/models`, {
       headers: { authorization: `Bearer ${ENV.forgeApiKey}` },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(1500),
     });
-    if (!response.ok) return { models: [DEFAULT_MODEL], source: "fallback", runtime: runtimeState };
+    if (!response.ok) return { models: [managedModel], source: "fallback", runtime: runtimeState };
 
     const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
     const liveModels = (payload.data ?? [])
@@ -105,12 +113,12 @@ export async function getModelCapabilities(runtime?: ClientRuntimeHints): Promis
       }));
 
     return {
-      models: liveModels.length ? liveModels : [DEFAULT_MODEL],
+      models: liveModels.length ? liveModels : [managedModel],
       source: liveModels.length ? "live" : "fallback",
       runtime: runtimeState,
     };
   } catch {
-    return { models: [DEFAULT_MODEL], source: "fallback", runtime: runtimeState };
+    return { models: [managedModel], source: "fallback", runtime: runtimeState };
   }
 }
 

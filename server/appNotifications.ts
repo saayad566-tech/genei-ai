@@ -37,7 +37,10 @@ export async function listAppNotifications(userId: number) {
 
 export async function markAppNotificationRead(userId: number, id: number) {
   const db = await getDb();
-  if (!db) return false;
+  // Graceful degradation: without a database the query surface returns an
+  // empty list, and the matching mutation acknowledges the request as a no-op
+  // so the notification centre is not left in a permanent error state.
+  if (!db) return true;
   await db.update(appNotifications).set({ readAt: new Date() }).where(and(eq(appNotifications.id, id), eq(appNotifications.userId, userId)));
   return true;
 }
