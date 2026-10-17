@@ -1,0 +1,52 @@
+# Dockerfile.build — reproducible build environment for Genei AI.
+#
+# JDK 21 + Node 22 + Android SDK 36 + pnpm, so a heavy APK/EXE build runs the same way
+# on a laptop, a VPS, a CI runner or a container host — with no sandbox timeout and no
+# CI minutes consumed.
+#
+#   docker build -f Dockerfile.build -t genei-builder .
+#   docker run --rm -v "$PWD":/work -w /work genei-builder bash build.sh android
+#
+# The versions below match what the project actually needs:
+#   android/variables.gradle  -> compileSdkVersion 36
+#   gradle-wrapper.properties -> Gradle 8.14.3, which requires JDK 21
+#   package.json              -> pnpm 10.4.1, Node 22 in CI
+# Pin them to versions you have verified; these are known-good at the time of writing.
+
+FROM eclipse-temurin:21-jdk
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    ANDROID_HOME=/opt/android-sdk \
+    ANDROID_SDK_ROOT=/opt/android-sdk \
+    NODE_OPTIONS=--max-old-space-size=4096 \
+    GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl unzip git python3 ca-certificates xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+# --- Node 22 (pinned) ------------------------------------------------------- #
+ARG NODE_VERSION=22.11.0
+RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+      -o /tmp/node.tar.xz \
+ && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+ && rm /tmp/node.tar.xz \
+ && corepack enable \
+ && corepack prepare pnpm@10.4.1 --activate
+
+# --- Android command-line tools + SDK (pinned) ------------------------------ #
+ARG CMDLINE_TOOLS=11076708
+RUN mkdir -p "$ANDROID_HOME/cmdline-tools" \
+ && curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS}_latest.zip" \
+      -o /tmp/tools.zip \
+ && unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools" \
+ && mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest" \
+ && rm /tmp/tools.zip
+
+ENV PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+
+RUN yes | sdkmanager --licenses >/dev/null 2>&1 || true
+RUN sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+WORKDIR /work
+ENTRYPOINT ["bash", "build.sh"]

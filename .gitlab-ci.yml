@@ -1,0 +1,138 @@
+# .gitlab-ci.yml — GitHub-free APK + EXE pipeline for Genei AI.
+#
+# This exists because GitHub Actions is metered for a private repository and will stop
+# starting jobs once the included minutes are spent. GitLab CI (or a self-hosted
+# runner) has its own allowance, so the build keeps working when GitHub does not.
+#
+#   validate -> cheap checks first, so a broken tree never reaches a heavy build
+#   build    -> the Android debug APK, and the Windows installer on a tagged runner
+#   verify   -> prove the artifacts are real (non-zero, correct magic bytes)
+#
+# The Windows job needs a runner tagged `windows` (electron-builder cannot produce an
+# NSIS installer on Linux without Wine). Until one is registered that job is
+# allow_failure, so the Android pipeline is never blocked by it.
+
+stages:
+  - validate
+  - build
+  - verify
+
+variables:
+  # Raise, never shrink: a heavy Gradle/JVM build needs real heap.
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
+  NODE_OPTIONS: "--max-old-space-size=4096"
+  PNPM_VERSION: "10.4.1"
+  GIT_DEPTH: "20"
+
+default:
+  cache:
+    key: "$CI_COMMIT_REF_SLUG"
+    paths:
+      - .pnpm-store/
+      - android/.gradle/
+
+# --------------------------------------------------------------------------- #
+# validate
+# --------------------------------------------------------------------------- #
+lint:ci-config:
+  stage: validate
+  image: python:3.12-slim
+  script:
+    - pip install --quiet pyyaml
+    # Catches duplicate YAML keys, which providers reject with "failed to parse
+    # workflow" and which a normal YAML parse silently accepts.
+    - python scripts/ci_lint.py lint
+      --file .gitlab-ci.yml
+      --file .woodpecker.yml
+      --file .github/workflows/build-genei-runner-windows.yml
+      --file .github/workflows/build-genei-android.yml
+
+typecheck:
+  stage: validate
+  image: node:22-bookworm
+  script:
+    - corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
+    - pnpm install --frozen-lockfile --ignore-scripts --store-dir .pnpm-store
+    - pnpm check
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# --------------------------------------------------------------------------- #
+# build — Android debug APK
+# --------------------------------------------------------------------------- #
+build:android:
+  stage: build
+  # The project needs JDK 21 and compileSdk 36 (see android/variables.gradle), so the
+  # JDK is pinned here rather than inherited from a convenience image.
+  image: eclipse-temurin:21-jdk
+  variables:
+    ANDROID_HOME: "/opt/android-sdk"
+    ANDROID_SDK_ROOT: "/opt/android-sdk"
+  cache:
+    key: "android-sdk"
+    paths:
+      - .android-sdk-cache/
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends curl unzip git ca-certificates xz-utils python3
+    - |
+      if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
+        mkdir -p "$ANDROID_HOME/cmdline-tools"
+        curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o /tmp/tools.zip
+        unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
+        mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+        rm -f /tmp/tools.zip
+        yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+        "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      fi
+    - export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+    - corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
+    - pnpm install --frozen-lockfile --store-dir .pnpm-store
+    - pnpm android:sync
+    - cd android && ./gradlew assembleDebug --no-daemon --stacktrace
+  artifacts:
+    name: "genei-apk-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - android/app/build/outputs/apk/debug/*.apk
+    expire_in: 1 week
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "web"'
+
+# --------------------------------------------------------------------------- #
+# build — Windows installer (needs a runner tagged `windows`)
+# --------------------------------------------------------------------------- #
+build:windows:
+  stage: build
+  tags:
+    - windows
+  script:
+    - corepack enable
+    - corepack prepare "pnpm@${PNPM_VERSION}" --activate
+    - pnpm install --frozen-lockfile
+    - pnpm desktop:build:all
+  artifacts:
+    name: "genei-exe-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - release/*.exe
+      - release/*.sha256
+      - release/Genei-AI-Desktop.metadata.json
+    expire_in: 1 week
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web"'
+      when: on_success
+  # Remove this once a Windows runner is registered; until then the Android pipeline
+  # must not be blocked by the absence of one.
+  allow_failure: true
+
+# --------------------------------------------------------------------------- #
+# verify — prove the artifacts are real before anyone trusts them
+# --------------------------------------------------------------------------- #
+verify:artifacts:
+  stage: verify
+  image: python:3.12-slim
+  script:
+    - python scripts/verify_artifacts.py --dir .
+  needs:
+    - job: build:android
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'

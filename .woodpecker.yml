@@ -1,0 +1,79 @@
+# .woodpecker.yml — Codeberg / Woodpecker CI pipeline for Genei AI.
+#
+# Codeberg runs Woodpecker; this file lives at the repository root. It is the same
+# pipeline as .gitlab-ci.yml, expressed for Woodpecker, and exists for the same reason:
+# a metered private GitHub repository stops starting jobs once its minutes are spent.
+#
+# Docs: https://woodpecker-ci.org/docs/usage/intro
+
+variables:
+  - &pnpm_version "10.4.1"
+  - &node_heap "--max-old-space-size=4096"
+  - &gradle_heap "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
+
+steps:
+  # Cheap validation first: a duplicate YAML key makes a provider reject the whole
+  # file, and a normal YAML parse accepts it silently.
+  lint-ci-config:
+    image: python:3.12-slim
+    commands:
+      - pip install --quiet pyyaml
+      - python scripts/ci_lint.py lint
+        --file .woodpecker.yml
+        --file .gitlab-ci.yml
+        --file .github/workflows/build-genei-runner-windows.yml
+        --file .github/workflows/build-genei-android.yml
+
+  typecheck:
+    image: node:22-bookworm
+    environment:
+      NODE_OPTIONS: *node_heap
+    commands:
+      - corepack enable && corepack prepare "pnpm@10.4.1" --activate
+      - pnpm install --frozen-lockfile --ignore-scripts
+      - pnpm check
+
+  # Android debug APK. The project needs JDK 21 and compileSdk 36, so the JDK is
+  # pinned here rather than inherited from a convenience image.
+  android-apk:
+    image: eclipse-temurin:21-jdk
+    environment:
+      ANDROID_HOME: /opt/android-sdk
+      ANDROID_SDK_ROOT: /opt/android-sdk
+      NODE_OPTIONS: *node_heap
+      GRADLE_OPTS: *gradle_heap
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends curl unzip git ca-certificates xz-utils python3
+      - mkdir -p "$ANDROID_HOME/cmdline-tools"
+      - curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o /tmp/tools.zip
+      - unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
+      - mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+      - yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+      - '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0"'
+      - export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+      - corepack enable && corepack prepare "pnpm@10.4.1" --activate
+      - pnpm install --frozen-lockfile
+      - pnpm android:sync
+      - cd android && ./gradlew assembleDebug --no-daemon --stacktrace
+    when:
+      - event: push
+      - event: pull_request
+      - event: manual
+
+  # Windows installer. Needs an agent labelled `windows` — electron-builder cannot
+  # produce an NSIS installer on Linux without Wine.
+  windows-exe:
+    image: node:22-bookworm
+    labels:
+      - windows
+    environment:
+      NODE_OPTIONS: *node_heap
+    commands:
+      - corepack enable && corepack prepare "pnpm@10.4.1" --activate
+      - pnpm install --frozen-lockfile
+      - pnpm desktop:build:all
+    when:
+      - event: push
+      - event: manual
+    # Remove this once a Windows agent is registered.
+    failure: ignore
