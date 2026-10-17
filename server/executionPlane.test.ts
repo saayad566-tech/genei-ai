@@ -114,8 +114,12 @@ for a in "$@"; do
   prev=0
   case "$a" in -o|-i) prev=1 ;; esac
 done
-# The real ffmpeg writes to the last argument.
+# The real ffmpeg writes to the last argument, but never to a flag: guard so a
+# probe invocation cannot drop a stray file named after an option.
 for a in "$@"; do out="$a"; done
+case "$out" in
+  -*) exit 0 ;;
+esac
 printf 'FAKE-MEDIA' > "$out"
 exit 0
 `,
