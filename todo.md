@@ -433,4 +433,5 @@
 ## Current request: app still not working
 - [x] Reproduce the user-reported 1.1.8 failure on the affected app path and capture the real error
 - [x] Repair the failing runtime, packaging, download, or startup path without removing features
-- [ ] Add regression coverage for the reproduced failure and validate the repaired deliverable
+- [x] Add regression coverage for the reproduced failure and validate the repaired deliverable
+  - The 1.1.8 failure was the packaged server dying with `ERR_MODULE_NOT_FOUND` on Vite's dev-only toolchain. `server/packaging.test.ts` now fails if the built bundle ever statically imports that toolchain or references a package that is not a production dependency. The repaired deliverable was built and shipped as 1.1.9, then 1.2.0 onward.

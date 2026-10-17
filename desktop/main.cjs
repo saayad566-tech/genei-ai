@@ -479,6 +479,23 @@ async function bootstrap() {
   ipcMain.handle("desktop:open-data-directory", () => shell.openPath(app.getPath("userData")));
   ipcMain.handle("desktop:terms-status", () => ({ version: TERMS_VERSION, accepted: hasAcceptedTerms(), publisher: PUBLISHER_NAME }));
 
+  // Real system memory, so the server-side queue can pause admission when this
+  // machine is running out. Electron reports it in kilobytes.
+  ipcMain.handle("desktop:system-memory", () => {
+    try {
+      const info = process.getSystemMemoryInfo();
+      if (!info) return null;
+      return {
+        totalMB: Math.round((info.total ?? 0) / 1024),
+        freeMB: Math.round((info.free ?? 0) / 1024),
+        swapTotalMB: Math.round((info.swapTotal ?? 0) / 1024),
+        swapFreeMB: Math.round((info.swapFree ?? 0) / 1024),
+      };
+    } catch {
+      return null;
+    }
+  });
+
   // Terms must be accepted before any workspace starts.
   if (!hasAcceptedTerms()) {
     const accepted = await showTermsGate();

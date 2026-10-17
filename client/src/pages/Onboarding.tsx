@@ -20,6 +20,59 @@ type InstallRow = {
 
 export const ONBOARDING_KEY = "genei.onboarding.completed";
 
+type PlanStep = {
+  kind: string;
+  url?: string;
+  fileName?: string;
+  sizeBytes?: number;
+  note?: string;
+  reason?: string;
+  docsUrl?: string;
+  manager?: string;
+  command?: string;
+  requiresElevation?: boolean;
+};
+
+type WeightFile = { id: string; toolId: string; role: string; repo: string; path: string; url: string; sizeBytes: number; recommended: boolean; note?: string };
+type WeightEntry = { toolId: string; files: WeightFile[]; error?: string };
+
+type InstallPlan = {
+  toolId: string;
+  origin: "github-release" | "static-fallback" | "none";
+  releaseTag?: string;
+  notes: string[];
+  steps: PlanStep[];
+};
+
+function formatSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "size unknown";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+/**
+ * What the resolved plan will actually do. Release URLs and sizes come from the
+ * upstream release, so this describes a real download rather than a wish.
+ */
+function planSummary(plan?: InstallPlan): string {
+  if (!plan) return "Resolving the install plan…";
+  const step = plan.steps[0];
+  if (!step) return "No install plan is available for this tool.";
+  switch (step.kind) {
+    case "archive":
+      return `Official release asset · ${formatSize(step.sizeBytes ?? 0)}`;
+    case "git":
+      return "Built from the official repository";
+    case "package-manager":
+      return `${step.manager} · ${step.command}`;
+    case "manual":
+      return step.reason ?? "Manual install required";
+    default:
+      return step.kind;
+  }
+}
+
 function statusTone(status: string): { pill: string; label: string } {
   switch (status) {
     case "ready":
@@ -59,6 +112,8 @@ export default function Onboarding() {
     backends: ["cpu"],
   });
   const [detected, setDetected] = useState(false);
+  const [weightNote, setWeightNote] = useState<string | null>(null);
+  const [weightRepo, setWeightRepo] = useState("");
 
   useEffect(() => {
     const bridge = (window as unknown as { geneiDesktop?: DesktopBridge }).geneiDesktop;
@@ -102,7 +157,26 @@ export default function Onboarding() {
     },
   });
 
-  const installMutation = trpc.tools.install.useMutation({
+  // The real, resolved install plan for this machine: release URLs and sizes come
+  // from the upstream release rather than from a hardcoded link.
+  const plansQuery = trpc.tools.plans.useQuery(undefined, { enabled: detected, retry: false });
+
+  // Model weights, resolved live from the Hugging Face Hub — the sizes and links are
+  // read from the Hub, not written down here.
+  const weightsQuery = trpc.tools.weights.useQuery(undefined, { enabled: detected, retry: false });
+  const resolveWeights = trpc.tools.resolveWeights.useMutation({
+    onSuccess: (result) => {
+      const resolved = result as { files: WeightFile[]; error?: string };
+      setWeightNote(
+        resolved.error
+          ? resolved.error
+          : `Resolved ${resolved.files.length} file(s) from that repository.`,
+      );
+    },
+    onError: (error) => setWeightNote(error.message),
+  });
+
+  const installMutation = trpc.tools.installFromPlan.useMutation({
     onSuccess: (record) => {
       toast.message(`${record.toolId}`, { description: record.message });
       void installsQuery.refetch();
@@ -116,6 +190,12 @@ export default function Onboarding() {
     for (const row of (installsQuery.data ?? []) as InstallRow[]) map.set(row.toolId, row);
     return map;
   }, [installsQuery.data]);
+
+  const planByTool = useMemo(() => {
+    const map = new Map<string, InstallPlan>();
+    for (const plan of (plansQuery.data ?? []) as InstallPlan[]) map.set(plan.toolId, plan);
+    return map;
+  }, [plansQuery.data]);
 
   const entries = registryQuery.data ?? [];
   const installable = entries.filter((entry) => entry.compatibility.status === "compatible" || entry.compatibility.status === "compatible_slow");
@@ -134,7 +214,7 @@ export default function Onboarding() {
   const installAll = async () => {
     for (const entry of installable) {
       if (installsByTool.get(entry.tool.id)?.status === "ready") continue;
-      await installMutation.mutateAsync({ toolId: entry.tool.id }).catch(() => undefined);
+      await installMutation.mutateAsync({ toolId: entry.tool.id, extract: true }).catch(() => undefined);
     }
   };
 
@@ -239,6 +319,10 @@ export default function Onboarding() {
                       <span className={tone.pill}>{tone.label}</span>
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{entry.tool.summary}</p>
+                    <p className="mt-1 text-[0.7rem] text-muted-foreground/80">
+                      {planSummary(planByTool.get(entry.tool.id))}
+                      {planByTool.get(entry.tool.id)?.notes.length ? ` — ${planByTool.get(entry.tool.id)!.notes[0]}` : ""}
+                    </p>
                     {row?.message ? <p className="mt-1 text-xs text-muted-foreground/80">{row.message}</p> : null}
                     {entry.compatibility.reasons.length > 0 ? (
                       <ul className="mt-1 list-disc pl-4 text-[0.7rem] text-muted-foreground/70">
@@ -270,7 +354,7 @@ export default function Onboarding() {
                         type="button"
                         className="gx-seg-btn"
                         disabled={installMutation.isPending || entry.compatibility.status === "unsupported"}
-                        onClick={() => installMutation.mutate({ toolId: entry.tool.id })}
+                        onClick={() => installMutation.mutate({ toolId: entry.tool.id, extract: true })}
                       >
                         <Circle className="h-3.5 w-3.5" /> Install
                       </button>
@@ -280,6 +364,65 @@ export default function Onboarding() {
               </div>
             );
           })}
+        </div>
+
+        {/* ── Model weights ── */}
+        <div className="gx-panel mt-6 p-4">
+          <h3 className="font-display text-sm font-semibold">Model weights</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sizes and links are read live from the Hugging Face Hub, so what is listed here is what would actually be downloaded. Nothing is
+            fetched until you ask for it.
+          </p>
+
+          {weightsQuery.isLoading ? (
+            <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Resolving the weight catalogue…
+            </p>
+          ) : null}
+
+          <div className="mt-3 grid gap-2">
+            {((weightsQuery.data ?? []) as WeightEntry[]).map((entry) => {
+              const recommended = entry.files.filter((file) => file.recommended);
+              return (
+                <div key={entry.toolId} className="rounded-2xl border border-white/5 bg-white/[0.02] p-3">
+                  <p className="text-xs font-semibold text-foreground">{entry.toolId}</p>
+                  {entry.error ? (
+                    <p className="mt-1 text-[0.7rem] text-muted-foreground">{entry.error}</p>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-[0.7rem] text-muted-foreground">{entry.files.length} file(s) available</p>
+                      {recommended.map((file) => (
+                        <p key={file.id} className="mt-1 font-mono text-[0.7rem] text-[var(--genei-cyan)]">
+                          recommended · {file.path} · {formatSize(file.sizeBytes)}
+                        </p>
+                      ))}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-4 text-xs text-muted-foreground">
+            A tool that reports it needs a weights source can be completed by naming the repository here.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              className="genei-input min-w-0 flex-1 text-sm"
+              placeholder="owner/repository on Hugging Face"
+              value={weightRepo}
+              onChange={(event) => setWeightRepo(event.target.value)}
+            />
+            <button
+              type="button"
+              className="gx-seg-btn gx-seg"
+              disabled={resolveWeights.isPending || !weightRepo.trim()}
+              onClick={() => resolveWeights.mutate({ repo: weightRepo.trim(), toolId: "user-supplied" })}
+            >
+              {resolveWeights.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Resolve
+            </button>
+          </div>
+          {weightNote ? <p className="mt-2 text-xs text-muted-foreground">{weightNote}</p> : null}
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">

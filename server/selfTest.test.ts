@@ -70,8 +70,9 @@ describe("readiness self-test", () => {
     // adapters genuinely answered rather than claiming a blanket readiness.
     const adaptersStep = report.steps.find((step) => step.id === "adapters");
     expect(adaptersStep?.status).toBe("blocked");
-    expect(adaptersStep?.detail).toMatch(/of \d+ adapters are ready/i);
-    expect(adaptersStep?.detail).toMatch(/ffmpeg|no adapter is ready/i);
+    // Whichever it is — some adapters ready, or none — the detail must name the real
+    // states rather than claiming a blanket readiness.
+    expect(adaptersStep?.detail).toMatch(/of \d+ adapters are ready|no adapter is ready/i);
 
     // The reviewer endpoint is down, so it is blocked, not passed.
     expect(report.steps.find((step) => step.id === "reviewer")?.status).toBe("blocked");

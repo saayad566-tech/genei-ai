@@ -3,6 +3,19 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, Server, Stethoscope } from "lucide-react";
 
+type SystemMemory = { totalMB: number; freeMB: number; swapTotalMB: number; swapFreeMB: number };
+
+type DesktopBridge = { systemMemory?: () => Promise<SystemMemory | null> };
+
+type QueueSnapshot = {
+  running: Array<{ id: string; label: string }>;
+  queued: Array<{ id: string; label: string; estimatedPeakMB: number }>;
+  budget: { ramBudgetMB: number; vramBudgetMB: number; maxConcurrentHeavyJobs: number };
+  reservedMB: number;
+  paused: boolean;
+  pauseReason: string | null;
+};
+
 type AdapterStatus = {
   state: string;
   message: string;
@@ -53,6 +66,48 @@ export function ExecutionPlanePanel() {
       toast.message(`Self-test: ${result.verdict}`, { description: result.summary.slice(0, 160) });
     },
     onError: (error) => toast.error(error.message),
+  });
+  const [queueNote, setQueueNote] = useState<string | null>(null);
+  const [contextUrl, setContextUrl] = useState("");
+  const [contextResult, setContextResult] = useState<{ status: string; detail: string } | null>(null);
+
+  const hardwareQuery = trpc.adapters.hardware.useQuery(undefined, { refetchOnWindowFocus: false });
+  const queueQuery = trpc.queue.status.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    refetchInterval: (query) => {
+      const data = query.state.data as QueueSnapshot | undefined;
+      return data && (data.running.length > 0 || data.queued.length > 0) ? 2500 : false;
+    },
+  });
+  const configureQueue = trpc.queue.configure.useMutation({
+    onSuccess: (snapshot) => {
+      const data = snapshot as unknown as QueueSnapshot;
+      setQueueNote(`Sized to this machine: ${data.budget.ramBudgetMB} MB RAM budget, ${data.budget.vramBudgetMB} MB VRAM budget.`);
+      void queueQuery.refetch();
+    },
+    onError: (error) => setQueueNote(error.message),
+  });
+  const reportPressure = trpc.queue.reportPressure.useMutation({
+    onSuccess: (snapshot) => {
+      const data = snapshot as unknown as QueueSnapshot;
+      setQueueNote(data.paused ? `Paused: ${data.pauseReason ?? "memory pressure"}` : "Memory is healthy; admission is open.");
+      void queueQuery.refetch();
+    },
+    onError: (error) => setQueueNote(error.message),
+  });
+  const cancelQueued = trpc.queue.cancel.useMutation({ onSuccess: () => void queueQuery.refetch() });
+  const gatherContext = trpc.director.gatherContext.useMutation({
+    onSuccess: (data) => {
+      const result = data.result as { status: string; reason?: string; title?: string; text?: string; url?: string };
+      setContextResult({
+        status: result.status,
+        detail:
+          result.status === "ok"
+            ? `${result.title ?? result.url} — ${(result.text ?? "").slice(0, 240)}`
+            : result.reason ?? "No live context is available.",
+      });
+    },
+    onError: (error) => setContextResult({ status: "error", detail: error.message }),
   });
   const proofMutation = trpc.adapters.runProof.useMutation({
     onSuccess: (result) => {
@@ -114,6 +169,116 @@ export function ExecutionPlanePanel() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Resource queue ── */}
+      <div className="mt-5 border-t border-white/5 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-sm font-semibold">Resource queue</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Heavy work runs one job at a time. A job too large for the remaining budget waits instead of being attempted and crashing the machine.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="gx-seg-btn gx-seg"
+              disabled={configureQueue.isPending || !hardwareQuery.data}
+              onClick={() => {
+                const hardware = hardwareQuery.data as { ramGB: number | null; vramGB: number | null } | undefined;
+                if (!hardware?.ramGB) {
+                  setQueueNote("This machine's memory could not be read, so the budget was left as it is.");
+                  return;
+                }
+                configureQueue.mutate({ ramGB: hardware.ramGB, vramGB: hardware.vramGB ?? undefined });
+              }}
+            >
+              Size to this machine
+            </button>
+            <button
+              type="button"
+              className="gx-seg-btn gx-seg"
+              disabled={reportPressure.isPending}
+              onClick={async () => {
+                const bridge = (window as unknown as { geneiDesktop?: DesktopBridge }).geneiDesktop;
+                if (!bridge?.systemMemory) {
+                  setQueueNote("Memory pressure is reported by the desktop app; it is not available in a browser.");
+                  return;
+                }
+                const memory = await bridge.systemMemory().catch(() => null);
+                if (!memory) {
+                  setQueueNote("The system memory reading was unavailable.");
+                  return;
+                }
+                reportPressure.mutate({ freeRamMB: memory.freeMB });
+              }}
+            >
+              Report memory
+            </button>
+          </div>
+        </div>
+
+        {queueNote ? <p className="mt-2 text-xs text-muted-foreground">{queueNote}</p> : null}
+
+        {queueQuery.data ? (
+          <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.02] p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={queueQuery.data.paused ? "gx-pill gx-pill--pending" : "gx-pill gx-pill--ready"}>
+                {queueQuery.data.paused ? "paused" : "open"}
+              </span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {queueQuery.data.running.length} running · {queueQuery.data.queued.length} waiting · {queueQuery.data.reservedMB} MB reserved · budget{" "}
+                {queueQuery.data.budget.ramBudgetMB} MB RAM / {queueQuery.data.budget.vramBudgetMB} MB VRAM · max {queueQuery.data.budget.maxConcurrentHeavyJobs} heavy
+              </span>
+            </div>
+            {queueQuery.data.pauseReason ? <p className="mt-1 text-xs text-[var(--genei-gold)]">{queueQuery.data.pauseReason}</p> : null}
+            {queueQuery.data.queued.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {queueQuery.data.queued.map((job) => (
+                  <li key={job.id} className="flex items-center justify-between gap-2 text-[0.7rem] text-muted-foreground">
+                    <span>
+                      {job.label} · {job.estimatedPeakMB} MB
+                    </span>
+                    <button type="button" className="gx-seg-btn" onClick={() => cancelQueued.mutate({ jobId: job.id })}>
+                      Cancel
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── Live context ── */}
+      <div className="mt-5 border-t border-white/5 pt-4">
+        <h3 className="font-display text-sm font-semibold">Live context</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Fetch a page so a model can ground on current information instead of relying on what it remembers.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <input
+            className="genei-input min-w-0 flex-1 text-sm"
+            placeholder="https://…"
+            value={contextUrl}
+            onChange={(event) => setContextUrl(event.target.value)}
+          />
+          <button
+            type="button"
+            className="gx-seg-btn gx-seg"
+            disabled={gatherContext.isPending || !contextUrl.trim()}
+            onClick={() => gatherContext.mutate({ url: contextUrl.trim() })}
+          >
+            {gatherContext.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Fetch
+          </button>
+        </div>
+        {contextResult ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            <span className={contextResult.status === "ok" ? "text-[var(--genei-green)]" : "text-[var(--genei-gold)]"}>{contextResult.status}</span>{" "}
+            {contextResult.detail}
+          </p>
+        ) : null}
       </div>
 
       {/* ── Readiness self-test ── */}

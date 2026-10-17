@@ -55,6 +55,14 @@ export default function VideoStudio() {
   const [, navigate] = useLocation();
 
   const translateMutation = trpc.globalSettings.translateText.useMutation();
+  // The Director's prompt engineer: turns a rough idea into a production-ready prompt.
+  const enhancePrompt = trpc.ai.generatePrompt.useMutation({
+    onSuccess: (result) => {
+      setPrompt(result.prompt);
+      toast.message("Prompt enhanced", { description: `Rewritten by ${result.model}.` });
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const createDirectorProject = trpc.director.createProject.useMutation();
   const retryShot = trpc.director.retryShot.useMutation({
     onSuccess: () => toast.success("Shot queued for targeted regeneration"),
@@ -296,7 +304,17 @@ export default function VideoStudio() {
 
               {/* ── Prompt composer ── */}
               <div className="gx-panel p-4 sm:p-5">
-                <label className="text-sm font-semibold text-foreground">Describe your video</label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-sm font-semibold text-foreground">Describe your video</label>
+                  <button
+                    type="button"
+                    className="gx-seg-btn gx-seg"
+                    disabled={enhancePrompt.isPending || !prompt.trim()}
+                    onClick={() => enhancePrompt.mutate({ type: "cinematic video", description: prompt.trim() })}
+                  >
+                    {enhancePrompt.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />} Enhance
+                  </button>
+                </div>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
