@@ -56,6 +56,12 @@ export interface ExecutionAdapter {
   readonly id: string;
   readonly toolId: string;
   readonly category: "video" | "image" | "lipsync" | "audio" | "upscale" | "review" | "media";
+  /**
+   * Install or update the backing tool. Delegates to the shared installer, which
+   * performs real downloads and verifies them; the adapter reports the resulting
+   * state rather than assuming success.
+   */
+  install(options?: { allowElevatedCommands?: boolean }): Promise<AdapterStatus>;
   /** Real health probe. Must not report ready without one. */
   healthCheck(): Promise<AdapterStatus>;
   /** What this adapter can actually do, as advertised to the router. */

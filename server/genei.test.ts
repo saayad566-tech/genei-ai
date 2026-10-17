@@ -257,6 +257,53 @@ describe("execution plane wiring", () => {
   });
 });
 
+describe("install plan and weight wiring", () => {
+  it("resolves a real install plan for a tool", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const plan = await caller.tools.plan({ toolId: "video2x" });
+
+    expect(plan.toolId).toBe("video2x");
+    expect(plan.steps.length).toBeGreaterThan(0);
+    expect(["github-release", "static-fallback", "none"]).toContain(plan.origin);
+    // Whatever route it took, the reason must be recorded.
+    const explained = plan.notes.length > 0 || plan.steps[0].kind === "archive" || plan.steps[0].kind === "git";
+    expect(explained).toBe(true);
+  }, 30_000);
+
+  it("resolves a plan for every registered tool without inventing one", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const plans = await caller.tools.plans();
+    expect(plans.length).toBeGreaterThan(5);
+    for (const plan of plans) expect(plan.steps.length).toBeGreaterThan(0);
+  }, 40_000);
+
+  it("rejects an unknown tool instead of returning an empty plan", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.tools.plan({ toolId: "no-such-tool" })).rejects.toThrow(/Unknown tool/);
+  });
+
+  it("reports the weight catalogue honestly, with an error when the Hub is unreachable", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const weights = await caller.tools.weights();
+    expect(weights.length).toBeGreaterThan(0);
+    for (const entry of weights) {
+      // Either real files, or a stated reason. Never a silent empty success.
+      expect(entry.files.length > 0 || Boolean(entry.error)).toBe(true);
+    }
+  }, 30_000);
+
+  it("refuses a malformed weights repository", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.tools.resolveWeights({ repo: "nonsense", toolId: "wan22" });
+    expect(result.error).toMatch(/owner\/name/);
+  });
+});
+
 describe("live context gathering wiring", () => {
   it("refuses a private address instead of fetching it", async () => {
     const { ctx } = createAuthContext();

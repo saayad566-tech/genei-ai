@@ -123,6 +123,19 @@ export class VlmReviewerAdapter implements ExecutionAdapter {
     return headers;
   }
 
+  /**
+   * The reviewer is a model behind an endpoint, not a binary we install. Rather than
+   * pretending to install it, this reports what the user actually has to do.
+   */
+  async install(): Promise<AdapterStatus> {
+    return {
+      state: "needs_source",
+      toolId: this.toolId,
+      message: `Serve a vision-language model on ${this.config.baseUrl} (llama.cpp's server works) and this adapter will use it. Nothing is installed by Genei here.`,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
   /** Real probe: ask the server for its model list. */
   async healthCheck(): Promise<AdapterStatus> {
     const checkedAt = new Date().toISOString();

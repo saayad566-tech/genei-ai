@@ -9,9 +9,11 @@
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { getTool, type HealthState, type ToolEntry } from "./modelRegistry";
+import type { InstallPlan, InstallStep } from "./toolReleases";
 
 export type InstallRecord = {
   toolId: string;
@@ -184,7 +186,7 @@ export class AssetInstaller {
     return this.installFromArchive({ ...tool, installKind: "archive", sourceUrl: resolved });
   }
 
-  private async installFromGit(tool: ToolEntry): Promise<InstallRecord> {
+  private async installFromGit(tool: ToolEntry, overrideUrl?: string): Promise<InstallRecord> {
     const destination = path.join(this.toolsDir(), tool.id);
     this.update(tool.id, {
       status: "installing",
@@ -202,7 +204,7 @@ export class AssetInstaller {
     }
 
     const result = await new Promise<{ code: number | null; stderr: string }>((resolve) => {
-      const child = spawn("git", ["clone", "--depth", "1", "--progress", tool.sourceUrl ?? tool.repositoryUrl, destination], {
+      const child = spawn("git", ["clone", "--depth", "1", "--progress", overrideUrl ?? tool.sourceUrl ?? tool.repositoryUrl, destination], {
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -329,6 +331,230 @@ export class AssetInstaller {
       return record;
     }
   }
+
+  // ── Plan-driven install ──────────────────────────────────────────────────
+
+  /**
+   * Execute a resolved install plan.
+   *
+   * Archives are downloaded and verified against the size (and checksum, when the
+   * release publishes one) that the plan was built from — so a truncated or replaced
+   * download is caught rather than installed. Commands that need administrator rights
+   * are never run unless the caller explicitly consents.
+   */
+  async installFromPlan(plan: InstallPlan, options: InstallPlanOptions = {}): Promise<InstallRecord> {
+    const tool = getTool(plan.toolId);
+    if (!tool) {
+      const record = this.update(plan.toolId, { status: "failed", message: `Unknown tool "${plan.toolId}".` });
+      this.persist();
+      return record;
+    }
+
+    const results: string[] = [];
+    for (const step of plan.steps) {
+      const outcome = await this.runStep(tool, step, options);
+      if (outcome.status !== "ready") {
+        this.persist();
+        return outcome;
+      }
+      results.push(outcome.message);
+    }
+
+    const finalRecord = this.update(tool.id, {
+      status: "ready",
+      installPath: path.join(this.toolsDir(), tool.id),
+      finishedAt: new Date().toISOString(),
+      percent: 100,
+      message: results.join(" "),
+    });
+    this.persist();
+    return finalRecord;
+  }
+
+  private async runStep(tool: ToolEntry, step: InstallStep, options: InstallPlanOptions): Promise<InstallRecord> {
+    switch (step.kind) {
+      case "git": {
+        return this.installFromGit(tool, step.url);
+      }
+      case "archive": {
+        return this.installArchiveStep(tool, step, options);
+      }
+      case "package-manager": {
+        if (step.requiresElevation && !options.allowElevatedCommands) {
+          return this.update(tool.id, {
+            status: "needs_source",
+            message: `Run this yourself, or approve it explicitly: ${step.command}`,
+            log: [step.note],
+          });
+        }
+        return this.runCommand(tool, step.command);
+      }
+      case "manual": {
+        return this.update(tool.id, { status: "needs_source", message: `${step.reason} See ${step.docsUrl}.` });
+      }
+      default:
+        return this.update(tool.id, { status: "unsupported", message: "This install step is not implemented." });
+    }
+  }
+
+  private async installArchiveStep(tool: ToolEntry, step: Extract<InstallStep, { kind: "archive" }>, options: InstallPlanOptions): Promise<InstallRecord> {
+    const destinationDir = path.join(this.toolsDir(), tool.id);
+    fs.mkdirSync(destinationDir, { recursive: true });
+    const destination = path.join(destinationDir, step.fileName);
+
+    this.update(tool.id, {
+      status: "installing",
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      bytesDownloaded: 0,
+      totalBytes: step.sizeBytes > 0 ? step.sizeBytes : null,
+      percent: 0,
+      message: `Downloading ${step.fileName} (${formatBytes(step.sizeBytes)})…`,
+      log: [step.note],
+    });
+    this.persist();
+
+    const controller = new AbortController();
+    this.running.set(tool.id, { kill: () => controller.abort() });
+
+    try {
+      const response = await fetch(step.url, { signal: controller.signal, redirect: "follow" });
+      if (!response.ok || !response.body) throw new Error(`The download returned HTTP ${response.status}.`);
+
+      const stream = fs.createWriteStream(destination);
+      const hash = crypto.createHash("sha256");
+      let downloaded = 0;
+      const reader = response.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        downloaded += value.byteLength;
+        hash.update(value);
+        await new Promise<void>((resolve, reject) => stream.write(Buffer.from(value), (error) => (error ? reject(error) : resolve())));
+        this.update(tool.id, {
+          bytesDownloaded: downloaded,
+          percent: step.sizeBytes > 0 ? Math.min(100, Math.round((downloaded / step.sizeBytes) * 100)) : null,
+        });
+      }
+      await new Promise<void>((resolve) => stream.end(resolve));
+      this.running.delete(tool.id);
+
+      // Verify against the facts the plan was built from.
+      if (step.sizeBytes > 0 && downloaded !== step.sizeBytes) {
+        fs.rmSync(destination, { force: true });
+        const record = this.update(tool.id, {
+          status: "failed",
+          finishedAt: new Date().toISOString(),
+          message: `Downloaded ${formatBytes(downloaded)} but the release publishes ${formatBytes(step.sizeBytes)}. The file was discarded.`,
+        });
+        this.persist();
+        return record;
+      }
+      if (step.sha256) {
+        const actual = hash.digest("hex");
+        if (actual !== step.sha256) {
+          fs.rmSync(destination, { force: true });
+          const record = this.update(tool.id, {
+            status: "failed",
+            finishedAt: new Date().toISOString(),
+            message: `Checksum mismatch: expected ${step.sha256.slice(0, 16)}…, got ${actual.slice(0, 16)}…. The file was discarded.`,
+          });
+          this.persist();
+          return record;
+        }
+      }
+
+      const extraction = options.extract === false ? { done: false, note: "Extraction skipped on request." } : await extractArchive(destination, step.extract, destinationDir);
+      const record = this.update(tool.id, {
+        status: "ready",
+        installPath: extraction.done ? destinationDir : destination,
+        finishedAt: new Date().toISOString(),
+        percent: 100,
+        message: `Downloaded and verified ${formatBytes(downloaded)}. ${extraction.note}`,
+      });
+      this.persist();
+      return record;
+    } catch (error) {
+      this.running.delete(tool.id);
+      fs.rmSync(destination, { force: true });
+      const aborted = error instanceof Error && error.name === "AbortError";
+      const record = this.update(tool.id, {
+        status: aborted ? "stopped" : "failed",
+        finishedAt: new Date().toISOString(),
+        message: aborted ? "Download cancelled." : `Download failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      });
+      this.persist();
+      return record;
+    }
+  }
+
+  private async runCommand(tool: ToolEntry, command: string): Promise<InstallRecord> {
+    this.update(tool.id, { status: "installing", startedAt: new Date().toISOString(), message: `Running: ${command}`, log: [] });
+    this.persist();
+    const result = await new Promise<{ code: number | null; output: string }>((resolve) => {
+      const parts = command.split(/\s+/).filter(Boolean);
+      const child = spawn(parts[0], parts.slice(1), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      this.running.set(tool.id, { kill: () => child.kill("SIGTERM") });
+      let output = "";
+      child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
+      child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
+      child.on("error", (error) => resolve({ code: -1, output: String(error) }));
+      child.on("close", (code) => resolve({ code, output }));
+    });
+    this.running.delete(tool.id);
+    const record = this.update(tool.id, {
+      status: result.code === 0 ? "ready" : "failed",
+      finishedAt: new Date().toISOString(),
+      percent: result.code === 0 ? 100 : null,
+      message: result.code === 0 ? `${command} completed.` : `${command} exited with code ${result.code}.`,
+      log: outputLines(result.output),
+    });
+    this.persist();
+    return record;
+  }
+}
+
+export type InstallPlanOptions = {
+  /** Explicit consent to run commands that need administrator rights. */
+  allowElevatedCommands?: boolean;
+  /** Extract archives after download when an extractor is available. */
+  extract?: boolean;
+};
+
+function outputLines(text: string): string[] {
+  return text.trim().split(/\r?\n/).slice(-8);
+}
+
+/**
+ * Extract an archive using whatever extractor this machine actually has.
+ * When none is available the archive is kept and that is stated plainly.
+ */
+async function extractArchive(
+  archivePath: string,
+  kind: Extract<InstallStep, { kind: "archive" }>["extract"],
+  destinationDir: string,
+): Promise<{ done: boolean; note: string }> {
+  if (kind === "none" || kind === "appimage") {
+    return { done: false, note: kind === "appimage" ? "This is an AppImage: make it executable and run it directly." : "This file does not need extracting." };
+  }
+  const commands: Record<string, [string, string[]]> = {
+    zip: ["unzip", ["-o", archivePath, "-d", destinationDir]],
+    "7z": ["7z", ["x", "-y", `-o${destinationDir}`, archivePath]],
+    "tar.gz": ["tar", ["-xzf", archivePath, "-C", destinationDir]],
+  };
+  const entry = commands[kind];
+  if (!entry) return { done: false, note: "No extractor is configured for this archive type." };
+  const [binary, args] = entry;
+  const result = await new Promise<{ code: number | null; error?: string }>((resolve) => {
+    const child = spawn(binary, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let err = "";
+    child.stderr.on("data", (chunk: Buffer) => (err += chunk.toString()));
+    child.on("error", (error) => resolve({ code: -1, error: String(error) }));
+    child.on("close", (code) => resolve({ code, error: err }));
+  });
+  if (result.code === 0) return { done: true, note: `Extracted with ${binary}.` };
+  return { done: false, note: `Downloaded, but ${binary} could not extract it${result.error ? ` (${result.error.slice(0, 120)})` : ""}. The archive was kept.` };
 }
 
 let sharedInstaller: AssetInstaller | null = null;

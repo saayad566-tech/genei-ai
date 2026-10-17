@@ -19,6 +19,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { LogRing, withDeadline, type AdapterGenerateOptions, type AdapterStatus, type ExecutionAdapter, type GenerateOutcome } from "./types";
 import type { Workflow } from "./workflowTypes";
+import { getSharedInstaller } from "../assetDownloader";
+import { currentPlatform, resolveInstallPlan } from "../toolReleases";
 
 export type ComfyWorkflowParams = {
   positivePrompt?: string;
@@ -211,6 +213,17 @@ export class ComfyUiAdapter implements ExecutionAdapter {
 
   private url(suffix: string): string {
     return `${this.config.baseUrl.replace(/\/+$/, "")}${suffix}`;
+  }
+
+  /** Install ComfyUI through the shared installer, then re-probe. */
+  async install(options: { allowElevatedCommands?: boolean } = {}): Promise<AdapterStatus> {
+    const { getTool } = await import("../modelRegistry");
+    const tool = getTool(this.toolId);
+    if (!tool) return { state: "unsupported", toolId: this.toolId, message: `No registry entry exists for ${this.toolId}.`, checkedAt: new Date().toISOString() };
+    const plan = await resolveInstallPlan(tool, currentPlatform());
+    const record = await getSharedInstaller().installFromPlan(plan, { allowElevatedCommands: options.allowElevatedCommands });
+    this.logs.push(`Install ${this.toolId}: ${record.status} — ${record.message}`);
+    return this.healthCheck();
   }
 
   /** Real probe against /system_stats. */

@@ -14,6 +14,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { LogRing, withDeadline, type AdapterGenerateOptions, type AdapterStatus, type ExecutionAdapter, type GenerateOutcome } from "./types";
+import { getSharedInstaller } from "../assetDownloader";
+import { currentPlatform, resolveInstallPlan } from "../toolReleases";
 
 export type CliToolConfig = {
   /** Where the tool was installed, if it was. */
@@ -96,6 +98,18 @@ export abstract class CliAdapter implements ExecutionAdapter {
   protected abstract primaryBinary(): string;
   protected versionArgs(): string[] {
     return ["--help"];
+  }
+
+  /** Install through the shared installer, using the resolved plan for this platform. */
+  async install(options: { allowElevatedCommands?: boolean } = {}): Promise<AdapterStatus> {
+    const { getTool } = await import("../modelRegistry");
+    const tool = getTool(this.toolId);
+    if (!tool) return { state: "unsupported", toolId: this.toolId, message: `No registry entry exists for ${this.toolId}.`, checkedAt: new Date().toISOString() };
+    const plan = await resolveInstallPlan(tool, currentPlatform());
+    const record = await getSharedInstaller().installFromPlan(plan, { allowElevatedCommands: options.allowElevatedCommands });
+    this.logs.push(`Install ${this.toolId}: ${record.status} — ${record.message}`);
+    // Always re-probe: the record is what the installer believes, the probe is the truth.
+    return this.healthCheck();
   }
 
   async healthCheck(): Promise<AdapterStatus> {

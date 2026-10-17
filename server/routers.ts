@@ -21,6 +21,8 @@ import { filmJobQueue, budgetFromHardware } from "./jobQueue";
 import { fetchPageForContext, searchForContext, groundingBlock } from "./browsingAdapter";
 import { TOOL_REGISTRY, assessCompatibility, type HardwareProfile } from "./modelRegistry";
 import { getSharedInstaller } from "./assetDownloader";
+import { currentPlatform, resolveAllInstallPlans, resolveInstallPlan } from "./toolReleases";
+import { resolveAllWeights, resolveUserSuppliedRepo } from "./modelWeights";
 import { adapterHealth, buildAdapters, resolveAdapter } from "./adapters";
 import { runProofScene } from "./proofScene";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
@@ -1049,6 +1051,34 @@ export const appRouter = router({
     cancelInstall: protectedProcedure
       .input(z.object({ toolId: z.string().min(1).max(80) }))
       .mutation(({ input }) => ({ cancelled: getSharedInstaller().cancel(input.toolId) })),
+    /**
+     * The real install plan for this machine. Release URLs and sizes come from the
+     * upstream release itself, so this reports what is actually downloadable rather
+     * than a hardcoded link that rots.
+     */
+    plan: protectedProcedure
+      .input(z.object({ toolId: z.string().min(1).max(80) }))
+      .query(async ({ input }) => {
+        const tool = TOOL_REGISTRY.find((entry) => entry.id === input.toolId);
+        if (!tool) throw new Error(`Unknown tool "${input.toolId}".`);
+        return resolveInstallPlan(tool, currentPlatform());
+      }),
+    plans: protectedProcedure.query(() => resolveAllInstallPlans(currentPlatform())),
+    /** Install using the resolved plan, verifying the download against the release. */
+    installFromPlan: protectedProcedure
+      .input(z.object({ toolId: z.string().min(1).max(80), allowElevatedCommands: z.boolean().optional(), extract: z.boolean().optional() }))
+      .mutation(async ({ input }) => {
+        const tool = TOOL_REGISTRY.find((entry) => entry.id === input.toolId);
+        if (!tool) throw new Error(`Unknown tool "${input.toolId}".`);
+        const plan = await resolveInstallPlan(tool, currentPlatform());
+        return getSharedInstaller().installFromPlan(plan, { allowElevatedCommands: input.allowElevatedCommands, extract: input.extract });
+      }),
+    /** Real model-weight files, resolved live from the Hub. */
+    weights: protectedProcedure.query(() => resolveAllWeights()),
+    /** Resolve a Hub repository the user named, for a tool that reported needs_source. */
+    resolveWeights: protectedProcedure
+      .input(z.object({ repo: z.string().min(3).max(200), toolId: z.string().min(1).max(80) }))
+      .mutation(({ input }) => resolveUserSuppliedRepo(input.repo, input.toolId)),
   }),
 
   // ── Execution plane: the real adapters that do the work ─────────────────
