@@ -5,7 +5,7 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { getLoginUrl } from "./const";
+import { getLoginUrl, hasLoginPortal } from "./const";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -17,6 +17,9 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
   if (!isUnauthorized) return;
+  // With no hosted portal there is nowhere to send the user. Navigating anyway used
+  // to bounce them to an unrelated page; staying put lets the UI offer sign-in.
+  if (!hasLoginPortal()) return;
 
   window.location.href = getLoginUrl();
 };

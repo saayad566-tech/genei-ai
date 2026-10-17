@@ -17,6 +17,8 @@ import * as crypto from "crypto";
 import { compileDirectorGraph } from "./directorCompiler";
 import { filmJobQueue, budgetFromHardware } from "./jobQueue";
 import { fetchPageForContext, searchForContext, groundingBlock } from "./browsingAdapter";
+import { TOOL_REGISTRY, assessCompatibility, type HardwareProfile } from "./modelRegistry";
+import { getSharedInstaller } from "./assetDownloader";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
@@ -1020,6 +1022,30 @@ export const appRouter = router({
 
   // ── Global Settings & Localization ──────────────────────────────────────
   globalSettings: globalSettingsRouter,
+
+  // ── Tool & model registry, and the onboarding installer ─────────────────
+  // The first-launch screen installs everything from here, so the user never has
+  // to leave the app to fetch a runtime or a model.
+  tools: router({
+    registry: protectedProcedure
+      .input(z.object({ os: z.enum(["win32", "darwin", "linux", "unknown"]).optional(), ramGB: z.number().nonnegative().optional(), vramGB: z.number().nonnegative().optional(), backends: z.array(z.enum(["cuda", "rocm", "vulkan", "metal", "cpu"])).optional() }).optional())
+      .query(({ input }) => {
+        const hardware: HardwareProfile = {
+          os: input?.os ?? (process.platform as HardwareProfile["os"]),
+          ramGB: input?.ramGB ?? null,
+          vramGB: input?.vramGB ?? null,
+          backends: input?.backends ?? ["cpu"],
+        };
+        return TOOL_REGISTRY.map((tool) => ({ tool, compatibility: assessCompatibility(tool, hardware) }));
+      }),
+    installs: protectedProcedure.query(() => getSharedInstaller().list()),
+    install: protectedProcedure
+      .input(z.object({ toolId: z.string().min(1).max(80), weightSourceUrl: z.string().url().optional() }))
+      .mutation(({ input }) => getSharedInstaller().install(input.toolId, { weightSourceUrl: input.weightSourceUrl })),
+    cancelInstall: protectedProcedure
+      .input(z.object({ toolId: z.string().min(1).max(80) }))
+      .mutation(({ input }) => ({ cancelled: getSharedInstaller().cancel(input.toolId) })),
+  }),
 
   // ── Resource-aware job queue ────────────────────────────────────────────
   // Serializes heavy work so the desktop app does not freeze or run out of memory.

@@ -176,7 +176,7 @@ export default function GeneiLayout({ children }: GeneiLayoutProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <a href={getLoginUrl()} className={`flex min-h-11 items-center gap-3 rounded-lg p-2 genei-btn-primary text-sm ${sidebarCollapsed ? "justify-center" : ""}`} aria-label="Sign in to Genei AI">
+          <a href={getLoginUrl()} className={`gx-cta flex min-h-11 items-center gap-3 p-2 text-sm ${sidebarCollapsed ? "justify-center" : ""}`} aria-label="Sign in to Genei AI">
             <Sparkles className="w-4 h-4 flex-shrink-0" />
             {!sidebarCollapsed && <span>Sign In</span>}
           </a>

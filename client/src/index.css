@@ -373,3 +373,343 @@
     animation-duration: 150ms;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GENEI PREMIUM DESIGN SYSTEM v2
+
+   Deep matte dark, electric cyan and neon violet accents, frosted glass and
+   soft 16-24px radii. Declared last so it re-skins every existing component
+   without touching a single className.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --radius: 1rem;        /* 16px */
+  --radius-sm: 0.75rem;  /* 12px */
+  --radius-md: 1rem;     /* 16px */
+  --radius-lg: 1.25rem;  /* 20px */
+  --radius-xl: 1.5rem;   /* 24px */
+
+  /* Deep matte dark base */
+  --background: #0d0d0e;
+  --foreground: #f4f5f7;
+  --card: #121214;
+  --card-foreground: #f4f5f7;
+  --popover: #16161a;
+  --popover-foreground: #f4f5f7;
+
+  /* Electric cyan is the action colour; neon violet is the creative one. */
+  --primary: #00f0ff;
+  --primary-foreground: #04141a;
+  --secondary: #1a1a1f;
+  --secondary-foreground: #c9cbd1;
+  --muted: #17171b;
+  --muted-foreground: #8a8d96;
+  --accent: #a855f7;
+  --accent-foreground: #0b0616;
+  --destructive: #ff4d6d;
+  --destructive-foreground: #fff5f7;
+  --border: #232329;
+  --input: #1a1a1f;
+  --ring: #00f0ff;
+
+  --genei-cyan: #00f0ff;
+  --genei-violet: #a855f7;
+  --genei-violet-deep: #7c3aed;
+  --genei-pink: #f472b6;
+  --genei-gold: #fbbf24;
+  --genei-green: #34d399;
+
+  --sidebar: #0a0a0b;
+  --sidebar-foreground: #f4f5f7;
+  --sidebar-primary: #00f0ff;
+  --sidebar-primary-foreground: #04141a;
+  --sidebar-accent: #16161a;
+  --sidebar-accent-foreground: #f4f5f7;
+  --sidebar-border: #1c1c21;
+  --sidebar-ring: #00f0ff;
+
+  --chart-1: #00f0ff;
+  --chart-2: #a855f7;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+
+  /* Motion + glass tokens */
+  --gx-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --gx-fast: 140ms;
+  --gx-base: 220ms;
+  --gx-glass: rgba(22, 22, 26, 0.72);
+  --gx-glass-border: rgba(255, 255, 255, 0.08);
+  --gx-cyan-glow: 0 0 24px rgba(0, 240, 255, 0.35);
+  --gx-violet-glow: 0 0 24px rgba(168, 85, 247, 0.35);
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    background-image:
+      radial-gradient(1100px 620px at 12% -10%, rgba(0, 240, 255, 0.07), transparent 60%),
+      radial-gradient(900px 560px at 92% 6%, rgba(168, 85, 247, 0.09), transparent 62%);
+    background-attachment: fixed;
+  }
+  ::-webkit-scrollbar-track {
+    background: #101013;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2a31;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 240, 255, 0.55);
+  }
+  ::selection {
+    background: rgba(0, 240, 255, 0.26);
+    color: #f4f5f7;
+  }
+  :focus-visible {
+    outline: 2px solid rgba(0, 240, 255, 0.7);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* ── Frosted glass surfaces ── */
+  .gx-glass {
+    background: var(--gx-glass);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    border: 1px solid var(--gx-glass-border);
+  }
+  .gx-glass-strong {
+    background: rgba(18, 18, 20, 0.86);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .gx-panel {
+    background: var(--gx-glass);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    border: 1px solid var(--gx-glass-border);
+    border-radius: 20px;
+    transition: border-color var(--gx-base) var(--gx-ease), transform var(--gx-base) var(--gx-ease);
+  }
+  .gx-panel-hover:hover {
+    border-color: rgba(0, 240, 255, 0.32);
+    transform: translateY(-2px);
+  }
+
+  /* ── The dock: preview controls, ratio toggles, timeline live here ── */
+  .gx-dock {
+    background: rgba(14, 14, 16, 0.9);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 24px;
+    box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* ── Segmented control ── */
+  .gx-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .gx-seg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--muted-foreground);
+    background: transparent;
+    cursor: pointer;
+    transition: color var(--gx-fast) var(--gx-ease), background var(--gx-fast) var(--gx-ease),
+      border-color var(--gx-fast) var(--gx-ease), transform var(--gx-fast) var(--gx-ease);
+    white-space: nowrap;
+  }
+  .gx-seg-btn:hover {
+    color: var(--foreground);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .gx-seg-btn:active {
+    transform: scale(0.97);
+  }
+  .gx-seg-btn[data-active="true"] {
+    color: var(--primary-foreground);
+    background: linear-gradient(135deg, var(--genei-cyan), #6fe9ff);
+    border-color: transparent;
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.35);
+  }
+  .gx-seg-btn[data-active="true"].gx-seg-btn--violet {
+    color: #fff;
+    background: linear-gradient(135deg, var(--genei-violet-deep), var(--genei-violet));
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.4);
+  }
+
+  /* ── Aspect ratio chip with a to-scale mini frame ── */
+  .gx-ratio-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 92px;
+    padding: 12px 8px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all var(--gx-base) var(--gx-ease);
+  }
+  .gx-ratio-chip:hover {
+    border-color: rgba(0, 240, 255, 0.35);
+    background: rgba(0, 240, 255, 0.05);
+    transform: translateY(-2px);
+  }
+  .gx-ratio-chip[data-active="true"] {
+    border-color: rgba(0, 240, 255, 0.7);
+    background: linear-gradient(160deg, rgba(0, 240, 255, 0.14), rgba(168, 85, 247, 0.1));
+    color: var(--foreground);
+    box-shadow: var(--gx-cyan-glow);
+  }
+  .gx-ratio-frame {
+    border: 1.5px solid currentColor;
+    border-radius: 4px;
+    opacity: 0.85;
+  }
+
+  /* ── Micro-interactions ── */
+  .gx-lift {
+    transition: transform var(--gx-base) var(--gx-ease), box-shadow var(--gx-base) var(--gx-ease);
+  }
+  .gx-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px -20px rgba(0, 240, 255, 0.45);
+  }
+  .gx-press:active {
+    transform: scale(0.975);
+  }
+
+  /* ── Primary action ── */
+  .gx-cta {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: none;
+    border-radius: 16px;
+    padding: 12px 22px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--primary-foreground);
+    background: linear-gradient(135deg, var(--genei-cyan), #59e6ff 55%, var(--genei-violet));
+    background-size: 180% 180%;
+    cursor: pointer;
+    box-shadow: 0 12px 34px -14px rgba(0, 240, 255, 0.6);
+    transition: background-position var(--gx-base) var(--gx-ease), transform var(--gx-fast) var(--gx-ease),
+      box-shadow var(--gx-base) var(--gx-ease);
+  }
+  .gx-cta:hover:not(:disabled) {
+    background-position: 100% 50%;
+    box-shadow: 0 16px 40px -14px rgba(0, 240, 255, 0.75);
+  }
+  .gx-cta:active:not(:disabled) {
+    transform: scale(0.975);
+  }
+  .gx-cta:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* ── Status pills ── */
+  .gx-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+  .gx-pill--ready {
+    color: #6ef2c4;
+    background: rgba(52, 211, 153, 0.12);
+    border-color: rgba(52, 211, 153, 0.3);
+  }
+  .gx-pill--pending {
+    color: #ffd479;
+    background: rgba(251, 191, 36, 0.12);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+  .gx-pill--blocked {
+    color: #ff9bb0;
+    background: rgba(255, 77, 109, 0.12);
+    border-color: rgba(255, 77, 109, 0.3);
+  }
+  .gx-pill--info {
+    color: #8ce9ff;
+    background: rgba(0, 240, 255, 0.1);
+    border-color: rgba(0, 240, 255, 0.28);
+  }
+
+  /* ── Timeline ── */
+  .gx-track {
+    position: relative;
+    height: 64px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+  }
+  .gx-clip {
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    background: linear-gradient(160deg, rgba(0, 240, 255, 0.2), rgba(168, 85, 247, 0.16));
+    transition: border-color var(--gx-fast) var(--gx-ease), transform var(--gx-fast) var(--gx-ease);
+  }
+  .gx-clip:hover {
+    border-color: rgba(0, 240, 255, 0.85);
+    transform: translateY(-1px);
+  }
+  .gx-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--genei-cyan);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gx-lift,
+  .gx-panel,
+  .gx-ratio-chip,
+  .gx-seg-btn,
+  .gx-cta,
+  .gx-clip {
+    transition: none !important;
+  }
+  .gx-lift:hover,
+  .gx-ratio-chip:hover,
+  .gx-panel-hover:hover {
+    transform: none;
+  }
+}

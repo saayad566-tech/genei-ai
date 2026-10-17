@@ -9,6 +9,8 @@ import {
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import DagOrchestrationDashboard from "@/components/DagOrchestrationDashboard";
+import { GenerationSettingsDock } from "@/components/GenerationSettingsDock";
+import { resolveOutputSize, estimateShotMemoryMB, type GenerationSettings, type AspectRatioId, type FrameRateId, type ResolutionId } from "@shared/generationSettings";
 
 const videoTypes = [
   { id: "cinematic", label: "Cinematic", icon: Film, color: "oklch(0.65 0.22 285)" },
@@ -108,6 +110,23 @@ export default function VideoStudio() {
     }
   };
 
+  // Generation settings shared with the server: what the dock shows is exactly
+  // what the renderer is asked to produce.
+  const genSettings: GenerationSettings = {
+    aspectRatio: aspectRatio as AspectRatioId,
+    resolution: resolution as ResolutionId,
+    fps: fps as FrameRateId,
+    durationSeconds: duration,
+  };
+  const applyGenSettings = (next: GenerationSettings) => {
+    setAspectRatio(next.aspectRatio);
+    setResolution(next.resolution);
+    setFps(next.fps);
+    setDuration(next.durationSeconds);
+  };
+  const outputSize = resolveOutputSize(genSettings.aspectRatio, genSettings.resolution);
+  const estimatedMemoryMB = estimateShotMemoryMB(genSettings);
+
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
       {/* Header */}
@@ -203,7 +222,7 @@ export default function VideoStudio() {
             </div>
           )}
           {/* Tabs */}
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "oklch(0.12 0.015 265)", border: "1px solid oklch(0.20 0.02 265)" }}>
+          <div className="gx-seg w-full" role="tablist" aria-label="Studio sections">
             {[
               { id: "create", label: "Create", icon: Wand2 },
               { id: "timeline", label: "Timeline", icon: AlignLeft },
@@ -211,64 +230,85 @@ export default function VideoStudio() {
             ].map((tab) => (
               <button
                 key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                data-active={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  activeTab === tab.id ? "text-white" : "text-muted-foreground hover:text-foreground"
-                }`}
-                style={activeTab === tab.id ? {
-                  background: "linear-gradient(135deg, oklch(0.60 0.25 310), oklch(0.65 0.22 285))"
-                } : {}}
+                className="gx-seg-btn flex-1 justify-center"
               >
-                <tab.icon className="w-4 h-4" />
+                <tab.icon className="h-4 w-4" />
                 {tab.label}
               </button>
             ))}
           </div>
 
           {/* Create Tab */}
+          {/* Create Tab — preview and controls take centre stage */}
           {activeTab === "create" && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              <div className="genei-card p-5 rounded-xl space-y-4">
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+              {/* ── Preview stage ── */}
+              <div className="gx-panel overflow-hidden p-4 sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="gx-pill gx-pill--info">Preview</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {outputSize.width}×{outputSize.height} · {fps} FPS · {duration}s
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isGenerating ? (
+                      <span className="gx-pill gx-pill--pending">Generating</span>
+                    ) : projectId !== null ? (
+                      <span className="gx-pill gx-pill--ready">Project {projectId}</span>
+                    ) : (
+                      <span className="gx-pill gx-pill--info">No project yet</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid place-items-center">
+                  <div
+                    className="relative grid place-items-center overflow-hidden rounded-2xl border border-white/10 bg-black/50"
+                    style={{ aspectRatio: `${outputSize.width} / ${outputSize.height}`, width: "min(100%, 560px)" }}
+                  >
+                    <div className="px-6 text-center">
+                      {projectId === null ? (
+                        <>
+                          <Wand2 className="mx-auto h-7 w-7 text-[var(--genei-cyan)] opacity-80" />
+                          <p className="mt-3 text-sm font-medium text-foreground">Your frame is ready</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            Describe the shot below and press Generate. The Director plans the scenes, then renders into exactly this frame.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="mx-auto h-7 w-7 animate-spin text-[var(--genei-cyan)]" />
+                          <p className="mt-3 text-sm font-medium text-foreground">Director is working on this project</p>
+                          <p className="mt-1 text-xs text-muted-foreground">Shots appear on the Timeline tab as each take is approved.</p>
+                        </>
+                      )}
+                    </div>
+                    <span className="pointer-events-none absolute inset-0 rounded-2xl" style={{ boxShadow: "inset 0 0 80px rgba(0,240,255,0.06)" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Prompt composer ── */}
+              <div className="gx-panel p-4 sm:p-5">
                 <label className="text-sm font-semibold text-foreground">Describe your video</label>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="e.g. A cinematic drone shot of a futuristic neon city at night, rain-soaked streets reflecting purple and blue lights, slow motion, 4K quality..."
+                  placeholder="e.g. A cinematic drone shot of a futuristic neon city at night, rain-soaked streets reflecting cyan and violet light, slow motion…"
                   rows={4}
-                  className="w-full genei-input resize-none"
+                  className="genei-input mt-2 w-full resize-none"
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Aspect Ratio</label>
-                    <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="w-full genei-input text-sm py-2">
-                      <option value="16:9">16:9 Landscape</option>
-                      <option value="9:16">9:16 Portrait</option>
-                      <option value="1:1">1:1 Square</option>
-                      <option value="4:3">4:3 Classic</option>
-                      <option value="21:9">21:9 Cinematic</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Automated Script Translation</label>
-                    <div className="flex items-center gap-2 py-1.5">
-                      <input type="checkbox" checked={enableTranslation} onChange={(e) => setEnableTranslation(e.target.checked)} className="rounded border-border accent-primary" />
-                      <span className="text-xs text-foreground">Translate brief</span>
-                      <select aria-label="Target translation language" disabled={!enableTranslation} value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value as any)} className="genei-input text-xs py-1 px-2 disabled:opacity-50">
-                        <option value="en">English (EN)</option>
-                        <option value="es">Spanish (ES)</option>
-                        <option value="fr">French (FR)</option>
-                        <option value="ja">Japanese (JA)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Duration: {duration}s</label>
-                    <input type="range" min={5} max={60} value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="w-full accent-purple-500 mt-2" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Style</label>
-                    <select className="w-full genei-input text-sm py-2">
+                    <label className="mb-1 block text-xs text-muted-foreground">Style</label>
+                    <select className="genei-input w-full py-2 text-sm">
                       <option>Cinematic</option>
                       <option>Documentary</option>
                       <option>Anime</option>
@@ -276,41 +316,66 @@ export default function VideoStudio() {
                       <option>Vintage Film</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">Automated script translation</label>
+                    <div className="flex items-center gap-2 py-1.5">
+                      <input type="checkbox" checked={enableTranslation} onChange={(e) => setEnableTranslation(e.target.checked)} className="rounded border-border accent-primary" />
+                      <span className="text-xs text-foreground">Translate brief</span>
+                      <select aria-label="Target translation language" disabled={!enableTranslation} value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value as any)} className="genei-input px-2 py-1 text-xs disabled:opacity-50">
+                        <option value="en">English (EN)</option>
+                        <option value="es">Spanish (ES)</option>
+                        <option value="fr">French (FR)</option>
+                        <option value="ja">Japanese (JA)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Feature Toggles */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="mt-4 grid grid-cols-2 gap-3">
                   {[
                     { label: "Lip Sync", desc: "Sync audio to video", value: lipSync, set: setLipSync, icon: Mic },
                     { label: "Auto Subtitles", desc: "AI-generated captions", value: autoSubtitles, set: setAutoSubtitles, icon: Subtitles },
                   ].map((toggle) => (
-                    <div key={toggle.label} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "oklch(0.14 0.02 265)" }}>
+                    <div key={toggle.label} className="gx-panel flex items-center justify-between p-3">
                       <div className="flex items-center gap-2">
-                        <toggle.icon className="w-4 h-4 text-primary" />
+                        <toggle.icon className="h-4 w-4 text-[var(--genei-cyan)]" />
                         <div>
                           <div className="text-xs font-medium text-foreground">{toggle.label}</div>
                           <div className="text-[10px] text-muted-foreground">{toggle.desc}</div>
                         </div>
                       </div>
                       <button
+                        type="button"
+                        aria-pressed={toggle.value}
+                        aria-label={toggle.label}
                         onClick={() => toggle.set(!toggle.value)}
-                        className={`w-9 h-5 rounded-full transition-all duration-200 relative ${toggle.value ? "bg-primary" : "bg-secondary"}`}
+                        className={`relative h-5 w-9 rounded-full transition-all duration-200 ${toggle.value ? "bg-[var(--genei-cyan)]" : "bg-secondary"}`}
                       >
-                        <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 transition-all duration-200 ${toggle.value ? "left-5" : "left-0.5"}`} />
+                        <div className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all duration-200 ${toggle.value ? "left-5" : "left-0.5"}`} />
                       </button>
                     </div>
                   ))}
                 </div>
-
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleGenerate}
-                  className="w-full genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm"
-                >
-                  <Wand2 className="w-4 h-4" />
-                  Generate Video
-                </motion.button>
               </div>
+
+              {/* ── Generation dock: ratio, frame rate, resolution, duration ── */}
+              <GenerationSettingsDock
+                settings={genSettings}
+                onChange={applyGenSettings}
+                disabled={isGenerating}
+                footer={
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      Estimated working memory for this shot: <span className="font-mono text-foreground">{estimatedMemoryMB} MB</span> — jobs are queued one at a
+                      time so a laptop is never overloaded.
+                    </span>
+                    <motion.button whileTap={{ scale: 0.97 }} onClick={handleGenerate} disabled={isGenerating} className="gx-cta">
+                      {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                      {isGenerating ? "Generating…" : "Generate video"}
+                    </motion.button>
+                  </div>
+                }
+              />
             </motion.div>
           )}
 
