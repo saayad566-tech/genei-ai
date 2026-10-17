@@ -48,6 +48,7 @@ pids
 
 # Coverage directory used by tools like istanbul
 coverage/
+.pytest_cache/
 *.lcov
 
 # nyc test coverage
