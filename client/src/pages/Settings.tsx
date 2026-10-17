@@ -241,7 +241,10 @@ export default function Settings() {
                   <div>
                     <div className="font-semibold text-foreground">{user?.name || "Genei User"}</div>
                     <div className="text-sm text-muted-foreground">{user?.email || "user@genei.ai"}</div>
-                    <button className="text-xs text-primary hover:underline mt-1">Change avatar</button>
+                    <button
+                      type="button"
+                      onClick={() => toast.info("Avatar upload is not connected yet", { description: "Profile images will be editable once account media storage is enabled." })}
+                      className="text-xs text-primary hover:underline mt-1">Change avatar</button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -291,7 +294,12 @@ export default function Settings() {
                   <label className="text-sm font-medium text-foreground mb-3 block">Accent Color</label>
                   <div className="flex gap-3">
                     {["oklch(0.65 0.22 285)", "oklch(0.60 0.25 310)", "oklch(0.72 0.18 210)", "oklch(0.78 0.18 75)", "oklch(0.68 0.20 155)"].map((color) => (
-                      <button key={color} className="w-8 h-8 rounded-full border-2 border-transparent hover:border-white transition-all"
+                      <button
+                        key={color}
+                        type="button"
+                        aria-label={`Select accent colour ${color}`}
+                        onClick={() => toast.info("Accent colour is not connected yet", { description: "Theme accents are fixed to the default palette until theme customisation is wired to the app shell." })}
+                        className="w-8 h-8 rounded-full border-2 border-transparent hover:border-white transition-all"
                         style={{ background: color }} />
                     ))}
                   </div>

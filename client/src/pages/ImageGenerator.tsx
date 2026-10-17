@@ -397,7 +397,11 @@ export default function ImageGenerator() {
                       style={{ boxShadow: "0 0 40px oklch(0.65 0.22 285 / 0.2)" }}
                     />
                     <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <button className="p-2 rounded-lg bg-black/60 text-white">
+                      <button
+                        type="button"
+                        aria-label="Open the generated image in a new tab"
+                        onClick={() => window.open(generatedImage, "_blank", "noopener,noreferrer")}
+                        className="p-2 rounded-lg bg-black/60 text-white">
                         <Maximize2 className="w-5 h-5" />
                       </button>
                     </div>

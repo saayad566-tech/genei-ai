@@ -321,7 +321,10 @@ export default function VideoStudio() {
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-foreground">Timeline Editor</h3>
                   <div className="flex gap-2">
-                    <button className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toast.info("Clip editing is not connected yet", { description: "Timeline clips become editable once a rendered project is available for this workspace." })}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-all">
                       <Plus className="w-3 h-3" /> Add Clip
                     </button>
                   </div>
@@ -349,7 +352,11 @@ export default function VideoStudio() {
 
                 {/* Playhead */}
                 <div className="flex items-center gap-3 pt-2 border-t border-border">
-                  <button className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  <button
+                    type="button"
+                    aria-label="Preview the timeline"
+                    onClick={() => toast.info("Timeline preview is not connected yet", { description: "Playback starts once the shot renders below are attached to this project." })}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center"
                     style={{ background: "linear-gradient(135deg, oklch(0.60 0.25 310), oklch(0.65 0.22 285))" }}>
                     <Play className="w-4 h-4 text-white" />
                   </button>

@@ -89,4 +89,6 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Feature queries live in the tRPC routers (see `server/routers.ts` and
+// `server/routers/globalSettings.ts`); this module owns only the connection and
+// the shared user helpers.

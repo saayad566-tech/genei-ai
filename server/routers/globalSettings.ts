@@ -5,6 +5,14 @@ import { eq, and, desc, count } from "drizzle-orm";
 import { processVerifiedWebhookEvent } from "../webhookProcessor";
 import { z } from "zod/v4";
 import { invokeLLM } from "../_core/llm";
+import { encryptSecret, decryptSecret, isEncryptedSecret } from "../_core/keyVault";
+
+// Webhook settings live in the same encrypted column as provider API keys.
+// Rows written before this change hold plaintext JSON, so they are read as-is
+// and re-encrypted the next time the settings are saved.
+function readWebhookPayload(stored: string): string {
+  return isEncryptedSecret(stored) ? decryptSecret(stored) : stored;
+}
 
 export const globalSettingsRouter = router({
   getWebhookSettings: protectedProcedure.query(async ({ ctx }) => {
@@ -13,7 +21,7 @@ export const globalSettingsRouter = router({
     const found = await db.select().from(apiKeys).where(and(eq(apiKeys.userId, ctx.user.id), eq(apiKeys.provider, "genei_webhook"))).limit(1);
     if (!found.length) return { webhookUrl: "", webhookSecret: "", enabled: false };
     try {
-      const data = JSON.parse(found[0].encryptedKey);
+      const data = JSON.parse(readWebhookPayload(found[0].encryptedKey));
       return { webhookUrl: data.webhookUrl || "", webhookSecret: data.webhookSecret || "", enabled: Boolean(data.enabled) };
     } catch {
       return { webhookUrl: "", webhookSecret: "", enabled: false };
@@ -26,7 +34,7 @@ export const globalSettingsRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
       const existing = await db.select().from(apiKeys).where(and(eq(apiKeys.userId, ctx.user.id), eq(apiKeys.provider, "genei_webhook"))).limit(1);
-      const payload = JSON.stringify(input);
+      const payload = encryptSecret(JSON.stringify(input));
       if (existing.length > 0) {
         await db.update(apiKeys).set({ encryptedKey: payload, updatedAt: new Date() }).where(eq(apiKeys.id, existing[0].id));
       } else {

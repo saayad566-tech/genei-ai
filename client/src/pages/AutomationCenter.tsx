@@ -4,11 +4,14 @@ import { motion } from "framer-motion";
 import { Zap, Plus, Play, Pause, ChevronRight, ArrowRight, Clock, Globe, Music, Image, Video, Bot, Mail, Share2, Database, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
+// `triggerId` / `actionIds` reference real entries in triggerTypes / actionTypes,
+// so selecting a template can genuinely populate the builder state instead of
+// only claiming to load it.
 const workflowTemplates = [
-  { name: "Daily Content Pipeline", desc: "Auto-generate & post social content daily", triggers: ["Schedule"], actions: ["AI Image", "Caption", "Post"], color: "oklch(0.65 0.22 285)" },
-  { name: "Music Release Automation", desc: "Create song → generate cover → publish", triggers: ["Manual"], actions: ["Music", "Image", "Distribute"], color: "oklch(0.60 0.25 310)" },
-  { name: "Video Repurposing", desc: "Long video → shorts → thumbnails → post", triggers: ["Upload"], actions: ["Video", "Thumbnail", "Share"], color: "oklch(0.72 0.18 210)" },
-  { name: "Brand Kit Generator", desc: "Company name → full brand identity", triggers: ["Prompt"], actions: ["Logo", "Colors", "Fonts", "Export"], color: "oklch(0.78 0.18 75)" },
+  { name: "Daily Content Pipeline", desc: "Auto-generate & post social content daily", triggers: ["Schedule"], actions: ["AI Image", "Caption", "Post"], triggerId: "schedule", actionIds: ["image", "ai", "post"], color: "oklch(0.65 0.22 285)" },
+  { name: "Music Release Automation", desc: "Create song → generate cover → publish", triggers: ["Manual"], actions: ["Music", "Image", "Distribute"], triggerId: "manual", actionIds: ["music", "image", "publish"], color: "oklch(0.60 0.25 310)" },
+  { name: "Video Repurposing", desc: "Long video → shorts → thumbnails → post", triggers: ["Upload"], actions: ["Video", "Thumbnail", "Share"], triggerId: "upload", actionIds: ["video", "image", "post"], color: "oklch(0.72 0.18 210)" },
+  { name: "Brand Kit Generator", desc: "Company name → full brand identity", triggers: ["Prompt"], actions: ["Logo", "Colors", "Fonts", "Export"], triggerId: "manual", actionIds: ["image", "ai", "publish"], color: "oklch(0.78 0.18 75)" },
 ];
 
 const triggerTypes = [
@@ -132,7 +135,11 @@ export default function AutomationCenter() {
             {workflowTemplates.map((tmpl) => (
               <div key={tmpl.name} className="p-4 rounded-xl border border-border hover:border-primary/40 cursor-pointer transition-all group"
                 style={{ background: "oklch(0.13 0.015 265)" }}
-                onClick={() => toast.info(`Loading ${tmpl.name} template`)}>
+                onClick={() => {
+                  setSelectedTrigger(tmpl.triggerId);
+                  setSelectedActions(tmpl.actionIds);
+                  toast.success(`Applied the ${tmpl.name} template`, { description: "The trigger and actions above are filled in. Saving and running stay in preview until the automation backend is connected." });
+                }}>
                 <div className="flex items-start justify-between mb-2">
                   <div className="text-sm font-semibold text-foreground">{tmpl.name}</div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />

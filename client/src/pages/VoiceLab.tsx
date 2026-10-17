@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mic, Play, Pause, Wand2, Globe, Download, Loader2, Volume2, Radio, Headphones } from "lucide-react";
+import { Mic, Play, Pause, Wand2, Globe, Download, Volume2, Radio, Headphones } from "lucide-react";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
 
 const voices = [
   { id: "alloy", name: "Alloy", desc: "Neutral & balanced", gender: "Neutral", lang: "EN" },
@@ -13,11 +12,13 @@ const voices = [
   { id: "shimmer", name: "Shimmer", desc: "Soft & gentle", gender: "Female", lang: "EN" },
 ];
 
+// `seed` is the real payload each template writes into the episode-topic field,
+// so selecting a template genuinely populates the editor.
 const podcastTemplates = [
-  { name: "Interview Style", desc: "Host + guest format", icon: "🎙️" },
-  { name: "Solo Monologue", desc: "Single narrator", icon: "🎤" },
-  { name: "News Briefing", desc: "Daily news format", icon: "📰" },
-  { name: "Storytelling", desc: "Narrative podcast", icon: "📖" },
+  { name: "Interview Style", desc: "Host + guest format", icon: "🎙️", seed: "Host: Welcome to the show.\nGuest: Thanks for having me.\n\nTopic: [insert the guest's area of expertise]\nKey points:\n1. \n2. \n3. " },
+  { name: "Solo Monologue", desc: "Single narrator", icon: "🎤", seed: "Episode topic: [insert topic]\n\nOpening hook: \nMain argument: \nSupporting points:\n1. \n2. \nClosing takeaway: " },
+  { name: "News Briefing", desc: "Daily news format", icon: "📰", seed: "Date: \n\nHeadline 1: [what happened]\nWhy it matters: \nHeadline 2: \nWhy it matters: \nHeadline 3: \nWhy it matters: " },
+  { name: "Storytelling", desc: "Narrative podcast", icon: "📖", seed: "Story premise: [insert premise]\n\nSetting: \nCentral character: \nConflict: \nTurning point: \nResolution: " },
 ];
 
 export default function VoiceLab() {
@@ -26,8 +27,7 @@ export default function VoiceLab() {
   const [speed, setSpeed] = useState(1.0);
   const [pitch, setPitch] = useState(1.0);
   const [activeTab, setActiveTab] = useState<"tts" | "clone" | "podcast">("tts");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [podcastTopic, setPodcastTopic] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
 
   const handleGenerate = () => {
@@ -45,6 +45,7 @@ export default function VoiceLab() {
         <div>
           <h1 className="text-2xl font-bold font-display genei-gradient-text">Voice Lab</h1>
           <p className="text-xs text-muted-foreground">AI voice cloning & synthesis</p>
+          <span className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200">Preview — synthesis not connected</span>
         </div>
       </div>
 
@@ -113,7 +114,11 @@ export default function VoiceLab() {
                         <span className="text-[10px] text-muted-foreground">0:00</span>
                       </div>
                     </div>
-                    <button className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                    <button
+                      type="button"
+                      aria-label="Download the generated audio"
+                      onClick={() => toast.info("Audio download is not connected yet", { description: "Rendered audio becomes downloadable once a synthesis provider is connected." })}
+                      className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
                       <Download className="w-4 h-4" />
                     </button>
                   </div>
@@ -130,7 +135,10 @@ export default function VoiceLab() {
                   <Mic className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                   <p className="text-sm font-medium text-foreground">Upload voice sample</p>
                   <p className="text-xs text-muted-foreground mt-1">MP3, WAV — minimum 30 seconds for best results</p>
-                  <button className="mt-4 genei-btn-primary text-sm px-6 py-2">Choose File</button>
+                  <button
+                    type="button"
+                    onClick={() => toast.info("Voice sample upload is not connected yet", { description: "Connect an ElevenLabs key in API Integrations to enable voice cloning uploads." })}
+                    className="mt-4 genei-btn-primary text-sm px-6 py-2">Choose File</button>
                 </div>
                 <div className="p-3 rounded-lg text-xs" style={{ background: "oklch(0.14 0.02 265)" }}>
                   <strong className="text-foreground">ElevenLabs Required</strong>
@@ -148,14 +156,17 @@ export default function VoiceLab() {
                   {podcastTemplates.map((tmpl) => (
                     <div key={tmpl.name} className="p-4 rounded-xl border border-border hover:border-primary/40 cursor-pointer transition-all"
                       style={{ background: "oklch(0.13 0.015 265)" }}
-                      onClick={() => toast.info(`Loading ${tmpl.name} template`)}>
+                      onClick={() => {
+                        setPodcastTopic(tmpl.seed);
+                        toast.success(`Applied the ${tmpl.name} template`, { description: "The episode topic below is filled in. Generation stays in preview until an ElevenLabs key is connected." });
+                      }}>
                       <div className="text-2xl mb-2">{tmpl.icon}</div>
                       <div className="text-sm font-medium text-foreground">{tmpl.name}</div>
                       <div className="text-xs text-muted-foreground">{tmpl.desc}</div>
                     </div>
                   ))}
                 </div>
-                <textarea placeholder="Describe your podcast episode topic and key points..." rows={4} className="w-full genei-input resize-none" />
+                <textarea value={podcastTopic} onChange={(event) => setPodcastTopic(event.target.value)} placeholder="Describe your podcast episode topic and key points..." rows={4} className="w-full genei-input resize-none" />
                 <button className="w-full genei-btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm"
                   onClick={() => toast.info("Podcast generation requires ElevenLabs API")}>
                   <Headphones className="w-4 h-4" /> Generate Podcast

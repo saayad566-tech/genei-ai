@@ -5,9 +5,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import DagOrchestrationDashboard, { type DirectorData } from "./DagOrchestrationDashboard";
 
+// The server returns full director_jobs rows, so the fixture carries the same
+// timestamp fields the duration timeline reads.
+const jobStartedAt = new Date("2026-08-22T21:40:00.000Z");
+const jobFinishedAt = new Date("2026-08-22T21:41:30.000Z");
+
 const nodeDetails = {
   node: { id: "shot-20", kind: "shot", label: "shot-1-1", status: "generating", progress: 42, error: null },
-  jobs: [{ id: 30, stage: "shot_generation", status: "blocked", progress: 42, error: null, attempt: 1, updatedAt: new Date() }],
+  jobs: [{ id: 30, stage: "shot_generation", status: "blocked", progress: 42, error: null, attempt: 1, createdAt: jobStartedAt, startedAt: jobStartedAt, finishedAt: jobFinishedAt, updatedAt: jobFinishedAt }],
   logs: [{ id: 50, level: "info", message: "Provider submitted; waiting for callback", metadata: null, createdAt: new Date() }],
   assets: [{ id: 60, kind: "preview_video", source: "runway", storageUrl: "https://cdn.example/shot-20.mp4", mimeType: "video/mp4", sizeBytes: 2048, metadata: null, createdAt: new Date() }],
 };
@@ -57,6 +62,8 @@ describe("DAG orchestration dashboard", () => {
     expect(screen.getByLabelText("DAG node inspection")).toBeInTheDocument();
     expect(screen.getByText("Provider submitted; waiting for callback")).toBeInTheDocument();
     expect(screen.getByText("Open asset")).toBeInTheDocument();
+    // The timeline derives its duration from the job's real started/finished stamps.
+    expect(screen.getByText("90s duration")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "Action phase start" }), { target: { value: "walking" } });
     fireEvent.click(screen.getByRole("button", { name: "Save boundary review" }));
     expect(onSaveBoundary).toHaveBeenCalledWith(20, expect.objectContaining({ status: "needs_review" }));

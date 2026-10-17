@@ -5,6 +5,15 @@ import { trpc } from "@/lib/trpc";
 import { CheckCircle2, Loader2, Webhook, KeyRound, ShieldCheck, Send } from "lucide-react";
 import { toast } from "sonner";
 
+// A webhook signing secret must be unpredictable: it is the HMAC key that proves a
+// provider callback is genuine. Math.random() is not cryptographically secure, so
+// generate 256 bits from the platform CSPRNG instead.
+function generateWebhookSecret(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `whsec_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export default function WebhookSettingsPanel() {
   const utils = trpc.useUtils();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -64,7 +73,7 @@ export default function WebhookSettingsPanel() {
           <label className="text-xs font-medium text-foreground">HMAC Verification Secret</label>
           <div className="flex items-center gap-2">
             <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="whsec_..." className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-primary" />
-            <button type="button" onClick={() => setSecret(`whsec_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`)} className="rounded-xl border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground">Generate</button>
+            <button type="button" onClick={() => setSecret(generateWebhookSecret())} className="rounded-xl border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground">Generate</button>
           </div>
         </div>
       </div>

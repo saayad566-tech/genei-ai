@@ -50,7 +50,10 @@ export default function Marketplace() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates..."
               className="pl-9 pr-4 py-2 genei-input text-sm w-64" />
           </div>
-          <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground transition-all">
+          <button
+            type="button"
+            onClick={() => toast.info("Template filtering is not connected yet", { description: "Category filters arrive with the published marketplace catalog. Use search to narrow this preview list." })}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground transition-all">
             <Filter className="w-4 h-4" /> Filter
           </button>
         </div>

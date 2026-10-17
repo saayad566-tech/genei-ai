@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { generateImage } from "./_core/imageGeneration";
 import { invokeLLM } from "./_core/llm";
+import { encryptSecret, decryptSecret } from "./_core/keyVault";
 import { generateWithModel, getModelCapabilities } from "./modelGateway";
 import { checkVideoProviderHealth } from "./videoProviders";
 import { submitVideoGeneration, pollVideoGenerationTask } from "./videoGenerationAdapters";
@@ -17,39 +18,6 @@ import { compileDirectorGraph } from "./directorCompiler";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
-
-// Versioned authenticated encryption for user API keys.
-// Legacy values remain readable so existing connections can be migrated on update.
-function encryptionKey(): Buffer {
-  return crypto.createHash("sha256").update(process.env.JWT_SECRET || "genei-secret").digest();
-}
-
-function obfuscateKey(key: string): string {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
-  const ciphertext = Buffer.concat([cipher.update(key, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return `v2:${Buffer.concat([iv, tag, ciphertext]).toString("base64")}`;
-}
-
-function deobfuscateKey(encoded: string): string {
-  if (!encoded.startsWith("v2:")) {
-    const secret = process.env.JWT_SECRET || "genei-secret";
-    const buf = Buffer.from(encoded, "base64");
-    const secretBuf = Buffer.from(secret, "utf8");
-    const result = Buffer.alloc(buf.length);
-    for (let i = 0; i < buf.length; i++) result[i] = buf[i] ^ secretBuf[i % secretBuf.length];
-    return result.toString("utf8");
-  }
-
-  const payload = Buffer.from(encoded.slice(3), "base64");
-  const iv = payload.subarray(0, 12);
-  const tag = payload.subarray(12, 28);
-  const ciphertext = payload.subarray(28);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey(), iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
-}
 
 type ProviderHealth = { status: "healthy" | "invalid" | "unreachable" | "unsupported" | "needs_configuration"; message: string; checkedAt: string };
 
@@ -352,7 +320,7 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("Database unavailable");
-        const encrypted = obfuscateKey(input.key);
+        const encrypted = encryptSecret(input.key);
         // Check if provider already exists for this user
         const existing = await db.select().from(apiKeys)
           .where(and(eq(apiKeys.userId, ctx.user.id), eq(apiKeys.provider, input.provider)))
@@ -383,7 +351,7 @@ export const appRouter = router({
           .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)))
           .limit(1);
         if (!existing.length) throw new Error("Key not found");
-        const health = await checkProviderHealth(existing[0].provider, deobfuscateKey(existing[0].encryptedKey));
+        const health = await checkProviderHealth(existing[0].provider, decryptSecret(existing[0].encryptedKey));
         if (health.status === "healthy") {
           await db.update(apiKeys).set({ isActive: true, lastUsedAt: new Date(), updatedAt: new Date() }).where(eq(apiKeys.id, input.id));
         }
