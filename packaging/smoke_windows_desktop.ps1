@@ -6,12 +6,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 $installedExe = Join-Path $InstalledDir "GeneiAI.exe"
+# The server bundle must exist as a real file (it is spawned as a child process),
+# and the application archive must exist. node_modules is intentionally packed
+# inside app.asar rather than unpacked, so it is not asserted as a loose folder.
 $serverEntry = Join-Path $InstalledDir "resources\app.asar.unpacked\dist\index.js"
-$unpackedDependencies = Join-Path $InstalledDir "resources\app.asar.unpacked\node_modules"
+$appArchive = Join-Path $InstalledDir "resources\app.asar"
 $logPath = Join-Path $env:RUNNER_TEMP "genei-desktop-startup-smoke.log"
 $dataDir = Join-Path $env:RUNNER_TEMP "genei-desktop-smoke-data"
 
-foreach ($requiredPath in @($installedExe, $serverEntry, $unpackedDependencies)) {
+foreach ($requiredPath in @($installedExe, $serverEntry, $appArchive)) {
   if (-not (Test-Path $requiredPath)) {
     throw "Installed desktop smoke test is missing: $requiredPath"
   }

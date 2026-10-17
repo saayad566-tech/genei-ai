@@ -5,13 +5,19 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const PRODUCT_NAME = "Genei AI Desktop";
+const PUBLISHER_NAME = "SaayadTech";
 const isDevelopment = !app.isPackaged;
 const STARTUP_TIMEOUT_MS = 30_000;
 const SERVER_PROBE_TIMEOUT_MS = 1_500;
 
-// The desktop UI must start even when a machine has no usable display driver;
-// hardware acceleration for AI workloads is detected by the embedded probe.
-app.commandLine.appendSwitch("disable-gpu");
+// Keep hardware acceleration ON. Chromium already falls back to software
+// rendering when a machine has no usable display driver, but disabling the GPU
+// unconditionally forced the entire React UI onto the CPU — which is what made
+// the window stutter and freeze on ordinary laptops. The switch below is now an
+// explicit escape hatch for the rare driver that crashes the GPU process.
+if (process.env.GENEI_DISABLE_GPU === "1") {
+  app.commandLine.appendSwitch("disable-gpu");
+}
 
 let mainWindow;
 let serverProcess;
@@ -59,13 +65,46 @@ function sidecarEntry() {
   return path.join(runtimeRoot(), executable);
 }
 
-function writeDiagnostic(message) {
+// Diagnostics are buffered and flushed asynchronously. The previous version used
+// fs.appendFileSync on every single line the embedded server printed, which
+// blocked the Electron main thread and made the whole window stutter. Nothing
+// below may use a synchronous filesystem API.
+const DIAGNOSTIC_FLUSH_MS = 400;
+const DIAGNOSTIC_MAX_BYTES = 1_500_000;
+let diagnosticQueue = [];
+let diagnosticTimer = null;
+
+function flushDiagnostics() {
+  diagnosticTimer = null;
+  if (diagnosticQueue.length === 0) return;
+  const payload = diagnosticQueue.join("");
+  diagnosticQueue = [];
   try {
     const logDirectory = app.getPath("userData");
     fs.mkdirSync(logDirectory, { recursive: true });
-    fs.appendFileSync(path.join(logDirectory, "desktop-startup.log"), `${new Date().toISOString()} ${message}\n`);
+    const logPath = path.join(logDirectory, "desktop-startup.log");
+    fs.stat(logPath, (statError, stats) => {
+      if (!statError && stats && stats.size > DIAGNOSTIC_MAX_BYTES) {
+        fs.writeFile(logPath, payload, () => {});
+      } else {
+        fs.appendFile(logPath, payload, () => {});
+      }
+    });
   } catch {
     // Diagnostics must never prevent the application from showing its error state.
+  }
+}
+
+function writeDiagnostic(message) {
+  try {
+    diagnosticQueue.push(`${new Date().toISOString()} ${message}\n`);
+    if (diagnosticQueue.length > 400) diagnosticQueue.splice(0, diagnosticQueue.length - 400);
+    if (!diagnosticTimer) {
+      diagnosticTimer = setTimeout(flushDiagnostics, DIAGNOSTIC_FLUSH_MS);
+      if (typeof diagnosticTimer.unref === "function") diagnosticTimer.unref();
+    }
+  } catch {
+    // Never let logging break startup.
   }
 }
 
@@ -76,6 +115,134 @@ function loadingPage() {
 function errorPage(message) {
   const safeMessage = String(message).replace(/[&<>\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\\": "&#92;", '"': "&quot;" })[character]);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${PRODUCT_NAME} — Startup issue</title><style>html,body{margin:0;height:100%;background:#07070b;color:#f7f5ff;font-family:Segoe UI,system-ui,sans-serif}body{display:grid;place-items:center}.card{width:min(620px,calc(100vw - 48px));padding:32px;border:1px solid #7f1d3a;border-radius:20px;background:#170b12;box-shadow:0 0 80px #7f1d3a33}h1{font-size:24px;margin:0 0 10px}p{color:#d6c6ce;line-height:1.6}code{display:block;margin-top:18px;padding:12px;border-radius:10px;background:#09090d;color:#fca5a5;white-space:pre-wrap;word-break:break-word;font:12px Consolas,monospace}</style></head><body><div class="card"><h1>Genei AI could not start</h1><p>Close any older Genei AI window and try again. If the installer is blocked, use the portable Genei AI Desktop download from the project page.</p><code>${safeMessage}</code></div></body></html>`;
+}
+
+// ── Terms and Conditions ──────────────────────────────────────────────────
+// The first run requires explicit acceptance before any workspace starts, and
+// the same terms are attached to the Windows installer as its licence page.
+const TERMS_VERSION = "2026-10-17";
+
+const TERMS_SECTIONS = [
+  {
+    title: "1. Acceptance of these Terms",
+    body: `Genei AI Desktop is published by ${PUBLISHER_NAME}. By installing, launching or using the application you agree to these Terms and Conditions. If you do not agree, decline below and the application will close, and you should uninstall it.`,
+  },
+  {
+    title: "2. What Genei AI Desktop is",
+    body: "Genei AI Desktop is an independent platform for autonomous directors. It lets you plan, direct and assemble video productions by routing work across multiple AI models. It is an independent product: it is not affiliated with, endorsed by, or sponsored by any AI model provider whose models it can call.",
+  },
+  {
+    title: "3. Licence to use",
+    body: `Subject to these Terms, ${PUBLISHER_NAME} grants you a personal, non-exclusive, non-transferable licence to install and use Genei AI Desktop on devices you control, for your own or your organisation's internal productions.`,
+  },
+  {
+    title: "4. Your content and AI output",
+    body: "You keep ownership of the material you supply, and of the output you generate, subject to the terms of whichever AI model produced it. You are responsible for holding the rights needed to use your input material, and for reviewing and clearing any generated output before you publish or distribute it.",
+  },
+  {
+    title: "5. Third-party AI models and API keys",
+    body: "The application can call AI models through your own provider accounts and API keys. Those calls are governed by the provider's own terms, pricing and usage limits, which you are responsible for. Keys you enter are encrypted on your device and are never shared by this application with anyone other than the provider you configured.",
+  },
+  {
+    title: "6. Acceptable use",
+    body: "You must not use Genei AI Desktop to create or distribute material that is unlawful, infringing, defamatory, or that sexualises minors, nor to impersonate a real person in a way that is intended to deceive, nor to break the terms of service of any provider you connect.",
+  },
+  {
+    title: "7. No warranty",
+    body: 'Genei AI Desktop is provided "as is" and "as available", without warranties of any kind, express or implied, including fitness for a particular purpose, accuracy of AI output, or uninterrupted operation. AI output can be wrong, incomplete or unsuitable, and must be reviewed by a human.',
+  },
+  {
+    title: "8. Limitation of liability",
+    body: `To the fullest extent permitted by law, ${PUBLISHER_NAME} is not liable for indirect, incidental or consequential loss, loss of profit, loss of data, or loss arising from AI-generated output or from any third-party model, service or API key.`,
+  },
+  {
+    title: "9. Privacy and local data",
+    body: "The application runs a workspace on your own device and stores its data locally. Information is sent to an AI provider only when you configure a provider and request work that uses it.",
+  },
+  {
+    title: "10. Updates and changes",
+    body: "These Terms may be updated with a new release. A new version of the Terms is presented for acceptance the next time you launch after it changes.",
+  },
+  {
+    title: "11. Termination",
+    body: `You may stop using Genei AI Desktop at any time by uninstalling it. This licence ends automatically if you breach these Terms.`,
+  },
+  {
+    title: "12. Governing law and contact",
+    body: `These Terms are governed by the laws of India. Questions about these Terms, or about ${PUBLISHER_NAME}, should be raised with the publisher through the project's published contact channel.`,
+  },
+];
+
+function termsFilePath() {
+  return path.join(app.getPath("userData"), "terms-acceptance.json");
+}
+
+function hasAcceptedTerms() {
+  try {
+    const record = JSON.parse(fs.readFileSync(termsFilePath(), "utf8"));
+    return Boolean(record) && record.version === TERMS_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+function recordTermsAcceptance() {
+  try {
+    fs.mkdirSync(app.getPath("userData"), { recursive: true });
+    fs.writeFileSync(
+      termsFilePath(),
+      JSON.stringify({ product: PRODUCT_NAME, publisher: PUBLISHER_NAME, version: TERMS_VERSION, acceptedAt: new Date().toISOString() }, null, 2),
+    );
+  } catch {
+    // If acceptance cannot be written the terms are simply shown again next launch.
+  }
+}
+
+function termsPage() {
+  const sections = TERMS_SECTIONS.map(
+    (section) => `<h2>${section.title}</h2><p>${section.body}</p>`,
+  ).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${PRODUCT_NAME} — Terms and Conditions</title><style>html,body{margin:0;height:100%;background:#07070b;color:#f7f5ff;font-family:Segoe UI,system-ui,sans-serif}body{display:flex;flex-direction:column;height:100%}header{padding:24px 32px 16px;border-bottom:1px solid #2a2140}h1{font-size:20px;margin:0 0 6px}.meta{color:#aaa3b9;font-size:12px;margin:0}main{flex:1;overflow-y:auto;padding:20px 32px}h2{font-size:13px;margin:18px 0 6px;color:#c4b5fd}p{margin:0;color:#cbc6d8;font-size:13px;line-height:1.65}footer{display:flex;gap:12px;justify-content:flex-end;padding:16px 32px;border-top:1px solid #2a2140;background:#0b0a12}button{font:inherit;font-size:13px;padding:10px 18px;border-radius:10px;border:1px solid #3a3155;background:transparent;color:#cbc6d8;cursor:pointer}button.primary{background:linear-gradient(135deg,#7c3aed,#a855f7);border-color:transparent;color:#fff;font-weight:600}</style></head><body><header><h1>${PRODUCT_NAME} — Terms and Conditions</h1><p class="meta">Published by ${PUBLISHER_NAME} · Version ${TERMS_VERSION}</p></header><main>${sections}</main><footer><button id="decline">Decline and exit</button><button id="accept" class="primary">I accept these Terms</button></footer><script>document.getElementById('accept').addEventListener('click',function(){window.geneiDesktop.acceptTerms();});document.getElementById('decline').addEventListener('click',function(){window.geneiDesktop.declineTerms();});</script></body></html>`;
+}
+
+function showTermsGate() {
+  return new Promise((resolve) => {
+    const termsWindow = new BrowserWindow({
+      width: 940,
+      height: 780,
+      minWidth: 720,
+      minHeight: 560,
+      title: `${PRODUCT_NAME} — Terms and Conditions`,
+      backgroundColor: "#07070b",
+      autoHideMenuBar: true,
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.cjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    let settled = false;
+    const settle = (accepted) => {
+      if (settled) return;
+      settled = true;
+      ipcMain.removeListener("desktop:terms-accept", onAccept);
+      ipcMain.removeListener("desktop:terms-decline", onDecline);
+      if (accepted) recordTermsAcceptance();
+      if (!termsWindow.isDestroyed()) termsWindow.destroy();
+      resolve(accepted);
+    };
+    const onAccept = () => settle(true);
+    const onDecline = () => settle(false);
+
+    ipcMain.on("desktop:terms-accept", onAccept);
+    ipcMain.on("desktop:terms-decline", onDecline);
+    termsWindow.once("ready-to-show", () => termsWindow.show());
+    termsWindow.on("closed", () => settle(false));
+    void termsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(termsPage())}`);
+  });
 }
 
 function createWindow() {
@@ -298,6 +465,16 @@ async function bootstrap() {
     return hardwareProfile;
   });
   ipcMain.handle("desktop:open-data-directory", () => shell.openPath(app.getPath("userData")));
+  ipcMain.handle("desktop:terms-status", () => ({ version: TERMS_VERSION, accepted: hasAcceptedTerms(), publisher: PUBLISHER_NAME }));
+
+  // Terms must be accepted before any workspace starts.
+  if (!hasAcceptedTerms()) {
+    const accepted = await showTermsGate();
+    if (!accepted) {
+      app.quit();
+      return;
+    }
+  }
 
   createWindow();
   try {
@@ -330,10 +507,12 @@ function stopChild(child) {
 app.on("window-all-closed", () => {
   stopChild(serverProcess);
   stopChild(hardwareProbeProcess);
+  flushDiagnostics();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
   stopChild(serverProcess);
   stopChild(hardwareProbeProcess);
+  flushDiagnostics();
 });

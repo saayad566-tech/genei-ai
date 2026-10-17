@@ -1,10 +1,10 @@
 {
   "name": "genei-ai",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "type": "module",
   "license": "MIT",
-  "description": "Genei AI Desktop — unified local-first AI creator workspace with embedded hardware detection.",
-  "author": "Genei AI",
+  "description": "Genei AI Desktop — an independent platform for autonomous directors, letting them use various AI models to create videos.",
+  "author": "SaayadTech",
   "repository": {
     "type": "git",
     "url": "https://github.com/saayad566-tech/genei-ai.git"
@@ -12,7 +12,7 @@
   "main": "desktop/main.cjs",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --splitting",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
@@ -129,11 +129,41 @@
     "appId": "ai.genei.desktop",
     "productName": "Genei AI Desktop",
     "executableName": "GeneiAI",
+    "copyright": "Copyright © 2026 SaayadTech. All rights reserved.",
     "asar": true,
     "files": [
       "dist/**/*",
       "desktop/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*.{md,map,markdown}",
+      "!node_modules/**/{test,__tests__,tests,example,examples,docs,doc}/**",
+      "!node_modules/react/**",
+      "!node_modules/react-dom/**",
+      "!node_modules/react-day-picker/**",
+      "!node_modules/react-hook-form/**",
+      "!node_modules/react-resizable-panels/**",
+      "!node_modules/@radix-ui/**",
+      "!node_modules/@capacitor/**",
+      "!node_modules/@hookform/**",
+      "!node_modules/@tanstack/**",
+      "!node_modules/@trpc/client/**",
+      "!node_modules/@trpc/react-query/**",
+      "!node_modules/class-variance-authority/**",
+      "!node_modules/clsx/**",
+      "!node_modules/cmdk/**",
+      "!node_modules/date-fns/**",
+      "!node_modules/embla-carousel-react/**",
+      "!node_modules/framer-motion/**",
+      "!node_modules/input-otp/**",
+      "!node_modules/lucide-react/**",
+      "!node_modules/next-themes/**",
+      "!node_modules/recharts/**",
+      "!node_modules/sonner/**",
+      "!node_modules/streamdown/**",
+      "!node_modules/tailwind-merge/**",
+      "!node_modules/tailwindcss-animate/**",
+      "!node_modules/vaul/**",
+      "!node_modules/wouter/**"
     ],
     "extraResources": [
       {
@@ -145,9 +175,7 @@
       }
     ],
     "asarUnpack": [
-      "dist/**/*",
-      "runtime/**/*",
-      "node_modules/**/*"
+      "dist/**/*"
     ],
     "directories": {
       "output": "release"
@@ -162,7 +190,11 @@
         }
       ],
       "artifactName": "Genei-AI-Desktop-Setup-${version}.${ext}",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "legalTrademarks": "SaayadTech",
+      "signtoolOptions": {
+        "publisherName": "SaayadTech"
+      }
     },
     "nsis": {
       "oneClick": true,
@@ -172,6 +204,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Genei AI Desktop",
+      "uninstallDisplayName": "Genei AI Desktop (SaayadTech)",
+      "license": "packaging/EULA.txt",
       "runAfterFinish": false,
       "deleteAppDataOnUninstall": false
     },

@@ -23,12 +23,20 @@ describe("Genei AI desktop startup recovery contract", () => {
   it("keeps recovery inside the same Genei product", () => {
     const host = read("desktop/main.cjs");
     const packageJson = JSON.parse(read("package.json")) as {
-      build: { productName: string; executableName: string; asarUnpack: string[]; nsis: { runAfterFinish: boolean }; portable: { artifactName: string } };
+      build: { productName: string; executableName: string; asarUnpack: string[]; files: string[]; nsis: { runAfterFinish: boolean }; portable: { artifactName: string } };
     };
 
     expect(packageJson.build.productName).toBe("Genei AI Desktop");
     expect(packageJson.build.executableName).toBe("GeneiAI");
-    expect(packageJson.build.asarUnpack).toEqual(expect.arrayContaining(["dist/**/*", "runtime/**/*", "node_modules/**/*"]));
+    // Only the spawned server bundle needs a real path on disk. Unpacking
+    // node_modules wrote tens of thousands of loose files for Windows to create
+    // and scan, which is what made installation and first launch slow, so it
+    // must stay packed inside app.asar. `runtime` is already copied outside the
+    // archive by extraResources and never needed an asarUnpack entry.
+    expect(packageJson.build.asarUnpack).toEqual(["dist/**/*"]);
+    // The client dependency tree is bundled by Vite into dist/public and must not
+    // be shipped a second time.
+    expect(packageJson.build.files).toEqual(expect.arrayContaining(["!node_modules/react/**", "!node_modules/@radix-ui/**"]));
     expect(packageJson.build.nsis.runAfterFinish).toBe(false);
     expect(packageJson.build.portable.artifactName).toContain("Genei-AI-Desktop-Portable");
     expect(host).toContain("use the portable Genei AI Desktop download");
@@ -72,5 +80,29 @@ describe("Genei AI desktop startup recovery contract", () => {
     expect(host).toContain("let hardwareProbeProcess;");
     expect(host).toContain("stopChild(serverProcess)");
     expect(host).toContain("stopChild(hardwareProbeProcess)");
+  });
+
+  it("requires Terms and Conditions acceptance and ships them with the installer", () => {
+    const host = read("desktop/main.cjs");
+    const packageJson = JSON.parse(read("package.json")) as {
+      author: string;
+      build: { win: { legalTrademarks: string; signtoolOptions: { publisherName: string } }; nsis: { license: string; uninstallDisplayName: string } };
+    };
+
+    // First-run acceptance gate.
+    expect(host).toContain("TERMS_VERSION");
+    expect(host).toContain("hasAcceptedTerms()");
+    expect(host).toContain("showTermsGate()");
+    expect(host).toContain("terms-acceptance.json");
+
+    // Publisher identity and the installer licence page.
+    expect(packageJson.author).toBe("SaayadTech");
+    // electron-builder 26 keeps publisherName under win.signtoolOptions; an unknown
+    // key in `win` makes the whole build fail schema validation.
+    expect(packageJson.build.win.signtoolOptions.publisherName).toBe("SaayadTech");
+    expect(packageJson.build.win.legalTrademarks).toBe("SaayadTech");
+    expect(packageJson.build.nsis.license).toBe("packaging/EULA.txt");
+    expect(packageJson.build.nsis.uninstallDisplayName).toContain("SaayadTech");
+    expect(fs.existsSync(path.join(root, "packaging/EULA.txt"))).toBe(true);
   });
 });

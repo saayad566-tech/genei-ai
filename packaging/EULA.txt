@@ -1,0 +1,71 @@
+GENEI AI DESKTOP — END USER LICENCE AND TERMS AND CONDITIONS
+
+Published by SaayadTech.
+Version 2026-10-17.
+
+Please read these Terms and Conditions carefully before installing or using
+Genei AI Desktop. By installing, launching or using the application you accept
+these Terms. If you do not accept them, do not install the application, or
+decline the Terms on first launch and uninstall it.
+
+1. WHAT GENEI AI DESKTOP IS
+Genei AI Desktop is an independent platform for autonomous directors. It lets
+you plan, direct and assemble video productions by routing work across multiple
+AI models. It is an independent product published by SaayadTech. It is not
+affiliated with, endorsed by, or sponsored by any AI model provider whose models
+it is able to call.
+
+2. LICENCE TO USE
+Subject to these Terms, SaayadTech grants you a personal, non-exclusive,
+non-transferable licence to install and use Genei AI Desktop on devices you
+control, for your own productions or your organisation's internal productions.
+
+3. YOUR CONTENT AND AI OUTPUT
+You keep ownership of the material you supply and of the output you generate,
+subject to the terms of whichever AI model produced it. You are responsible for
+holding the rights needed to use your input material, and for reviewing and
+clearing any generated output before you publish or distribute it.
+
+4. THIRD-PARTY AI MODELS AND API KEYS
+The application can call AI models through your own provider accounts and API
+keys. Those calls are governed by the provider's own terms, pricing and usage
+limits, which are your responsibility. Keys you enter are encrypted on your
+device and are not shared by this application with anyone other than the
+provider you configured.
+
+5. ACCEPTABLE USE
+You must not use Genei AI Desktop to create or distribute material that is
+unlawful, infringing or defamatory, or that sexualises minors; to impersonate a
+real person in a way intended to deceive; or to break the terms of service of any
+provider you connect.
+
+6. NO WARRANTY
+Genei AI Desktop is provided "as is" and "as available", without warranties of
+any kind, express or implied, including fitness for a particular purpose,
+accuracy of AI output, or uninterrupted operation. AI output can be wrong,
+incomplete or unsuitable, and must be reviewed by a human before use.
+
+7. LIMITATION OF LIABILITY
+To the fullest extent permitted by law, SaayadTech is not liable for indirect,
+incidental or consequential loss, loss of profit, loss of data, or loss arising
+from AI-generated output or from any third-party model, service or API key.
+
+8. PRIVACY AND LOCAL DATA
+The application runs a workspace on your own device and stores its data locally.
+Information is sent to an AI provider only when you configure a provider and
+request work that uses it.
+
+9. UPDATES AND CHANGES
+These Terms may be updated with a new release. A new version of the Terms is
+presented for acceptance the next time you launch after it changes.
+
+10. TERMINATION
+You may stop using Genei AI Desktop at any time by uninstalling it. This licence
+ends automatically if you breach these Terms.
+
+11. GOVERNING LAW AND CONTACT
+These Terms are governed by the laws of India. Questions about these Terms, or
+about SaayadTech, should be raised with the publisher through the project's
+published contact channel.
+
+Copyright (c) 2026 SaayadTech. All rights reserved.
