@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING,  Any, Dict, List, Optional
 import time
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .take_selection import Take
 
 
 @dataclass
@@ -188,7 +191,13 @@ class Shot:
     sequence_index: int
     prompt: str
     duration_seconds: float = 4.0
+    # Motion is deliberately kept as five separate instructions rather than one blob,
+    # so a generator can be told exactly which part of the shot moves and how.
+    visual_prompt: str = ""
     camera_motion: str = "static"
+    subject_motion: str = ""
+    environment_motion: str = ""
+    transition_style: str = ""
     dialogue: Optional[str] = None
     character_ids: List[str] = field(default_factory=list)
     status: str = "pending"  # pending, generating, generated, needs_review, approved, failed
@@ -203,6 +212,9 @@ class Shot:
     qc_reports: List[QCReport] = field(default_factory=list)
     repair_attempts: List[RepairAttempt] = field(default_factory=list)
     final_frame_url: Optional[str] = None
+    # Every attempt is kept, including the ones that failed. Append-only.
+    takes: List["Take"] = field(default_factory=list)
+    selected_take_id: Optional[str] = None
 
 
 @dataclass

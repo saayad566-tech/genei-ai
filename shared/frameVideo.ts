@@ -45,8 +45,12 @@ export type FrameVideoRequest = {
   duration: number;
   fps: number;
   resolution: { width: number; height: number };
+  // Motion is kept as five separate instructions rather than one blob, so a generator
+  // can be told exactly which part of the shot moves and how.
+  visualPrompt: string;
   cameraMovement: string;
   subjectMovement: string;
+  environmentMovement: string;
   transitionStyle: string;
   characterReferences: ReferenceAsset[];
   locationReferences: ReferenceAsset[];
@@ -59,6 +63,57 @@ export type FrameVideoRequest = {
   continuityRequirements: string[];
 };
 
+/**
+ * Frame interpolation: two frames in, intermediate frames out, no semantic prompt.
+ *
+ * Deliberately a different type from `FrameVideoRequest`. Anything that accepts a
+ * `FrameInterpolationRequest` cannot be handed a generation request by accident, and
+ * vice versa — the two are separate capabilities exposed as separate tools.
+ */
+export type FrameInterpolationRequest = {
+  shotId: string;
+  firstFrame: FrameAsset;
+  secondFrame: FrameAsset;
+  /** Target multiplier, e.g. 2 produces one invented frame between each pair. */
+  factor: number;
+  outputFps: number;
+  /** Empty means "the user has not chosen yet" — never a silent default. */
+  model: string;
+};
+
+export function isInterpolationRequest(value: unknown): value is FrameInterpolationRequest {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  // A generation request carries a prompt and keyframes; an interpolation request
+  // carries neither, and always names two frames.
+  return (
+    typeof candidate.firstFrame === "object" &&
+    candidate.firstFrame !== null &&
+    typeof candidate.secondFrame === "object" &&
+    candidate.secondFrame !== null &&
+    typeof candidate.factor === "number" &&
+    candidate.factor > 1 &&
+    !("prompt" in candidate) &&
+    !("keyframes" in candidate)
+  );
+}
+
+/** Refuse an interpolation request the selected model cannot honour. */
+export function checkInterpolationCapability(request: FrameInterpolationRequest, capabilities: GeneratorCapabilities): CapabilityCheck {
+  if (!capabilities.supportsInterpolation) {
+    return {
+      ok: false,
+      mode: "start_end_frames",
+      reason:
+        "The selected model does not support frame interpolation. Interpolation and frames-to-video are different capabilities; pick a model that advertises interpolation.",
+    };
+  }
+  if (!Number.isFinite(request.factor) || request.factor <= 1) {
+    return { ok: false, mode: "start_end_frames", reason: `Interpolation factor must be greater than 1, got ${request.factor}.` };
+  }
+  return { ok: true, mode: "start_end_frames" };
+}
+
 export type GeneratorCapabilities = {
   supportsStartFrame: boolean;
   supportsEndFrame: boolean;
@@ -67,6 +122,15 @@ export type GeneratorCapabilities = {
   supportsReferenceFrames: boolean;
   supportsImageToVideo: boolean;
   supportsTextToVideo: boolean;
+  /**
+   * Whether this generator can interpolate between two existing frames.
+   *
+   * This is NOT the same capability as frames-to-video: interpolation invents
+   * intermediate frames mathematically from two images, while frames-to-video asks a
+   * model to generate motion from images *and* a semantic prompt. A model that does one
+   * frequently does not do the other, so they are advertised and routed separately.
+   */
+  supportsInterpolation: boolean;
   /** Optional factual notes, e.g. "end-frame conditioning is ignored below 3 s". */
   notes?: string[];
 };
