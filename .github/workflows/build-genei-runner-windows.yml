@@ -26,9 +26,18 @@ on:
 permissions:
   contents: write
 
+# One desktop build per ref at a time. A push and a manual dispatch for the same
+# commit previously ran concurrently and billed twice for identical work, which is
+# exactly how a metered private repository exhausts its included Actions minutes.
+concurrency:
+  group: genei-desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows-desktop:
     runs-on: windows-latest
+    # Without a ceiling a hung job holds a Windows runner for the 6-hour default.
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -152,6 +161,8 @@ jobs:
       - name: Upload verified desktop artifacts
         uses: actions/upload-artifact@v4
         continue-on-error: true
+        with:
+          retention-days: 1
         with:
           name: Genei-AI-Desktop-Windows-x64-${{ github.run_number }}
           path: |

@@ -1,25 +1,39 @@
 name: Build Genei AI Android APK
 
 on:
+  # Manual only, deliberately.
+  #
+  # This workflow has failed at "Set up Android SDK" on every run it has ever made, and
+  # its path filter matches client/**, server/** and package.json — so it fired on every
+  # commit and spent metered private-repository Actions minutes producing a guaranteed
+  # failure. Restore the push trigger below once that step actually works.
+  #
+  #   push:
+  #     branches: [main, master]
+  #     paths:
+  #       - "android/**"
+  #       - "client/**"
+  #       - "server/**"
+  #       - "shared/**"
+  #       - "capacitor.config.ts"
+  #       - "package.json"
+  #       - "pnpm-lock.yaml"
+  #       - ".github/workflows/build-genei-android.yml"
   workflow_dispatch:
-  push:
-    branches: [main, master]
-    paths:
-      - "android/**"
-      - "client/**"
-      - "server/**"
-      - "shared/**"
-      - "capacitor.config.ts"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - ".github/workflows/build-genei-android.yml"
 
 permissions:
   contents: read
 
+# One Android build per ref at a time; a superseded run is cancelled rather than billed.
+concurrency:
+  group: genei-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    # A hung SDK download would otherwise hold a runner for the 6-hour default.
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
