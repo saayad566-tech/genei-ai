@@ -148,12 +148,32 @@ describe("ai model gateway", () => {
 
     expect(Array.isArray(result.models)).toBe(true);
     expect(["live", "fallback"]).toContain(result.source);
-    expect(result.models[0]).toEqual(expect.objectContaining({
-      id: expect.any(String),
-      supportsAndroid: true,
-      supportsOnDevice: expect.any(Boolean),
-      purposes: expect.any(Array),
-    }));
+
+    // Every model that is returned must be safely shaped for the client.
+    for (const model of result.models) {
+      expect(model).toEqual(expect.objectContaining({
+        id: expect.any(String),
+        supportsAndroid: true,
+        supportsOnDevice: expect.any(Boolean),
+        purposes: expect.any(Array),
+      }));
+    }
+
+    // The gateway must never fabricate a model to fill the catalog. Nothing is
+    // configured in this environment, so no hardcoded default may appear - the
+    // user chooses the model, the platform does not choose for them.
+    expect(result.models.map((model) => model.id)).not.toContain("gemini-2.5-flash");
+  });
+
+  it("refuses to generate when no model is selected instead of using a built-in default", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // No provider is configured here, so there is no model to run. The honest
+    // outcome is a refusal that tells the user to pick one.
+    await expect(
+      caller.ai.generateText({ prompt: "hello", purpose: "chat" }),
+    ).rejects.toThrow(/No model is selected/);
   });
 
   it("rejects empty model prompts before invoking the provider", async () => {
@@ -161,6 +181,60 @@ describe("ai model gateway", () => {
     const caller = appRouter.createCaller(ctx);
 
     await expect(caller.ai.generateText({ prompt: "", purpose: "chat" })).rejects.toThrow();
+  });
+});
+
+describe("resource-aware queue wiring", () => {
+  it("exposes a queue snapshot the desktop client can display", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const snapshot = await caller.queue.status();
+
+    expect(snapshot.budget.maxConcurrentHeavyJobs).toBe(1);
+    expect(Array.isArray(snapshot.running)).toBe(true);
+    expect(Array.isArray(snapshot.queued)).toBe(true);
+    expect(snapshot.reservedMB).toBeGreaterThanOrEqual(0);
+    expect(typeof snapshot.paused).toBe("boolean");
+  });
+
+  it("reconfigures the budget from real hardware figures", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const snapshot = await caller.queue.configure({ ramGB: 16, vramGB: 8 });
+
+    expect(snapshot.budget.ramBudgetMB).toBe(Math.round(16 * 1024 * 0.6));
+    expect(snapshot.budget.vramBudgetMB).toBe(8192);
+  });
+
+  it("pauses admission when the machine reports memory pressure", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const snapshot = await caller.queue.reportPressure({ freeRamMB: 10 });
+
+    expect(snapshot.paused).toBe(true);
+    expect(snapshot.pauseReason).toMatch(/memory is free/i);
+
+    await caller.queue.configure({ ramGB: 16, vramGB: 8 });
+    await caller.queue.reportPressure({ freeRamMB: 8000 });
+    expect((await caller.queue.status()).paused).toBe(false);
+  });
+});
+
+describe("live context gathering wiring", () => {
+  it("refuses a private address instead of fetching it", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const { result, grounding } = await caller.director.gatherContext({ url: "http://127.0.0.1:3000/admin" });
+
+    expect(result.status).toBe("unsupported");
+    expect(grounding).toMatch(/No live context is available/);
+  });
+
+  it("asks for an input rather than guessing what to look up", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const { result } = await caller.director.gatherContext({});
+    expect(result.status).toBe("unsupported");
   });
 });
 

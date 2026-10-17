@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from ai_director.models import Project
 from ai_director.config import Config
@@ -16,13 +18,51 @@ def test_script_decomposition():
     assert len(updated.scenes[0].shots) == 2
     assert updated.status == "scripted"
 
-def test_voice_synthesis():
+def test_voice_synthesis_is_honest_without_an_engine():
     project = Project(id="test-2", title="Test", brief="Test brief")
     director = AIDirector(project)
     project = director.decompose_brief()
     voice_dir = VoiceDirector()
-    audio = voice_dir.synthesize_scene_audio(project.scenes[0])
-    assert audio.startswith("file://")
+    result = voice_dir.synthesize_scene_audio(project.scenes[0])
+    # No speech engine is installed, so the honest answer is "unsupported" and the
+    # scene must not be handed a plausible-looking audio URL.
+    assert result.status == "unsupported"
+    assert result.audio_path is None
+    assert result.reason
+    assert project.scenes[0].audio_track_url is None
+
+
+def test_voice_synthesis_records_only_a_real_file(tmp_path):
+    class RealSpeechAdapter:
+        def is_available(self):
+            return True
+
+        def synthesize(self, text, output_path):
+            with open(output_path, "w", encoding="utf-8") as handle:
+                handle.write("RIFF")
+            return output_path
+
+    project = Project(id="test-2b", title="Test", brief="Test brief")
+    project = AIDirector(project).decompose_brief()
+    result = VoiceDirector(adapter=RealSpeechAdapter(), output_dir=str(tmp_path)).synthesize_scene_audio(project.scenes[0])
+    assert result.status == "completed"
+    assert result.audio_path and os.path.exists(result.audio_path)
+    assert project.scenes[0].audio_track_url == result.audio_path
+
+
+def test_voice_synthesis_rejects_an_engine_that_produces_nothing(tmp_path):
+    class BrokenAdapter:
+        def is_available(self):
+            return True
+
+        def synthesize(self, text, output_path):
+            return output_path  # claims success without writing anything
+
+    project = Project(id="test-2c", title="Test", brief="Test brief")
+    project = AIDirector(project).decompose_brief()
+    result = VoiceDirector(adapter=BrokenAdapter(), output_dir=str(tmp_path)).synthesize_scene_audio(project.scenes[0])
+    assert result.status == "unsupported"
+    assert project.scenes[0].audio_track_url is None
 
 def test_video_orchestration_and_qa():
     project = Project(id="test-3", title="Test", brief="Test brief")

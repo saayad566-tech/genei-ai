@@ -40,15 +40,26 @@ export type ModelGatewayResult = {
   attempts: number;
 };
 
-const DEFAULT_MODEL: ModelCapability = {
-  id: "gemini-2.5-flash",
-  label: "Genei Managed Model",
-  provider: "Manus Forge",
-  purposes: ["chat", "lyrics", "prompt", "vision"],
-  supportsAndroid: true,
-  supportsOnDevice: false,
-  status: "available",
-};
+/**
+ * The managed model, named by configuration.
+ *
+ * There is deliberately no built-in default model id: the platform must not decide
+ * on the user's behalf which model runs. When no managed model is configured this
+ * returns null, and callers report "no model selected" rather than guessing.
+ */
+function managedModelCapability(): ModelCapability | null {
+  const id = ENV.forgeModel.trim();
+  if (!id) return null;
+  return {
+    id,
+    label: "Genei Managed Model",
+    provider: "Managed provider",
+    purposes: ["chat", "lyrics", "prompt", "vision"],
+    supportsAndroid: true,
+    supportsOnDevice: false,
+    status: ENV.forgeApiKey ? "available" : "not-configured",
+  };
+}
 
 function getTextContent(content: unknown): string {
   if (typeof content === "string") return content;
@@ -87,16 +98,15 @@ export async function getModelCapabilities(runtime?: ClientRuntimeHints): Promis
   const resolvedBaseUrl = ENV.forgeApiUrl.trim().length > 0
     ? ENV.forgeApiUrl.replace(/\/$/, "")
     : "https://forge.manus.im";
-  const managedModel: ModelCapability = ENV.forgeApiKey
-    ? DEFAULT_MODEL
-    : { ...DEFAULT_MODEL, status: "not-configured" };
+  const managed = managedModelCapability();
+  const managedFallback: ModelCapability[] = managed ? [managed] : [];
 
   try {
     const response = await fetch(`${resolvedBaseUrl}/v1/models`, {
       headers: { authorization: `Bearer ${ENV.forgeApiKey}` },
       signal: AbortSignal.timeout(1500),
     });
-    if (!response.ok) return { models: [managedModel], source: "fallback", runtime: runtimeState };
+    if (!response.ok) return { models: managedFallback, source: "fallback", runtime: runtimeState };
 
     const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
     const liveModels = (payload.data ?? [])
@@ -113,12 +123,12 @@ export async function getModelCapabilities(runtime?: ClientRuntimeHints): Promis
       }));
 
     return {
-      models: liveModels.length ? liveModels : [managedModel],
+      models: liveModels.length ? liveModels : managedFallback,
       source: liveModels.length ? "live" : "fallback",
       runtime: runtimeState,
     };
   } catch {
-    return { models: [managedModel], source: "fallback", runtime: runtimeState };
+    return { models: managedFallback, source: "fallback", runtime: runtimeState };
   }
 }
 
@@ -129,12 +139,21 @@ export async function generateWithModel(args: {
   preferredModel?: string;
 }): Promise<ModelGatewayResult> {
   const catalog = await getModelCapabilities();
-  const catalogModel = catalog.models.find((model) => model.purposes.includes(args.purpose))?.id;
-  const candidates = Array.from(new Set([
-    args.preferredModel,
-    catalogModel,
-    DEFAULT_MODEL.id,
-  ].filter((model): model is string => Boolean(model))));
+  // The user's explicit choice always wins. Everything after it is a catalog entry
+  // that can actually serve this purpose - never a built-in fallback id.
+  const catalogModels = catalog.models
+    .filter((model) => model.purposes.includes(args.purpose))
+    .map((model) => model.id);
+  const candidates = Array.from(new Set(
+    [args.preferredModel, ...catalogModels].filter((model): model is string => Boolean(model)),
+  ));
+
+  if (candidates.length === 0) {
+    throw new Error(
+      "No model is selected. Choose a model in the Model Library, or configure a provider, before requesting generation.",
+    );
+  }
+
   let lastError: unknown = new Error("No model is configured.");
 
   for (let index = 0; index < candidates.length; index += 1) {

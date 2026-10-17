@@ -33,7 +33,11 @@ class PipelineOrchestrator:
 
         for scene in project.scenes:
             scene_job = self._job(project, "scene", scene.id, "scene_generation")
-            voice_dir.synthesize_scene_audio(scene)
+            speech_result = voice_dir.synthesize_scene_audio(scene)
+            if speech_result.status != "completed":
+                # No speech engine is installed, so the scene genuinely has no audio
+                # track yet. It is left empty rather than given a placeholder URL.
+                scene.audio_track_url = None
             previous_shot = None
             continuity = scene.start_continuity
             for shot in scene.shots:
@@ -58,7 +62,10 @@ class PipelineOrchestrator:
             scene.end_continuity = continuity
             scene.start_continuity = scene.start_continuity or (scene.shots[0].start_continuity if scene.shots else None)
             video_orch.stitch_scene(scene)
-            post.upscale_scene(scene, project.resolution)
+            upscale_result = post.upscale_scene(scene, project.resolution)
+            if upscale_result.status != "completed":
+                # Nothing was upscaled; final_video_url is left exactly as assembled.
+                pass
             scene_job.progress = 1.0
             scene_job.status = "completed" if scene.final_video_url else "failed"
 

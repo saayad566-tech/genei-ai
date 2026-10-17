@@ -15,6 +15,8 @@ import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import * as crypto from "crypto";
 import { compileDirectorGraph } from "./directorCompiler";
+import { filmJobQueue, budgetFromHardware } from "./jobQueue";
+import { fetchPageForContext, searchForContext, groundingBlock } from "./browsingAdapter";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
@@ -711,6 +713,22 @@ export const appRouter = router({
         return { projectId, sceneId: sceneIds[0] ?? 0, sceneIds, shotIds, jobId: Number(rootJob[0].insertId), status: "queued" as const, compilerVersion: graphPlan.compilerVersion, compilerSource };
       }),
 
+    /**
+     * Ground a request with live information. Real fetch, real provenance; when
+     * browsing is unavailable the caller is told so rather than being given an
+     * invented answer.
+     */
+    gatherContext: protectedProcedure
+      .input(z.object({ url: z.string().url().optional(), query: z.string().min(1).max(300).optional() }))
+      .mutation(async ({ input }) => {
+        const result = input.url
+          ? await fetchPageForContext(input.url)
+          : input.query
+            ? await searchForContext(input.query)
+            : ({ status: "unsupported", reason: "Provide either a url or a query to gather context for." } as const);
+        return { result, grounding: groundingBlock(result) };
+      }),
+
     submitProviderVideo: protectedProcedure
       .input(z.object({
         provider: z.enum(["runway", "pika", "kling", "heygen"]),
@@ -722,7 +740,12 @@ export const appRouter = router({
         jobId: z.number().int().positive().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const result = await submitVideoGeneration(ctx.user.id, input);
+        // Video work is serialized through the resource-aware queue so several
+        // provider jobs cannot run simultaneously and exhaust the machine.
+        const result = await filmJobQueue.enqueue(
+          { label: `video:${input.provider}`, weight: "heavy", estimatedPeakMB: 2048 },
+          () => submitVideoGeneration(ctx.user.id, input),
+        );
         const db = await getDb();
         if (db && input.jobId) {
           const jobs = await db.select().from(directorJobs).where(and(eq(directorJobs.id, input.jobId), eq(directorJobs.userId, ctx.user.id))).limit(1);
@@ -997,6 +1020,27 @@ export const appRouter = router({
 
   // ── Global Settings & Localization ──────────────────────────────────────
   globalSettings: globalSettingsRouter,
+
+  // ── Resource-aware job queue ────────────────────────────────────────────
+  // Serializes heavy work so the desktop app does not freeze or run out of memory.
+  queue: router({
+    status: protectedProcedure.query(() => filmJobQueue.snapshot()),
+    configure: protectedProcedure
+      .input(z.object({ ramGB: z.number().positive().optional(), vramGB: z.number().nonnegative().optional() }))
+      .mutation(({ input }) => {
+        filmJobQueue.setBudget(budgetFromHardware({ ramGB: input.ramGB, vramGB: input.vramGB }));
+        return filmJobQueue.snapshot();
+      }),
+    cancel: protectedProcedure
+      .input(z.object({ jobId: z.string().min(1).max(200) }))
+      .mutation(({ input }) => ({ cancelled: filmJobQueue.cancel(input.jobId) })),
+    reportPressure: protectedProcedure
+      .input(z.object({ freeRamMB: z.number().nonnegative() }))
+      .mutation(({ input }) => {
+        filmJobQueue.reportPressure({ freeRamMB: input.freeRamMB });
+        return filmJobQueue.snapshot();
+      }),
+  }),
 
   // ── App-owned operator notifications ─────────────────────────────────────
   appNotifications: router({

@@ -7,4 +7,8 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // No model id is hardcoded anywhere in this codebase. The managed model is named
+  // by configuration; when it is absent the gateway reports the managed model as
+  // unconfigured rather than silently substituting a built-in identifier.
+  forgeModel: process.env.BUILT_IN_FORGE_MODEL ?? "",
 };

@@ -8,6 +8,8 @@ const PRODUCT_NAME = "Genei AI Desktop";
 const PUBLISHER_NAME = "SaayadTech";
 const isDevelopment = !app.isPackaged;
 const STARTUP_TIMEOUT_MS = 30_000;
+// Independent backstop: the loading screen must never be able to persist forever.
+const STARTUP_HARD_DEADLINE_MS = 45_000;
 const SERVER_PROBE_TIMEOUT_MS = 1_500;
 
 // Keep hardware acceleration ON. Chromium already falls back to software
@@ -268,6 +270,9 @@ function createWindow() {
     mainWindow = null;
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // Nothing may hold the window open. A renderer that tries to block unload would
+  // otherwise leave the user with an app they cannot close.
+  mainWindow.webContents.on("will-prevent-unload", (event) => event.preventDefault());
   void mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingPage())}`);
 }
 
@@ -369,8 +374,15 @@ function startLocalServer() {
     serverProcess.on("exit", (code, signal) => {
       const message = `The embedded workspace stopped unexpectedly (code ${code ?? signal ?? "unknown"}).`;
       serverProcess = null;
-      if (!settled) finish(new Error(message));
-      else if (code !== 0 && mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox(PRODUCT_NAME, message);
+      if (!settled) {
+        finish(new Error(message));
+      } else if (code !== 0 && mainWindow && !mainWindow.isDestroyed()) {
+        // Deliberately NOT dialog.showErrorBox: it is synchronous and modal, so it
+        // blocks the Electron main thread - and on a machine where the native
+        // dialog cannot render, the window becomes impossible to close. Surface it
+        // in the window instead, which stays responsive and closable.
+        void mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorPage(message))}`);
+      }
     });
   });
 }
@@ -477,6 +489,14 @@ async function bootstrap() {
   }
 
   createWindow();
+
+  // Backstop: if the workspace has not come up by the hard deadline, surface the
+  // failure in the window. The loading screen can never persist indefinitely.
+  const hardDeadline = setTimeout(() => {
+    if (serverPort) return;
+    void showStartupError(new Error("Startup did not complete within 45 seconds on this computer. The embedded workspace may have failed to launch."));
+  }, STARTUP_HARD_DEADLINE_MS);
+
   try {
     const port = await startLocalServer();
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -486,7 +506,8 @@ async function bootstrap() {
     hardwareProfile = await probeHardware();
   } catch (error) {
     await showStartupError(error);
-    dialog.showErrorBox(PRODUCT_NAME, error instanceof Error ? error.message : "The embedded Genei workspace could not start.");
+  } finally {
+    clearTimeout(hardDeadline);
   }
 
   app.on("activate", () => {
@@ -494,14 +515,36 @@ async function bootstrap() {
   });
 }
 
-bootstrap().catch((error) => {
+bootstrap().catch(async (error) => {
   writeDiagnostic(`Unhandled bootstrap error: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-  dialog.showErrorBox(PRODUCT_NAME, error instanceof Error ? error.message : "The desktop application could not start.");
+  const message = error instanceof Error ? error.message : "The desktop application could not start.";
+  try {
+    // Asynchronous only. A modal box here would block the main thread at exactly
+    // the moment the user is trying to close the application.
+    if (app.isReady()) {
+      await dialog.showMessageBox({ type: "error", title: PRODUCT_NAME, message, buttons: ["Close"] });
+    }
+  } catch {
+    // Reporting a failure must never itself hang the application.
+  }
+  flushDiagnostics();
   app.quit();
 });
 
+// child.kill() does not reliably terminate a whole process tree on Windows, and
+// any surviving grandchild keeps the app alive - which is what makes the window
+// appear impossible to close.
 function stopChild(child) {
-  if (child && !child.killed) child.kill();
+  if (!child || child.killed || child.exitCode !== null) return;
+  try {
+    if (process.platform === "win32" && child.pid) {
+      spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    } else {
+      child.kill("SIGTERM");
+    }
+  } catch {
+    // A process that has already gone is not an error.
+  }
 }
 
 app.on("window-all-closed", () => {
