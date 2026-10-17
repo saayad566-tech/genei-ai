@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ExecutionPlanePanel } from "@/components/ExecutionPlanePanel";
 
 type Capability = {
   id: string;
@@ -133,6 +134,7 @@ export default function ModelLibrary() {
 
   return (
     <div className="container space-y-8 py-8">
+      <ExecutionPlanePanel />
       <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/15 via-card to-card p-6 sm:p-8">
         <div className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
         <div className="relative max-w-3xl">

@@ -13,12 +13,16 @@ import { getDb } from "./db";
 import { assets, apiKeys, byohRunners, runnerLogs, chatMessages, exportJobs, releaseArtifacts, customDomains, workflowGraphs, projects, directorScenes, directorShots, directorJobs, directorQcReports, directorNodeLogs, directorJobAssets, directorWebhookReceipts } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod/v4";
+import path from "node:path";
+import { runtimeConfig } from "./adapters";
 import * as crypto from "crypto";
 import { compileDirectorGraph } from "./directorCompiler";
 import { filmJobQueue, budgetFromHardware } from "./jobQueue";
 import { fetchPageForContext, searchForContext, groundingBlock } from "./browsingAdapter";
 import { TOOL_REGISTRY, assessCompatibility, type HardwareProfile } from "./modelRegistry";
 import { getSharedInstaller } from "./assetDownloader";
+import { adapterHealth, buildAdapters, resolveAdapter } from "./adapters";
+import { runProofScene } from "./proofScene";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
@@ -1045,6 +1049,59 @@ export const appRouter = router({
     cancelInstall: protectedProcedure
       .input(z.object({ toolId: z.string().min(1).max(80) }))
       .mutation(({ input }) => ({ cancelled: getSharedInstaller().cancel(input.toolId) })),
+  }),
+
+  // ── Execution plane: the real adapters that do the work ─────────────────
+  // Health is a live probe of each tool, never a cached claim. Resolution reports
+  // every candidate it tried, so a fallback is always visible to the user.
+  adapters: router({
+    health: protectedProcedure.query(() => adapterHealth(buildAdapters())),
+    resolve: protectedProcedure
+      .input(z.object({ capability: z.enum(["video_generation", "image_generation", "lipsync", "upscale", "transcribe", "review", "assemble"]) }))
+      .query(({ input }) => resolveAdapter(input.capability, buildAdapters())),
+    /**
+     * Run the proof scene. This is the acceptance gate: it exercises the actually
+     * installed models and reports `blocked` when any of them is missing.
+     */
+    runProof: protectedProcedure
+      .input(
+        z.object({
+          workflowJson: z.string().min(2).max(200_000),
+          promptA: z.string().min(1).max(2000),
+          promptB: z.string().min(1).max(2000),
+          frames: z.number().int().min(4).max(120).optional(),
+          takes: z.number().int().min(1).max(4).optional(),
+          reviewFrames: z.number().int().min(1).max(6).optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        let workflow: Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
+        try {
+          workflow = JSON.parse(input.workflowJson) as typeof workflow;
+        } catch {
+          throw new Error("The workflow is not valid JSON.");
+        }
+        const config = runtimeConfig();
+        return filmJobQueue.enqueue(
+          { label: "proof-scene", weight: "heavy", estimatedPeakMB: 4096 },
+          () =>
+            runProofScene(buildAdapters(config), {
+              workflow,
+              shots: [
+                { shotId: "proof-shot-1", prompt: input.promptA, takes: input.takes ?? 2, frames: input.frames ?? 24 },
+                {
+                  shotId: "proof-shot-2",
+                  prompt: input.promptB,
+                  takes: input.takes ?? 2,
+                  frames: input.frames ?? 24,
+                  continuity: [{ subject: "Lead", lockedFields: ["face", "costume", "position"], referenceAssetIds: ["proof-reference"] }],
+                },
+              ],
+              workDir: path.join(config.mediaDir, "proof"),
+              reviewFramesPerShot: input.reviewFrames ?? 3,
+            }),
+        );
+      }),
   }),
 
   // ── Resource-aware job queue ────────────────────────────────────────────

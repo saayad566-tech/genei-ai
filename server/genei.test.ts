@@ -220,6 +220,43 @@ describe("resource-aware queue wiring", () => {
   });
 });
 
+describe("execution plane wiring", () => {
+  it("reports live health for every adapter", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const health = await caller.adapters.health();
+
+    expect(Array.isArray(health)).toBe(true);
+    expect(health.length).toBeGreaterThanOrEqual(5);
+    for (const entry of health) {
+      // Never ready without a real probe: in this environment nothing is installed.
+      expect(["ready", "degraded", "stopped", "not_installed", "failed", "needs_source", "unsupported"]).toContain(entry.state);
+      expect(entry.message.length).toBeGreaterThan(0);
+      expect(entry.toolId.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("tells the caller exactly why no video adapter is available", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const resolution = await caller.adapters.resolve({ capability: "video_generation" });
+
+    expect(resolution.capability).toBe("video_generation");
+    expect(resolution.adapterId).toBeNull();
+    expect(resolution.considered.length).toBeGreaterThan(0);
+    expect(resolution.considered[0].adapterId).toBe("comfyui");
+    expect(resolution.considered[0].message).toMatch(/reachable|not found/i);
+  });
+
+  it("rejects a malformed workflow rather than passing it to the renderer", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.adapters.runProof({ workflowJson: "{not json", promptA: "a", promptB: "b" }),
+    ).rejects.toThrow(/not valid JSON/i);
+  });
+});
+
 describe("live context gathering wiring", () => {
   it("refuses a private address instead of fetching it", async () => {
     const { ctx } = createAuthContext();
