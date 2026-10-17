@@ -100,6 +100,18 @@ export abstract class CliAdapter implements ExecutionAdapter {
     return ["--help"];
   }
 
+  /**
+   * Files that must exist for this tool to genuinely be usable.
+   *
+   * Some tools are driven through an interpreter — MuseTalk and Wav2Lip run under
+   * python — so probing the binary only proves the *interpreter* is installed. Without
+   * this check the adapter reported "ready" on a machine that had Python and no
+   * lip-sync tool at all.
+   */
+  protected requiredPaths(): string[] {
+    return [];
+  }
+
   /** Install through the shared installer, using the resolved plan for this platform. */
   async install(options: { allowElevatedCommands?: boolean } = {}): Promise<AdapterStatus> {
     const { getTool } = await import("../modelRegistry");
@@ -114,9 +126,19 @@ export abstract class CliAdapter implements ExecutionAdapter {
 
   async healthCheck(): Promise<AdapterStatus> {
     const checkedAt = new Date().toISOString();
+    const missing = this.requiredPaths().filter((file) => !fs.existsSync(file));
     for (const candidate of this.binaryCandidates()) {
       const probe = await probeCli(candidate, this.versionArgs());
       if (probe.found) {
+        if (missing.length > 0) {
+          return {
+            state: "not_installed",
+            toolId: this.toolId,
+            message: `${this.toolId} is not installed: ${missing.map((file) => path.basename(file)).join(", ")} is missing. Its interpreter exists, which is not the same thing. Install it from the Tool Registry.`,
+            detail: { binary: probe.path ?? candidate, missing: missing.join(", ") },
+            checkedAt,
+          };
+        }
         return {
           state: "ready",
           toolId: this.toolId,
@@ -282,8 +304,13 @@ export type CliJobInput = {
   modelPath?: string;
   /** Target resolution label, e.g. "1080p" or "4K". */
   targetResolution?: string;
-  /** Extra flags appended verbatim. */
+  /** Extra flags appended verbatim (output options). */
   extraArgs?: string[];
+  /**
+   * Flags that must precede the input, e.g. `-f lavfi` for a generated source.
+   * FFmpeg requires input options before `-i`, so they cannot go in extraArgs.
+   */
+  preInputArgs?: string[];
 };
 
 /** Parse a `NN%` progress token out of a tool's output. */
@@ -354,6 +381,12 @@ export class LipSyncAdapter extends CliAdapter {
 
   protected declaredCapabilities(): string[] {
     return ["lipsync"];
+  }
+
+  /** The inference script, not just the interpreter that would run it. */
+  protected requiredPaths(): string[] {
+    if (!this.config.installDir) return [];
+    return [this.engine === "musetalk" ? path.join(this.config.installDir, "scripts", "inference.py") : path.join(this.config.installDir, "inference.py")];
   }
 
   protected buildArgs(input: CliJobInput): string[] {
@@ -440,13 +473,17 @@ export class FfmpegAdapter extends CliAdapter {
   }
 
   protected buildArgs(input: CliJobInput): string[] {
-    // Concatenate a list file into the output, re-encoding to H.264/AAC.
+    // A .txt input is a concat list (the assembly path); anything else is a plain
+    // transcode. Using the concat demuxer for a normal media file made every simple
+    // conversion fail, which is not a mistake a caller should have to know about.
+    const isConcatList = path.extname(input.inputPath).toLowerCase() === ".txt";
+    // Input options (including -f for a generated source) must precede -i.
+    const before = ["-y", ...(input.preInputArgs ?? [])];
+    const head = isConcatList
+      ? [...before, "-f", "concat", "-safe", "0", "-i", input.inputPath]
+      : [...before, "-i", input.inputPath];
     // Output options must precede the output path, which must come last.
-    return [
-      "-y", "-f", "concat", "-safe", "0", "-i", input.inputPath,
-      ...(input.extraArgs ?? []),
-      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", input.outputPath,
-    ];
+    return [...head, ...(input.extraArgs ?? []), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", input.outputPath];
   }
 
   /**

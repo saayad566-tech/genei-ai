@@ -2,6 +2,11 @@
 **/node_modules
 .pnpm-store/
 
+# Signing material must never be committed
+.signing/
+*.pfx
+*.p12
+
 # Build outputs
 dist/
 build/

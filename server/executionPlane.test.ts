@@ -315,11 +315,22 @@ describe("CLI adapters", () => {
     process.env.GENEI_TEST_PY = writeExecutable(dir, "python3", "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo \"Python 3.11\"; fi\necho ok\nexit 0\n");
     process.env.GENEI_TEST_V2X = writeExecutable(dir, "video2x", "#!/bin/sh\nif [ \"$1\" = \"--help\" ]; then echo \"video2x 6.0\"; fi\necho ok\nexit 0\n");
 
-    const lip = new LipSyncAdapter({ outputDir: tmp("lip"), binaryEnvVar: "GENEI_TEST_PY", installDir: "/opt/musetalk" }, "musetalk");
-    const up = new UpscalerAdapter({ outputDir: tmp("up"), binaryEnvVar: "GENEI_TEST_V2X" }, "video2x");
+    // A lip-sync tool runs under an interpreter, so an installed python proves
+    // nothing about the tool itself. With no inference script present it must report
+    // not_installed, not ready.
+    const absent = new LipSyncAdapter({ outputDir: tmp("lip"), binaryEnvVar: "GENEI_TEST_PY", installDir: "/opt/musetalk" }, "musetalk");
+    const absentStatus = await absent.healthCheck();
+    expect(absentStatus.state).toBe("not_installed");
+    expect(absentStatus.message).toMatch(/interpreter exists, which is not the same thing/i);
 
-    // Both must resolve a real binary and report ready.
-    expect((await lip.healthCheck()).state).toBe("ready");
+    // With the real entry point on disk it is genuinely ready.
+    const installedDir = tmp("musetalk");
+    fs.mkdirSync(path.join(installedDir, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(installedDir, "scripts", "inference.py"), "# entry point");
+    const installed = new LipSyncAdapter({ outputDir: tmp("lip"), binaryEnvVar: "GENEI_TEST_PY", installDir: installedDir }, "musetalk");
+    expect((await installed.healthCheck()).state).toBe("ready");
+
+    const up = new UpscalerAdapter({ outputDir: tmp("up"), binaryEnvVar: "GENEI_TEST_V2X" }, "video2x");
     expect((await up.healthCheck()).state).toBe("ready");
     expect((await up.getCapabilities()).capabilities).toContain("upscale");
   });

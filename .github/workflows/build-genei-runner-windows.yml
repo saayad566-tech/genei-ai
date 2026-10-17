@@ -117,11 +117,24 @@ jobs:
         shell: pwsh
         run: .\packaging\smoke_windows_desktop.ps1 -InstalledDir (Join-Path $PWD 'release\\win-unpacked')
 
+      # Reads the actual Authenticode signature off the binaries. A certificate being
+      # present in the secrets is not evidence that signing worked, so this checks the
+      # file and fails the build if signing was expected but did not happen.
+      - name: Verify Authenticode signature
+        id: signature
+        shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+        run: |
+          $arguments = @("-Path", ".\release", "-AsJson")
+          if ($env:CSC_LINK) { $arguments += "-ExpectSigned" }
+          $report = & .\packaging\verify_signature.ps1 @arguments | Out-String
+          $report | Out-File -Encoding utf8 .\release\signature-report.json
+          "report=release/signature-report.json" >> $env:GITHUB_OUTPUT
+
       - name: Finalize checksums and metadata
         id: metadata
         shell: pwsh
-        env:
-          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
         run: |
           $pkg = Get-Content .\package.json -Raw | ConvertFrom-Json
           $version = $pkg.version
@@ -131,8 +144,16 @@ jobs:
             @{ kind = 'installer'; file = $installer },
             @{ kind = 'portable'; file = $portable }
           )
+          $signatureReport = if (Test-Path .\release\signature-report.json) {
+            @(Get-Content .\release\signature-report.json -Raw | ConvertFrom-Json)
+          } else { @() }
+
           $artifacts = foreach ($entry in $entries) {
             $artifact = $entry.file
+            $report = $signatureReport | Where-Object { $_.artifact -eq $artifact.Name } | Select-Object -First 1
+            $signatureState = if ($report) { $report.signingState } else { 'unverified' }
+            $signerSubject = if ($report) { $report.signerSubject } else { $null }
+            $signatureVerified = [bool]$report
             $hash = (Get-FileHash $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($artifact.Name)" | Out-File -Encoding ascii (Join-Path $artifact.DirectoryName "$($artifact.Name).sha256")
             [ordered]@{
@@ -143,7 +164,9 @@ jobs:
               artifact = $artifact.Name
               fileSizeBytes = $artifact.Length
               sha256 = $hash
-              signingState = if ($env:WINDOWS_SIGNING_CERT_BASE64) { 'signed' } else { 'unsigned' }
+              signingState = $signatureState
+              signerSubject = $signerSubject
+              signatureVerified = $signatureVerified
               runnerRequired = $false
               hardwareDetection = 'embedded'
               workflowRun = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

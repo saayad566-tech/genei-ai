@@ -23,7 +23,7 @@ import { TOOL_REGISTRY, assessCompatibility, type HardwareProfile } from "./mode
 import { getSharedInstaller } from "./assetDownloader";
 import { currentPlatform, resolveAllInstallPlans, resolveInstallPlan } from "./toolReleases";
 import { resolveAllWeights, resolveUserSuppliedRepo } from "./modelWeights";
-import { adapterHealth, buildAdapters, resolveAdapter } from "./adapters";
+import { adapterHealth, buildAdapters, resolveAdapter, detectHardware, runSelfTest } from "./adapters";
 import { runProofScene } from "./proofScene";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
@@ -1089,6 +1089,37 @@ export const appRouter = router({
     resolve: protectedProcedure
       .input(z.object({ capability: z.enum(["video_generation", "image_generation", "lipsync", "upscale", "transcribe", "review", "assemble"]) }))
       .query(({ input }) => resolveAdapter(input.capability, buildAdapters())),
+    /** Real hardware detection for this machine. Unknown stays unknown. */
+    hardware: protectedProcedure.query(() => detectHardware()),
+    /**
+     * The readiness self-test. Runs on the machine with the hardware: detects it for
+     * real, probes every adapter, encodes and validates a real clip, and — when given
+     * a workflow and prompts — drives the full proof scene.
+     */
+    selfTest: protectedProcedure
+      .input(
+        z
+          .object({
+            workflowJson: z.string().min(2).max(200_000).optional(),
+            promptA: z.string().min(1).max(2000).optional(),
+            promptB: z.string().min(1).max(2000).optional(),
+            frames: z.number().int().min(4).max(120).optional(),
+            takes: z.number().int().min(1).max(4).optional(),
+          })
+          .optional(),
+      )
+      .mutation(async ({ input }) => {
+        let proof: { workflow: Record<string, { class_type?: string; inputs?: Record<string, unknown> }>; promptA: string; promptB: string; frames?: number; takes?: number } | undefined;
+        if (input?.workflowJson && input.promptA && input.promptB) {
+          try {
+            proof = { workflow: JSON.parse(input.workflowJson), promptA: input.promptA, promptB: input.promptB, frames: input.frames, takes: input.takes };
+          } catch {
+            throw new Error("The workflow is not valid JSON.");
+          }
+        }
+        return runSelfTest({ config: runtimeConfig(), proof });
+      }),
+
     /**
      * Run the proof scene. This is the acceptance gate: it exercises the actually
      * installed models and reports `blocked` when any of them is missing.

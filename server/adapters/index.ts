@@ -20,6 +20,8 @@ export * from "./types";
 export { ComfyUiAdapter } from "./comfyui";
 export { FfmpegAdapter, LipSyncAdapter, UpscalerAdapter, WhisperCppAdapter, extractPercent, evalFraction } from "./cliAdapters";
 export { VlmReviewerAdapter, parseReviewResponse } from "./vlmReviewer";
+export { detectHardware, runSelfTest } from "./selfTest";
+export type { HardwareReport, SelfTestReport, SelfTestStep } from "./selfTest";
 
 export type AdapterRuntimeConfig = {
   /** Where the workspace keeps its data. */

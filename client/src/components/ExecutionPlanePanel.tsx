@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, Server } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, Server, Stethoscope } from "lucide-react";
 
 type AdapterStatus = {
   state: string;
@@ -46,6 +46,14 @@ export function ExecutionPlanePanel() {
 
   const healthQuery = trpc.adapters.health.useQuery(undefined, { refetchOnWindowFocus: false });
   const resolutions = trpc.useQueries((t) => CAPABILITIES.map((capability) => t.adapters.resolve({ capability })));
+  const [selfTest, setSelfTest] = useState<{ verdict: string; summary: string; hardware: { gpu: string; vramGB: number | null; ramGB: number | null; backends: string[]; notes: string[] }; steps: Array<{ id: string; title: string; status: string; detail: string }> } | null>(null);
+  const selfTestMutation = trpc.adapters.selfTest.useMutation({
+    onSuccess: (result) => {
+      setSelfTest(result as unknown as typeof selfTest);
+      toast.message(`Self-test: ${result.verdict}`, { description: result.summary.slice(0, 160) });
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const proofMutation = trpc.adapters.runProof.useMutation({
     onSuccess: (result) => {
       setReport(result as unknown as typeof report);
@@ -106,6 +114,68 @@ export function ExecutionPlanePanel() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Readiness self-test ── */}
+      <div className="mt-5 border-t border-white/5 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-sm font-semibold">Readiness self-test</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Detects this machine for real, probes every adapter, encodes and validates an actual clip, and checks the reviewer. Run this on the
+              machine that will do the rendering.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="gx-seg-btn gx-seg"
+            disabled={selfTestMutation.isPending}
+            onClick={() => selfTestMutation.mutate({})}
+          >
+            {selfTestMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Stethoscope className="h-3.5 w-3.5" />} Run self-test
+          </button>
+        </div>
+
+        {selfTest ? (
+          <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.02] p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={selfTest.verdict === "ready" ? "gx-pill gx-pill--ready" : selfTest.verdict === "degraded" ? "gx-pill gx-pill--pending" : "gx-pill gx-pill--blocked"}>
+                {selfTest.verdict.replace("_", " ")}
+              </span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {selfTest.hardware.gpu}
+                {selfTest.hardware.vramGB ? ` · ${selfTest.hardware.vramGB} GB VRAM` : ""}
+                {selfTest.hardware.ramGB ? ` · ${selfTest.hardware.ramGB} GB RAM` : ""}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{selfTest.summary}</p>
+            <ul className="mt-2 space-y-1">
+              {selfTest.steps.map((step) => (
+                <li key={step.id} className="flex items-start gap-2 text-[0.7rem]">
+                  <span
+                    className={
+                      step.status === "passed"
+                        ? "text-[var(--genei-green)]"
+                        : step.status === "blocked"
+                          ? "text-[var(--genei-gold)]"
+                          : step.status === "skipped"
+                            ? "text-muted-foreground"
+                            : "text-[var(--genei-pink)]"
+                    }
+                  >
+                    {step.status}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {step.title} — {step.detail}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {selfTest.hardware.notes.length > 0 ? (
+              <p className="mt-2 text-[0.65rem] text-muted-foreground/80">{selfTest.hardware.notes.join(" ")}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {/* ── Proof scene ── */}
