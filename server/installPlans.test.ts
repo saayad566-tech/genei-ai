@@ -20,10 +20,16 @@ import { configureProxyFromEnvironment } from "./_core/network";
 // that has perfectly good egress through a proxy.
 const proxyOutcome = configureProxyFromEnvironment();
 
+/**
+ * Reachability, not quota. A response of any status — including 403 or 429 — proves that
+ * outbound traffic works; only a thrown error means there is no network. Testing
+ * `response.ok` instead would skip these tests whenever GitHub's unauthenticated hourly
+ * allowance happened to be spent, which is a quota condition, not a network one.
+ */
 const liveNetworkAvailable = await (async () => {
   try {
-    const response = await fetch("https://api.github.com/rate_limit", { signal: AbortSignal.timeout(8000) });
-    return response.ok;
+    await fetch("https://api.github.com/rate_limit", { signal: AbortSignal.timeout(8000) });
+    return true;
   } catch {
     return false;
   }

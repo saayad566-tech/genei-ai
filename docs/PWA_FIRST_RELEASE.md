@@ -2,7 +2,11 @@
 
 ## Release position
 
-Genei AI is currently delivered as a production-oriented **Progressive Web App**. The web app is the source of truth for the creator ecosystem, API gateway, cloud asset library, and Android experience. It is not represented as a native APK, Windows EXE, iOS IPA, or HarmonyOS HAP until a genuine platform build has been produced and installed on the target platform.
+Genei AI is delivered as a production-oriented **Progressive Web App**, and as a **Windows desktop build**. The web app remains the source of truth for the creator ecosystem, API gateway, cloud asset library, and Android experience.
+
+The Windows desktop build is genuine: `electron-builder` produced a real `GeneiAI.exe`, verified as **PE32+ executable (GUI) x86-64**, packaged from the current source. It is delivered as `Genei-AI-Desktop-Windows-Portable.zip`.
+
+What is still not claimed: the desktop build has **not been run on a Windows machine by us**, so it is not represented as a verified native experience on that platform. No iOS IPA or HarmonyOS HAP has been produced, and the Android build is a debug APK rather than a signed release, because the release variant needs a signing configuration that is not in the repository.
 
 ## Android installation
 

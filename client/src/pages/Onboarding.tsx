@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { CheckCircle2, Circle, Download, Loader2, Cpu, Sparkles, XCircle, AlertTriangle, ArrowRight } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Circle, Cpu, Download, Loader2, Monitor, Sparkles, XCircle } from "lucide-react";
 
 type DesktopBridge = {
   isDesktop?: boolean;
@@ -115,7 +115,13 @@ export default function Onboarding() {
   const [weightNote, setWeightNote] = useState<string | null>(null);
   const [weightRepo, setWeightRepo] = useState("");
 
-  useEffect(() => {
+  /**
+   * Read this machine. Called once on open, and again whenever the user asks — which is
+   * what "Use my hardware" means, and matters when the first read failed or the machine
+   * changed (an eGPU connected, a driver installed).
+   */
+  const detectHardware = useCallback(() => {
+    setDetected(false);
     const bridge = (window as unknown as { geneiDesktop?: DesktopBridge }).geneiDesktop;
     if (!bridge?.refreshHardware) {
       setDetected(true);
@@ -144,6 +150,10 @@ export default function Onboarding() {
       .catch(() => undefined)
       .finally(() => setDetected(true));
   }, []);
+
+  useEffect(() => {
+    detectHardware();
+  }, [detectHardware]);
 
   const registryQuery = trpc.tools.registry.useQuery(
     { os: hardware.os, ramGB: hardware.ramGB ?? undefined, vramGB: hardware.vramGB ?? undefined, backends: hardware.backends },
@@ -273,8 +283,11 @@ export default function Onboarding() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button type="button" className="gx-seg-btn gx-seg" disabled={detected} onClick={() => detectHardware()}>
+              {!detected ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Monitor className="h-3.5 w-3.5" />} Use my hardware
+            </button>
             <button type="button" className="gx-seg-btn gx-seg" disabled={installing} onClick={() => void installAll()}>
-              {installing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Install all
+              {installing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Install AI Film Studio
             </button>
             <button type="button" className="gx-cta" onClick={finish}>
               Continue <ArrowRight className="h-4 w-4" />

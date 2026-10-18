@@ -12,7 +12,11 @@ The installed **Genei AI Desktop** application probes CPU, memory, disk, GPU, ac
 
 For each job, Genei prefers a compatible local path when one is available. If local hardware or a local capability is unavailable, Genei reports the reason and falls back to a saved provider or the managed gateway. Optional local model downloads are presented inside the relevant studio with progress, verification, retry, and cancel states.
 
-There is no separate runner executable, one-time pairing token, command-line setup, Python installation, or hardware utility required for normal desktop use. Historical runner modules remain in the source tree only for compatibility with old server records and are not shipped or linked by the desktop application.
+**Normal desktop use needs none of this.** You do not install a separate runner, a Python interpreter, or a hardware utility, and there is no command-line step.
+
+**Pairing a second machine is optional, and is now a supported feature.** If you want another computer you own to take the heavy rendering, open **Hardware & Runtime → Render runners** and pair it. Pairing issues a one-time token, shown once and never stored in the browser; the runner sends it with every heartbeat, and each paired machine reports its own hardware, VRAM and tool readiness, which appears in the telemetry panel above it. A runner can be revoked at any time, and its recent log lines are readable from the same panel.
+
+An earlier revision of this guide stated that no pairing workflow existed and that the runner modules were unreachable compatibility code. Both of those are now inaccurate: the workflow is part of the desktop application.
 
 ## Export Center
 
