@@ -152,6 +152,12 @@ export type ResolveOptions = {
  */
 export async function resolveInstallPlan(tool: ToolEntry, platform: Platform = currentPlatform(), options: ResolveOptions = {}): Promise<InstallPlan> {
   const notes: string[] = [];
+  // GitHub's unauthenticated API allows 60 requests an hour, which a handful of tool
+  // lookups exhaust — and a rate-limited lookup silently becomes a fallback. A token
+  // raises that to 5,000 and is read from the environment when the caller does not
+  // supply one, so a user with a token configured gets live data.
+  const token = options.token ?? process.env.GITHUB_TOKEN?.trim() ?? process.env.GH_TOKEN?.trim() ?? undefined;
+  if (token && !options.token) options = { ...options, token };
   const repo = repoFromUrl(tool.repositoryUrl);
   const staticSteps = STATIC_FALLBACKS[tool.id]?.(platform) ?? [];
   const packageRecipe = PACKAGE_MANAGER_RECIPES[tool.id]?.[platform.os];

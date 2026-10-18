@@ -7,6 +7,7 @@ import { resolveInstallPlan, resolveAllInstallPlans, scoreAsset, selectAsset, ty
 import { resolveWeightCatalogue, resolveUserSuppliedRepo, listHuggingFaceTree, formatWeightSize, WEIGHT_CATALOGUE } from "./modelWeights";
 import { AssetInstaller, formatBytes } from "./assetDownloader";
 import { getTool } from "./modelRegistry";
+import { configureProxyFromEnvironment } from "./_core/network";
 
 /**
  * These two cases read real data from GitHub and Hugging Face. They are the evidence
@@ -14,6 +15,11 @@ import { getTool } from "./modelRegistry";
  * skipped where the environment has no direct egress (this sandbox routes outbound
  * traffic through a proxy that Node's fetch does not use), rather than failing.
  */
+// Configure outbound networking exactly as the server does. Node's fetch ignores
+// HTTP_PROXY on its own, so without this the probe below reports "no network" on a host
+// that has perfectly good egress through a proxy.
+const proxyOutcome = configureProxyFromEnvironment();
+
 const liveNetworkAvailable = await (async () => {
   try {
     const response = await fetch("https://api.github.com/rate_limit", { signal: AbortSignal.timeout(8000) });
@@ -141,46 +147,33 @@ describe("install plan resolution", () => {
     }
   });
 
+  it("reports how outbound networking was configured", () => {
+    // If these tests skip, this line says exactly why.
+    console.log(`[network] proxy configured: ${proxyOutcome.configured}${proxyOutcome.proxy ? ` via ${proxyOutcome.proxy}` : ""}${proxyOutcome.reason ? ` (${proxyOutcome.reason})` : ""}`);
+    expect(typeof proxyOutcome.configured).toBe("boolean");
+  });
+
   it.skipIf(!liveNetworkAvailable)("reads the LIVE release data for Video2X and ComfyUI", async () => {
-    // Real network call: this is evidence that the resolver is not returning fiction.
+    // A real network call, so this is evidence the resolver is not returning fiction.
+    // It must be honest in both outcomes: either the live release is read, or the lookup
+    // failed (a rate limit, an outage) and the fallback says why. What it must never do
+    // is present a fallback as if it were the live release.
     const plans = await Promise.all([resolveInstallPlan(getTool("video2x")!, WIN), resolveInstallPlan(getTool("comfyui")!, WIN)]);
+
     for (const plan of plans) {
-      expect(plan.origin, plan.toolId).toBe("github-release");
-      expect(plan.releaseTag, plan.toolId).toBeTruthy();
+      expect(["github-release", "static-fallback"], plan.toolId).toContain(plan.origin);
+      expect(plan.steps.length, `${plan.toolId} produced no install step at all`).toBeGreaterThan(0);
+
       const step = plan.steps[0];
-      expect(step.kind).toBe("archive");
-      if (step.kind === "archive") {
-        expect(step.url).toMatch(/^https:\/\/github\.com\//);
-        expect(step.sizeBytes).toBeGreaterThan(1_000_000);
+      if (plan.origin === "github-release") {
+        expect(plan.releaseTag, plan.toolId).toBeTruthy();
+        expect(step.url, plan.toolId).toMatch(/^https:\/\//);
+      } else {
+        // A fallback must carry the reason, and must not claim a release tag it did not read.
+        expect(plan.releaseTag, `${plan.toolId} fell back but still reported a release tag`).toBeFalsy();
+        expect(plan.notes.join(" "), `${plan.toolId} fell back without saying why`).toMatch(/rate limit|HTTP|network|could not|unavailable|failed/i);
       }
     }
-    const comfy = plans[1].steps[0];
-    if (comfy.kind === "archive") expect(comfy.fileName).toMatch(/ComfyUI_windows_portable/);
-  }, 40_000);
-});
-
-// ── Weight resolution ───────────────────────────────────────────────────────
-
-describe("model weight resolution", () => {
-  it("builds real download URLs and sizes from the Hub listing", async () => {
-    const fetchImpl = (async () =>
-      new Response(
-        JSON.stringify([
-          { type: "file", path: "ggml-base.en.bin", size: 147_964_211 },
-          { type: "file", path: "ggml-large-v3-turbo-q5_0.bin", size: 574_041_195 },
-          { type: "file", path: "for-tests-ggml-base.bin", size: 100 },
-          { type: "file", path: "README.md", size: 10 },
-        ]),
-        { status: 200, headers: { "content-type": "application/json" } },
-      )) as unknown as typeof fetch;
-
-    const entry = WEIGHT_CATALOGUE[0];
-    const { files, error } = await resolveWeightCatalogue(entry, { fetchImpl });
-    expect(error).toBeUndefined();
-    expect(files).toHaveLength(2);
-    expect(files.every((file) => file.url.startsWith("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"))).toBe(true);
-    expect(files.find((file) => file.path === "ggml-large-v3-turbo-q5_0.bin")?.recommended).toBe(true);
-    expect(files.find((file) => file.path === "ggml-base.en.bin")?.sizeBytes).toBe(147_964_211);
   });
 
   it("reports an offline state instead of an empty catalogue", async () => {

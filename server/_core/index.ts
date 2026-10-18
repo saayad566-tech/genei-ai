@@ -11,6 +11,7 @@ import { registerDirectorWebhookRoutes } from "../webhookRouter";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { configureProxyFromEnvironment } from "./network";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -32,6 +33,15 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // Node's fetch ignores HTTP_PROXY unless a dispatcher is installed. Do it before any
+  // outbound call so a proxied network behaves as its environment describes.
+  const proxy = configureProxyFromEnvironment();
+  if (proxy.configured) {
+    console.log(`[network] Outbound requests use the proxy at ${proxy.proxy}${proxy.bypass?.length ? ` (bypassing ${proxy.bypass.join(", ")})` : ""}.`);
+  } else if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) {
+    console.log(`[network] A proxy is configured in the environment but was not installed: ${proxy.reason}`);
+  }
+
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads

@@ -125,7 +125,10 @@ export async function listHuggingFaceTree(repo: string, options: WeightResolveOp
   const headers: Record<string, string> = { accept: "application/json", "user-agent": "GeneiAI" };
   if (options.token) headers.authorization = `Bearer ${options.token}`;
   try {
-    const response = await fetchImpl(`https://huggingface.co/api/models/${repo}/tree/main`, { headers, signal: AbortSignal.timeout(15_000) });
+    // `recursive=true` is required: without it the Hub lists only top-level entries, so a
+    // model whose weights live in a subdirectory (MuseTalk's `musetalkV15/unet.pth`,
+    // Wan2.2's sharded safetensors) appears to have no weights at all.
+    const response = await fetchImpl(`https://huggingface.co/api/models/${repo}/tree/main?recursive=true`, { headers, signal: AbortSignal.timeout(15_000) });
     if (!response.ok) {
       return { files: [], error: `The Hugging Face API answered HTTP ${response.status} for ${repo}.` };
     }
@@ -157,6 +160,15 @@ export async function resolveWeightCatalogue(
 
   const limited = typeof options.limit === "number" ? matching.slice(0, options.limit) : matching;
   const preferred = limited.find((file) => entry.prefer.test(file.path ?? "")) ?? limited[0];
+
+  if (limited.length === 0) {
+    // The repository answered but holds nothing this entry expects. Saying so is the
+    // difference between "we looked and found nothing" and a silent empty success.
+    return {
+      files: [],
+      error: `No file matching this entry was found in ${entry.repo} (${files.length} file(s) were listed). The repository may have been reorganised, or the expected file has a different name.`,
+    };
+  }
 
   return {
     files: limited.map((file) => ({
