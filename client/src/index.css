@@ -713,3 +713,44 @@
     transform: none;
   }
 }
+
+
+/* ------------------------------------------------------------------ *
+ * Cross-platform
+ * ------------------------------------------------------------------ */
+
+/*
+ * Touch targets. WCAG 2.2 AA asks for 24x24; Apple and Material ask for 44 and 48.
+ * We use 44 and only apply it to coarse pointers, so a mouse-driven desktop layout
+ * stays dense while a finger gets a target it can actually hit.
+ */
+@media (pointer: coarse) {
+  .genei-touch,
+  button.gx-seg-btn,
+  button.gx-cta {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Buttons should not wait 300ms for a double-tap that is not coming. */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
+/*
+ * The scroll container owns its scroll. Without this, a swipe that reaches the end of a
+ * list pulls the whole app, and on Android that triggers the browser's own reload.
+ */
+.genei-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * Full-height layouts use dvh, not vh: vh is the height the viewport would have with
+ * browser chrome hidden, so a vh layout is cropped whenever the URL bar is showing.
+ */
+.genei-viewport-height {
+  min-height: 100dvh;
+  min-height: 100svh;
+}

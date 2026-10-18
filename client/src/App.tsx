@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import CommandPalette from "@/components/CommandPalette";
+import { OfflineBanner, SlowNetworkNote } from "@/components/PlatformChrome";
+import { installBackNavigation } from "@/lib/backnav";
+import { focusMainContent } from "@/lib/a11y";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
@@ -107,6 +110,9 @@ function Router() {
 }
 
 function App() {
+  // On Android the system back gesture is the primary way out of anything, so overlays
+  // must close on it rather than the gesture leaving the app.
+  useEffect(() => installBackNavigation(), []);
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
@@ -115,6 +121,9 @@ function App() {
           <WebhookToastWatcher />
           {/* Ctrl/Cmd+K — reaches every page and the system state without the mouse. */}
           <CommandPalette />
+          {/* Connectivity, stated but never used to block an action. */}
+          <OfflineBanner />
+          <SlowNetworkNote />
           <FirstRunGate>
             <Router />
           </FirstRunGate>
