@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import CommandPalette from "@/components/CommandPalette";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
@@ -112,6 +113,8 @@ function App() {
         <TooltipProvider>
           <Toaster position="bottom-right" theme="dark" />
           <WebhookToastWatcher />
+          {/* Ctrl/Cmd+K — reaches every page and the system state without the mouse. */}
+          <CommandPalette />
           <FirstRunGate>
             <Router />
           </FirstRunGate>

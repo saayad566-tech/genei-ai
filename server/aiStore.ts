@@ -18,6 +18,7 @@ import { classifyModel, type CapabilityProfile, type CapabilityId } from "../sha
 import { listHuggingFaceTree } from "./modelWeights";
 import { caches } from "./_core/cache";
 import { resilientFetch } from "./_core/resilientFetch";
+import { hasRoomFor } from "./_core/ops";
 
 const HF_BASE = "https://huggingface.co";
 
@@ -336,6 +337,13 @@ export async function downloadModel(input: {
   const partial = `${target}.part`;
 
   fs.mkdirSync(dir, { recursive: true });
+
+  // Fail before the transfer, not 12 GB into it. The check includes working room for the
+  // temporary `.part` file.
+  const room = hasRoomFor(dir, input.expectedBytes);
+  if (!room.ok) {
+    return { ok: false, message: room.detail };
+  }
 
   if (fs.existsSync(target)) {
     const existing = fs.statSync(target).size;

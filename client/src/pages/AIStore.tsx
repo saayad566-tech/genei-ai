@@ -63,11 +63,30 @@ export default function AIStore() {
   const [prompt, setPrompt] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [comparePrompt, setComparePrompt] = useState("");
+  const [compareReport, setCompareReport] = useState<{ results: Array<{ modelId: string; status: string; content?: string; error?: string; latencyMs: number }>; ranked: string[]; note: string } | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const capabilitiesQuery = trpc.aiStore.capabilities.useQuery();
   const tokenQuery = trpc.aiStore.token.useQuery();
   const locationQuery = trpc.aiStore.location.useQuery();
   const installedQuery = trpc.aiStore.installed.useQuery();
+  const diskQuery = trpc.aiStore.disk.useQuery();
+  const metricsQuery = trpc.ops.metrics.useQuery(undefined, { enabled: showDiagnostics, refetchOnWindowFocus: false });
+  const resetCaches = trpc.ops.resetCaches.useMutation({
+    onSuccess: (result) => toast.message("Caches cleared", { description: result.message }),
+    onError: (error) => toast.error(error.message),
+  });
+
+  const compareMutation = trpc.aiStore.compare.useMutation({
+    onSuccess: (report) => {
+      setCompareReport(report);
+      if (report.ranked.length === 0) toast.error("No model produced an answer", { description: "Each result says why." });
+      else toast.message(`${report.ranked.length} of ${report.results.length} answered`, { description: `Fastest: ${report.ranked[0]}` });
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   // Typing must not fire a request per keystroke. The query settles for 250 ms first,
   // and the previous results stay on screen while the next ones load.
@@ -393,6 +412,131 @@ export default function AIStore() {
               </div>
             </>
           )}
+
+          {/* Compare */}
+          <div className="gx-panel space-y-3 p-4">
+            <div className="flex items-center justify-between">
+              <p className="font-display text-sm font-semibold text-foreground">Compare models</p>
+              <span className="text-[10px] text-muted-foreground">{compareIds.length}/4 selected</span>
+            </div>
+            <p className="text-[10px] leading-relaxed text-muted-foreground">
+              Select up to four models from the results, then run one prompt through all of them. Latency is
+              measured, not estimated, and each model's failure is reported rather than hidden.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {models.slice(0, 12).map((model) => {
+                const picked = compareIds.includes(model.id);
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    className={`gx-seg-btn ${picked ? "gx-seg" : ""}`}
+                    onClick={() =>
+                      setCompareIds((ids) =>
+                        ids.includes(model.id) ? ids.filter((id) => id !== model.id) : ids.length >= 4 ? ids : [...ids, model.id],
+                      )
+                    }
+                  >
+                    {model.name.length > 22 ? `${model.name.slice(0, 22)}…` : model.name}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea
+              className="genei-input w-full resize-none text-sm"
+              rows={2}
+              placeholder="One prompt, run against every selected model…"
+              value={comparePrompt}
+              onChange={(event) => setComparePrompt(event.target.value)}
+            />
+            <button
+              type="button"
+              className="gx-cta w-full"
+              disabled={compareMutation.isPending || compareIds.length < 2 || !comparePrompt.trim()}
+              onClick={() =>
+                compareMutation.mutate({
+                  prompt: comparePrompt.trim(),
+                  candidates: compareIds.map((id) => {
+                    const local = (installedQuery.data ?? []).find((entry) => entry.id.includes(id.split("/").pop() ?? ""));
+                    return { modelId: id, mode: (local ? "local" : "hosted") as "local" | "hosted", localPath: local?.path };
+                  }),
+                })
+              }
+            >
+              {compareMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {compareMutation.isPending ? "Running…" : "Run comparison"}
+            </button>
+            {compareReport ? (
+              <div className="space-y-2">
+                {compareReport.results.map((result) => (
+                  <div key={result.modelId} className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] font-medium text-foreground">{result.modelId}</span>
+                      <span className={`flex-shrink-0 text-[10px] ${result.status === "completed" ? "text-emerald-300" : "text-rose-300"}`}>
+                        {result.status === "completed" ? `${result.latencyMs} ms` : "failed"}
+                      </span>
+                    </div>
+                    {result.content ? (
+                      <p className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-[10px] leading-relaxed text-foreground/80">{result.content}</p>
+                    ) : (
+                      <p className="mt-1 text-[10px] text-rose-300">{result.error}</p>
+                    )}
+                  </div>
+                ))}
+                <p className="text-[10px] leading-relaxed text-muted-foreground/80">{compareReport.note}</p>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Diagnostics */}
+          <div className="gx-panel overflow-hidden">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between p-4 text-left"
+              onClick={() => setShowDiagnostics((value) => !value)}
+            >
+              <span className="font-display text-sm font-semibold text-foreground">Diagnostics</span>
+              <span className="text-[10px] text-muted-foreground">
+                {diskQuery.data ? `${diskQuery.data.freeGB} GB free` : "…"}
+              </span>
+            </button>
+            {showDiagnostics ? (
+              <div className="space-y-2 border-t border-white/5 p-4">
+                {metricsQuery.isLoading ? (
+                  <p className="text-[11px] text-muted-foreground">Reading counters…</p>
+                ) : metricsQuery.data ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <span className="text-muted-foreground">Heap used</span><span className="text-right text-foreground">{metricsQuery.data.process.heapUsedMB} MB</span>
+                      <span className="text-muted-foreground">RSS</span><span className="text-right text-foreground">{metricsQuery.data.process.rssMB} MB</span>
+                      <span className="text-muted-foreground">Free system RAM</span><span className="text-right text-foreground">{metricsQuery.data.system.freeRamMB} MB</span>
+                      <span className="text-muted-foreground">Hosts being skipped</span><span className="text-right text-foreground">{metricsQuery.data.outbound.hostsSkipped.length || "none"}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {Object.entries(metricsQuery.data.caches).map(([name, stats]) => (
+                        <div key={name} className="flex items-center justify-between text-[10px]">
+                          <span className="text-muted-foreground">{name}</span>
+                          <span className="text-foreground">
+                            {stats.hits} hits · {stats.misses} misses · {stats.coalesced} coalesced · {stats.size} held
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="gx-seg-btn w-full"
+                      disabled={resetCaches.isPending}
+                      onClick={() => { resetCaches.mutate(); void metricsQuery.refetch(); }}
+                    >
+                      <RefreshCw className="h-3 w-3" /> Clear all caches
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">Counters are unavailable.</p>
+                )}
+              </div>
+            ) : null}
+          </div>
 
           {/* Installed */}
           <div className="gx-panel overflow-hidden">

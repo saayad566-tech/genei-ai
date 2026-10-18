@@ -5,6 +5,9 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { generateImage } from "./_core/imageGeneration";
 import { invokeLLM } from "./_core/llm";
 import { encryptSecret, decryptSecret } from "./_core/keyVault";
+import { enforceRateLimit, limiter } from "./_core/rateLimit";
+import { liveness, readiness, metrics, resetCaches, diskSpace } from "./_core/ops";
+import { compareModels } from "./modelCompare";
 import { CAPABILITY_IDS, CAPABILITY_LABELS, CAPABILITY_DESCRIPTIONS } from "../shared/modelCapabilities";
 import {
   searchModels, resolveModel, checkCompatibility, downloadModel, executeModel,
@@ -521,6 +524,30 @@ export const appRouter = router({
 
   // ── Workflows (ComfyUI-Style Node Graphs) ──────────────────────────────
 
+
+  // ── Operations ────────────────────────────────────────────────────────────
+  // Health, readiness and real counters. Everything here is read from the component
+  // that owns it, so nothing on this surface is an estimate.
+  ops: router({
+    /** Cheap liveness. Safe to call often. */
+    health: protectedProcedure.query(async () => liveness()),
+
+    /** Whether this machine can actually do work right now, and what is stopping it. */
+    readiness: protectedProcedure.query(async () => {
+      const config = runtimeConfig();
+      return readiness({ dataDir: config.dataDir });
+    }),
+
+    /** Real counters: memory, caches, outbound health, rate-limit usage. */
+    metrics: protectedProcedure.query(async ({ ctx }) => metrics(limiter.usage(ctx.user.id))),
+
+    /** Drop every cache, so fresh data can be forced without a restart. */
+    resetCaches: protectedProcedure.mutation(async () => {
+      const cleared = resetCaches();
+      return { cleared, message: `Cleared ${cleared} cached entr${cleared === 1 ? "y" : "ies"}.` };
+    }),
+  }),
+
   // ── AI Store ──────────────────────────────────────────────────────────────
   // A catalogue of open-source models: browse and classify them, check they fit this
   // machine, download them, and run them locally or through a hosted endpoint.
@@ -542,6 +569,7 @@ export const appRouter = router({
         limit: z.number().int().min(1).max(60).optional(),
       }))
       .query(async ({ input, ctx }) => {
+        enforceRateLimit(ctx.user.id, "aiStore.search");
         const token = await readProviderToken(ctx.user.id, "huggingface");
         const capability = input.capability && (CAPABILITY_IDS as readonly string[]).includes(input.capability)
           ? (input.capability as (typeof CAPABILITY_IDS)[number])
@@ -569,6 +597,7 @@ export const appRouter = router({
     install: protectedProcedure
       .input(z.object({ id: z.string().min(3).max(200), filePath: z.string().min(1), url: z.string().url(), expectedBytes: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => {
+        enforceRateLimit(ctx.user.id, "aiStore.install");
         const token = await readProviderToken(ctx.user.id, "huggingface");
         const config = runtimeConfig();
         const result = await downloadModel({
@@ -594,6 +623,7 @@ export const appRouter = router({
         temperature: z.number().min(0).max(2).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        enforceRateLimit(ctx.user.id, "aiStore.run");
         const token = input.mode === "hosted" ? await readProviderToken(ctx.user.id, "huggingface") : undefined;
         const config = runtimeConfig();
         const llamaBinary = config.llamaBinary;
@@ -612,6 +642,43 @@ export const appRouter = router({
 
     /** Where downloads are written, shown in the UI so the user knows. */
     location: protectedProcedure.query(async () => ({ directory: modelsDir(runtimeConfig().dataDir) })),
+
+    /** How much room is left before a large download is attempted. */
+    disk: protectedProcedure.query(async () => {
+      const config = runtimeConfig();
+      return diskSpace(config.dataDir) ?? { freeBytes: 0, totalBytes: 0, freeGB: 0 };
+    }),
+
+    /**
+     * Run one prompt across several models and report what actually came back,
+     * including measured latency and each model's own failure.
+     */
+    compare: protectedProcedure
+      .input(z.object({
+        prompt: z.string().min(1).max(8000),
+        system: z.string().max(4000).optional(),
+        candidates: z.array(z.object({
+          modelId: z.string().min(3).max(200),
+          mode: z.enum(["local", "hosted"]),
+          localPath: z.string().max(1000).optional(),
+        })).min(2).max(4),
+        maxTokens: z.number().int().min(1).max(4096).optional(),
+        temperature: z.number().min(0).max(2).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        enforceRateLimit(ctx.user.id, "aiStore.compare");
+        const config = runtimeConfig();
+        return compareModels({
+          prompt: input.prompt,
+          system: input.system,
+          candidates: input.candidates,
+          token: await readProviderToken(ctx.user.id, "huggingface"),
+          binaryPath: config.llamaBinary,
+          baseUrl: config.llamaUrl,
+          maxTokens: input.maxTokens,
+          temperature: input.temperature,
+        });
+      }),
   }),
 
   workflows: router({
