@@ -563,7 +563,56 @@ export const appRouter = router({
         if (!db) throw new Error("Database unavailable");
         const [wf] = await db.select().from(workflowGraphs).where(and(eq(workflowGraphs.id, input.workflowId), eq(workflowGraphs.userId, ctx.user.id))).limit(1);
         if (!wf) throw new Error("Workflow not found");
-        return { success: true, message: `Successfully queued execution for workflow "${wf.title}" across connected local & cloud nodes.` };
+
+        // This used to return "Successfully queued execution across connected local &
+        // cloud nodes" without queueing anything at all — a success message for work
+        // that never happened. It now records a real, durable job that the runner
+        // picks up, and reports only what it actually did.
+        let nodeCount = 0;
+        let nodeIds: string[] = [];
+        try {
+          const parsed = JSON.parse(wf.nodes || "[]");
+          if (Array.isArray(parsed)) {
+            nodeIds = parsed
+              .map((node: unknown) => (node && typeof node === "object" ? String((node as { id?: unknown }).id ?? "") : ""))
+              .filter(Boolean);
+            nodeCount = parsed.length;
+          }
+        } catch {
+          return { success: false, jobId: null, message: `Workflow "${wf.title}" could not be queued: its node list is not valid JSON.` };
+        }
+
+        if (nodeCount === 0) {
+          return { success: false, jobId: null, message: `Workflow "${wf.title}" has no steps, so there is nothing to execute.` };
+        }
+
+        if (wf.projectId === null || wf.projectId === undefined) {
+          // director_jobs.projectId is NOT NULL, and a workflow need not belong to a
+          // project. Rather than inventing one, say what is missing.
+          return {
+            success: false,
+            jobId: null,
+            message: `Workflow "${wf.title}" is not attached to a project, so it cannot be queued yet. Open it from a project, or give it one, and run it again.`,
+          };
+        }
+
+        const result = await db.insert(directorJobs).values({
+          userId: ctx.user.id,
+          projectId: wf.projectId,
+          kind: "workflow",
+          stage: "workflow_execution",
+          status: "queued",
+          progress: 0,
+          attempt: 0,
+          metadata: JSON.stringify({ workflowId: wf.id, title: wf.title, nodeCount, nodeIds }),
+        });
+        const jobId = Number(result[0].insertId);
+
+        return {
+          success: true,
+          jobId,
+          message: `Queued "${wf.title}" as job ${jobId} with ${nodeCount} step(s). It runs when a runner takes it; nothing is claimed to have executed yet.`,
+        };
       }),
   }),
 
