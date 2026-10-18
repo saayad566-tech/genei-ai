@@ -16,6 +16,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { classifyModel, type CapabilityProfile, type CapabilityId } from "../shared/modelCapabilities";
 import { listHuggingFaceTree } from "./modelWeights";
+import { caches } from "./_core/cache";
+import { resilientFetch } from "./_core/resilientFetch";
 
 const HF_BASE = "https://huggingface.co";
 
@@ -117,6 +119,9 @@ export async function searchModels(
     return { models: [], source: "offline", note: "The Hub was not consulted, so no models are listed." };
   }
 
+  // Cached and coalesced: repeated searches, and several components mounting at once,
+  // become one request instead of one each. The injected fetchImpl (tests) bypasses the
+  // cache so a stub is always exercised.
   const fetchImpl = options.fetchImpl ?? fetch;
   const limit = Math.min(Math.max(input.limit ?? 30, 1), 60);
   const params = new URLSearchParams();
@@ -128,11 +133,12 @@ export async function searchModels(
   // Over-fetch when a capability filter will be applied, so the page is not half-empty.
   params.set("limit", String(input.capability ? Math.min(limit * 4, 100) : limit));
 
+  const cacheKey = `search:${params.toString()}:${options.token ? "auth" : "anon"}`;
+  const run = async () => {
   try {
-    const response = await fetchImpl(`${HF_BASE}/api/models?${params.toString()}`, {
-      headers: hfHeaders(options),
-      signal: AbortSignal.timeout(15_000),
-    });
+    const response = options.fetchImpl
+      ? await fetchImpl(`${HF_BASE}/api/models?${params.toString()}`, { headers: hfHeaders(options), signal: AbortSignal.timeout(15_000) })
+      : await resilientFetch(`${HF_BASE}/api/models?${params.toString()}`, { headers: hfHeaders(options) }, { timeoutMs: 15_000, attempts: 3 });
     if (!response.ok) {
       return { models: [], source: "huggingface", note: `The Hugging Face Hub answered HTTP ${response.status}.` };
     }
@@ -161,6 +167,15 @@ export async function searchModels(
       note: `The Hugging Face Hub could not be reached: ${error instanceof Error ? error.message : "unknown error"}.`,
     };
   }
+  };
+
+  // An injected fetch is a caller-supplied implementation (used by tests and by anything
+  // that needs a specific transport). Caching its result would hand one caller another
+  // caller's answer, so it bypasses the cache entirely.
+  if (options.fetchImpl) return run();
+
+  const result = await caches.modelSearch.getOrLoad(cacheKey, run);
+  return result as { models: StoreModel[]; source: string; note?: string };
 }
 
 /** Read a single model and its real file listing. */

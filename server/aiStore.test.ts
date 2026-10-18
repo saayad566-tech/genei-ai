@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearAllCaches } from "./_core/cache";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -18,6 +19,10 @@ import {
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "genei-store-"));
 const realFetch = globalThis.fetch;
 afterEach(() => { vi.unstubAllGlobals(); globalThis.fetch = realFetch; });
+// The store caches Hub lookups in a module-level cache, which is exactly what makes it
+// fast in production. Between tests that cache has to go, or one test's stub answers
+// another test's question.
+beforeEach(() => { clearAllCaches(); });
 
 describe("search", () => {
   it("classifies what the Hub returns", async () => {

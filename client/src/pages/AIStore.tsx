@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useDebouncedValue } from "@/lib/perf";
 
 /**
  * AI Store — browse, check, download and run open-source models.
@@ -68,9 +69,12 @@ export default function AIStore() {
   const locationQuery = trpc.aiStore.location.useQuery();
   const installedQuery = trpc.aiStore.installed.useQuery();
 
+  // Typing must not fire a request per keystroke. The query settles for 250 ms first,
+  // and the previous results stay on screen while the next ones load.
+  const debouncedQuery = useDebouncedValue(query, 250);
   const searchQuery = trpc.aiStore.search.useQuery(
-    { query: query.trim() || undefined, capability: capability || undefined, sort, ggufOnly, limit: 24 },
-    { placeholderData: (previous) => previous },
+    { query: debouncedQuery.trim() || undefined, capability: capability || undefined, sort, ggufOnly, limit: 24 },
+    { placeholderData: (previous) => previous, staleTime: 60_000 },
   );
 
   const detailQuery = trpc.aiStore.detail.useQuery(
