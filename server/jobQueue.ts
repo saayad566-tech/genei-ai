@@ -74,6 +74,9 @@ const DEFAULT_BUDGET: ResourceBudget = {
  * Derive a queue budget from a real hardware profile. Unmeasurable values stay at
  * the conservative default rather than being invented.
  */
+/** The smallest budget worth planning against; always capped by measured RAM. */
+const MIN_BUDGET_MB = 256;
+
 export function budgetFromHardware(profile: {
   ramGB?: number | null;
   vramGB?: number | null;
@@ -85,7 +88,12 @@ export function budgetFromHardware(profile: {
     // Never plan against more than 60% of measured system RAM: the OS, the Electron
     // shell and the user's other applications need the rest. When RAM is unknown we
     // keep the documented conservative default rather than reducing it a second time.
-    ramBudgetMB: hasRam ? Math.max(1024, Math.round(ramMB * 0.6)) : DEFAULT_BUDGET.ramBudgetMB,
+    //
+    // The minimum must never exceed that share. A flat 1024 MB floor gave a 1 GB
+    // machine a budget of 1024 MB — 100% of its memory — which is precisely how a
+    // small laptop gets driven into swap and freezes. The floor is now bounded by the
+    // machine's own RAM, so a small computer is given a small budget.
+    ramBudgetMB: hasRam ? Math.min(ramMB, Math.max(MIN_BUDGET_MB, Math.round(ramMB * 0.6))) : DEFAULT_BUDGET.ramBudgetMB,
     vramBudgetMB: vramMB,
     maxConcurrentHeavyJobs: 1,
     highWaterMarkRatio: DEFAULT_BUDGET.highWaterMarkRatio,

@@ -12,7 +12,7 @@
   "main": "desktop/main.cjs",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --splitting",
+    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --splitting --external:vite --external:../../vite.config",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
@@ -194,7 +194,8 @@
       "legalTrademarks": "SaayadTech",
       "signtoolOptions": {
         "publisherName": "SaayadTech"
-      }
+      },
+      "icon": "packaging/icon.ico"
     },
     "nsis": {
       "oneClick": true,
@@ -211,7 +212,8 @@
     },
     "portable": {
       "artifactName": "Genei-AI-Desktop-Portable-${version}.${ext}"
-    }
+    },
+    "icon": "packaging/icon.png"
   },
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
   "pnpm": {
