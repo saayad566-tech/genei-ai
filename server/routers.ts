@@ -8,6 +8,8 @@ import { encryptSecret, decryptSecret } from "./_core/keyVault";
 import { enforceRateLimit, limiter } from "./_core/rateLimit";
 import { liveness, readiness, metrics, resetCaches, diskSpace } from "./_core/ops";
 import { compareModels } from "./modelCompare";
+import { facetModels } from "./aiStore";
+import { MODEL_DOMAINS, DOMAIN_LABELS, DOMAIN_DESCRIPTIONS, SIZE_CLASSES, RUNNABILITY, CAPABILITY_DOMAIN } from "../shared/modelTaxonomy";
 import { CAPABILITY_IDS, CAPABILITY_LABELS, CAPABILITY_DESCRIPTIONS } from "../shared/modelCapabilities";
 import {
   searchModels, resolveModel, checkCompatibility, downloadModel, executeModel,
@@ -560,10 +562,35 @@ export const appRouter = router({
     /** Whether a Hugging Face token is stored. Never returns the token. */
     token: protectedProcedure.query(async ({ ctx }) => tokenStatus(ctx.user.id, "huggingface")),
 
+    /**
+     * The taxonomy the store browses by: domains with their capabilities, size classes,
+     * runability and the licence distinction that actually matters.
+     */
+    taxonomy: protectedProcedure.query(() => ({
+      domains: MODEL_DOMAINS.map((id) => ({
+        id,
+        label: DOMAIN_LABELS[id],
+        description: DOMAIN_DESCRIPTIONS[id],
+        capabilities: Object.entries(CAPABILITY_DOMAIN).filter(([, domain]) => domain === id).map(([capability]) => capability),
+      })),
+      sizeClasses: SIZE_CLASSES.map((id) => ({ id })),
+      runability: RUNNABILITY.map((id) => ({ id })),
+      licencePolicy: {
+        permissive: "Licences that permit commercial use without further conditions.",
+        restricted: "Licences with usage conditions. Read them before commercial use.",
+        unknown: "No licence declared. Reported as unknown rather than assumed safe.",
+      },
+    })),
+
     search: protectedProcedure
       .input(z.object({
         query: z.string().max(120).optional(),
         capability: z.string().max(40).optional(),
+        domain: z.string().max(40).optional(),
+        sizeClass: z.string().max(20).optional(),
+        runability: z.string().max(30).optional(),
+        licence: z.string().max(60).optional(),
+        language: z.string().max(10).optional(),
         sort: z.enum(["downloads", "likes", "recent"]).optional(),
         ggufOnly: z.boolean().optional(),
         limit: z.number().int().min(1).max(60).optional(),
@@ -575,11 +602,22 @@ export const appRouter = router({
           ? (input.capability as (typeof CAPABILITY_IDS)[number])
           : undefined;
         const result = await searchModels({ ...input, capability }, { token });
-        // Fit is computed against this machine, so the card can say so before a download.
+
+        // The Hub cannot filter by any of these, because they are derived. So they are
+        // applied here, over the page that was actually retrieved, and the facets are
+        // counted from that same page rather than from a number nobody verified.
+        let models = result.models;
+        if (input.domain) models = models.filter((model) => model.category.domains.includes(input.domain as never));
+        if (input.sizeClass) models = models.filter((model) => model.category.sizeClass === input.sizeClass);
+        if (input.runability) models = models.filter((model) => model.category.runability === input.runability);
+        if (input.licence) models = models.filter((model) => model.category.licence.id === input.licence);
+        if (input.language) models = models.filter((model) => model.category.languages.includes(input.language as string));
+
         const hardware = await detectHardware();
         return {
           ...result,
-          models: result.models.map((model) => ({ ...model, compatibility: undefined })),
+          models,
+          facets: facetModels(models),
           hardware: { ramGB: hardware.ramGB, vramGB: hardware.vramGB, backends: hardware.backends },
         };
       }),

@@ -18,7 +18,7 @@ import { useDebouncedValue } from "@/lib/perf";
 type Compatibility = { status: string; reason: string; estimatedRamGB?: number };
 type StoreModel = {
   id: string; author: string; name: string; downloads: number; likes: number;
-  gated: boolean; disabled: boolean; pipelineTag?: string;
+  gated: boolean; disabled: boolean; pipelineTag?: string; category: Category;
   profile: {
     primary: string;
     capabilities: Array<{ id: string; confidence: number; basis: string }>;
@@ -26,6 +26,18 @@ type StoreModel = {
   };
 };
 type ModelFile = { path: string; sizeBytes: number; url: string; recommended: boolean };
+type FacetBucket = { value: string; label: string; count: number };
+type Category = {
+  domain: string;
+  domains: string[];
+  modality: { input: string[]; output: string[]; basis?: string };
+  sizeClass: string;
+  runability: string;
+  lineage: { baseModels: string[]; relation: string };
+  licence: { id: string; permissive: boolean; note?: string };
+  languages: string[];
+  unknown: string[];
+};
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
@@ -58,6 +70,9 @@ export default function AIStore() {
   const [capability, setCapability] = useState<string>("");
   const [sort, setSort] = useState<"downloads" | "likes" | "recent">("downloads");
   const [ggufOnly, setGgufOnly] = useState(true);
+  const [domain, setDomain] = useState("");
+  const [sizeClass, setSizeClass] = useState("");
+  const [runability, setRunability] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [mode, setMode] = useState<"local" | "hosted">("local");
   const [prompt, setPrompt] = useState("");
@@ -69,6 +84,7 @@ export default function AIStore() {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const capabilitiesQuery = trpc.aiStore.capabilities.useQuery();
+  const taxonomyQuery = trpc.aiStore.taxonomy.useQuery();
   const tokenQuery = trpc.aiStore.token.useQuery();
   const locationQuery = trpc.aiStore.location.useQuery();
   const installedQuery = trpc.aiStore.installed.useQuery();
@@ -92,7 +108,14 @@ export default function AIStore() {
   // and the previous results stay on screen while the next ones load.
   const debouncedQuery = useDebouncedValue(query, 250);
   const searchQuery = trpc.aiStore.search.useQuery(
-    { query: debouncedQuery.trim() || undefined, capability: capability || undefined, sort, ggufOnly, limit: 24 },
+    {
+      query: debouncedQuery.trim() || undefined,
+      capability: capability || undefined,
+      domain: domain || undefined,
+      sizeClass: sizeClass || undefined,
+      runability: runability || undefined,
+      sort, ggufOnly, limit: 24,
+    },
     { placeholderData: (previous) => previous, staleTime: 60_000 },
   );
 
@@ -202,6 +225,24 @@ export default function AIStore() {
           </button>
         </div>
 
+        {/* Domains group the capabilities the way the Hub groups its tasks. */}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={`gx-seg-btn ${domain === "" ? "gx-seg" : ""}`} onClick={() => setDomain("")}>
+            All domains
+          </button>
+          {(taxonomyQuery.data?.domains ?? []).map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              title={entry.description}
+              className={`gx-seg-btn ${domain === entry.id ? "gx-seg" : ""}`}
+              onClick={() => setDomain(domain === entry.id ? "" : entry.id)}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-wrap gap-2">
           <button type="button" className={`gx-seg-btn ${capability === "" ? "gx-seg" : ""}`} onClick={() => setCapability("")}>
             All capabilities
@@ -219,6 +260,52 @@ export default function AIStore() {
           ))}
         </div>
       </div>
+
+      {/* Facets. Counted over the results on screen, not over the whole Hub. */}
+      {searchQuery.data?.facets && searchQuery.data.facets.total > 0 ? (
+        <div className="gx-panel flex flex-wrap items-start gap-6 p-4 text-[11px]">
+          <div>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Runs on</p>
+            <div className="flex flex-wrap gap-1">
+              {(searchQuery.data.facets.runability ?? []).map((bucket: FacetBucket) => (
+                <button
+                  key={bucket.value}
+                  type="button"
+                  className={`gx-seg-btn ${runability === bucket.value ? "gx-seg" : ""}`}
+                  onClick={() => setRunability(runability === bucket.value ? "" : bucket.value)}
+                >
+                  {bucket.label} <span className="text-muted-foreground">{bucket.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Size</p>
+            <div className="flex flex-wrap gap-1">
+              {(searchQuery.data.facets.sizeClass ?? []).map((bucket: FacetBucket) => (
+                <button
+                  key={bucket.value}
+                  type="button"
+                  className={`gx-seg-btn ${sizeClass === bucket.value ? "gx-seg" : ""}`}
+                  onClick={() => setSizeClass(sizeClass === bucket.value ? "" : bucket.value)}
+                >
+                  {bucket.value} <span className="text-muted-foreground">{bucket.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Licence</p>
+            <div className="flex flex-wrap gap-1">
+              {(searchQuery.data.facets.licence ?? []).slice(0, 6).map((bucket: FacetBucket) => (
+                <span key={bucket.value} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {bucket.label} <span className="text-foreground">{bucket.count}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Results */}
@@ -250,6 +337,7 @@ export default function AIStore() {
                       <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                         {model.profile.primary === "general" ? "General" : model.profile.primary}
                       </span>
+                      {model.category?.domain ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">{model.category.domain}</span> : null}
                       {model.profile.parameterScale ? <span className="text-[10px] text-muted-foreground">{model.profile.parameterScale}</span> : null}
                       {model.profile.quantization ? <span className="text-[10px] text-muted-foreground">· {model.profile.quantization}</span> : null}
                       {model.gated ? <span className="text-[10px] text-amber-300">gated</span> : null}
@@ -309,6 +397,49 @@ export default function AIStore() {
                 {(detail?.model.profile.notes ?? []).map((note) => (
                   <p key={note} className="text-[10px] leading-relaxed text-muted-foreground/80">{note}</p>
                 ))}
+
+                {/* The full categorisation, dimension by dimension. */}
+                {detail?.model.category ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Category</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                      <span className="text-muted-foreground">Domain</span>
+                      <span className="text-right text-foreground">{detail.model.category.domains.join(", ")}</span>
+                      <span className="text-muted-foreground">Input → output</span>
+                      <span className="text-right text-foreground">
+                        {detail.model.category.modality.input.join("+") || "?"} → {detail.model.category.modality.output.join("+") || "?"}
+                      </span>
+                      <span className="text-muted-foreground">Size</span>
+                      <span className="text-right text-foreground">{detail.model.category.sizeClass}</span>
+                      <span className="text-muted-foreground">Runs</span>
+                      <span className="text-right text-foreground">{detail.model.category.runability}</span>
+                      <span className="text-muted-foreground">Lineage</span>
+                      <span className="text-right text-foreground">
+                        {detail.model.category.lineage.relation}
+                        {detail.model.category.lineage.baseModels.length ? ` · ${detail.model.category.lineage.baseModels[0]}` : ""}
+                      </span>
+                      <span className="text-muted-foreground">Licence</span>
+                      <span className={`text-right ${detail.model.category.licence.permissive ? "text-emerald-300" : "text-amber-300"}`}>
+                        {detail.model.category.licence.id}
+                      </span>
+                      {detail.model.category.languages.length ? (
+                        <>
+                          <span className="text-muted-foreground">Languages</span>
+                          <span className="text-right text-foreground">{detail.model.category.languages.slice(0, 6).join(", ")}</span>
+                        </>
+                      ) : null}
+                    </div>
+                    {detail.model.category.licence.note ? (
+                      <p className="text-[10px] leading-relaxed text-amber-300/80">{detail.model.category.licence.note}</p>
+                    ) : null}
+                    {detail.model.category.modality.basis ? (
+                      <p className="text-[10px] text-muted-foreground/70">Modality from: {detail.model.category.modality.basis}</p>
+                    ) : null}
+                    {detail.model.category.unknown.length ? (
+                      <p className="text-[10px] text-muted-foreground/70">Could not be determined: {detail.model.category.unknown.join(", ")}.</p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* Every capability with the evidence for it */}
                 <div className="space-y-1.5">

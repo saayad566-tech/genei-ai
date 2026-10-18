@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { classifyModel, type CapabilityProfile, type CapabilityId } from "../shared/modelCapabilities";
+import { categorise, DOMAIN_LABELS, RUNNABILITY_LABELS, SIZE_LABELS, type ModelCategory, type ModelDomain } from "../shared/modelTaxonomy";
 import { listHuggingFaceTree } from "./modelWeights";
 import { caches } from "./_core/cache";
 import { resilientFetch } from "./_core/resilientFetch";
@@ -32,6 +33,8 @@ export type StoreModel = {
   disabled: boolean;
   pipelineTag?: string;
   profile: CapabilityProfile;
+  /** The full multi-dimensional categorisation, not just one capability. */
+  category: ModelCategory;
 };
 
 export type ModelFile = {
@@ -91,6 +94,20 @@ export function toStoreModel(raw: Record<string, unknown>): StoreModel {
     disabled: Boolean(raw.disabled),
     gguf: raw.gguf,
   });
+  const hasGguf = tags.some((tag) => /^gguf$/i.test(tag)) || Boolean(raw.gguf);
+  const category = categorise({
+    id,
+    pipelineTag: typeof raw.pipeline_tag === "string" ? raw.pipeline_tag : undefined,
+    tags,
+    cardData: (raw.cardData as Record<string, unknown>) ?? undefined,
+    hasGguf,
+    // A repository with weight files but no GGUF is locally runnable in principle, but
+    // not through llama.cpp. The file listing refines this later.
+    hasOtherWeights: !hasGguf,
+    parameterScale: profile.parameterScale,
+    capabilities: profile.capabilities,
+  });
+
   const [author, ...rest] = id.split("/");
   return {
     id,
@@ -102,6 +119,7 @@ export function toStoreModel(raw: Record<string, unknown>): StoreModel {
     disabled: Boolean(raw.disabled),
     pipelineTag: typeof raw.pipeline_tag === "string" ? raw.pipeline_tag : undefined,
     profile,
+    category,
   };
 }
 
@@ -538,4 +556,45 @@ export async function tokenStatus(userId: number, provider: string): Promise<{ c
     .where(and(eq(apiKeys.userId, userId), eq(apiKeys.provider, provider), eq(apiKeys.isActive, true)))
     .limit(1);
   return rows.length ? { configured: true, label: rows[0].label, lastUsedAt: rows[0].lastUsedAt } : { configured: false };
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Facets
+ * ------------------------------------------------------------------ */
+
+export type FacetBucket = { value: string; label: string; count: number };
+export type Facets = {
+  domain: FacetBucket[];
+  sizeClass: FacetBucket[];
+  runability: FacetBucket[];
+  licence: FacetBucket[];
+  total: number;
+};
+
+/**
+ * Count the results by each dimension.
+ *
+ * Counts are over the page that was actually retrieved, not over the whole Hub — saying
+ * "1,204 coding models" when only 60 were examined would be a fabricated number.
+ */
+export function facetModels(models: StoreModel[]): Facets {
+  const count = <T extends string>(values: T[], labelFor: (value: T) => string): FacetBucket[] => {
+    const tally = new Map<string, number>();
+    for (const value of values) tally.set(value, (tally.get(value) ?? 0) + 1);
+    return Array.from(tally.entries())
+      .map(([value, n]) => ({ value, label: labelFor(value as T), count: n }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  };
+
+  const domainValues: ModelDomain[] = [];
+  for (const model of models) for (const domain of model.category.domains) domainValues.push(domain);
+
+  return {
+    domain: count(domainValues, (value) => DOMAIN_LABELS[value]),
+    sizeClass: count(models.map((m) => m.category.sizeClass), (value) => SIZE_LABELS[value]),
+    runability: count(models.map((m) => m.category.runability), (value) => RUNNABILITY_LABELS[value]),
+    licence: count(models.map((m) => m.category.licence.id), (value) => value),
+    total: models.length,
+  };
 }
