@@ -55,7 +55,7 @@ export type AdapterGenerateOptions = {
 export interface ExecutionAdapter {
   readonly id: string;
   readonly toolId: string;
-  readonly category: "video" | "image" | "lipsync" | "audio" | "upscale" | "review" | "media";
+  readonly category: "video" | "image" | "lipsync" | "audio" | "upscale" | "review" | "media" | "text";
   /**
    * Install or update the backing tool. Delegates to the shared installer, which
    * performs real downloads and verifies them; the adapter reports the resulting
