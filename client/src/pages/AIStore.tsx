@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   BadgeCheck, Boxes, Cpu, Download, HardDrive, Loader2, Play, RefreshCw,
   Search, Server, Sparkles, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { useDebouncedValue } from "@/lib/perf";
+import { useDebouncedValue, useVirtualWindow } from "@/lib/perf";
+import { useUndoRedo, useShortcuts, formatShortcut } from "@/lib/undo";
 
 /**
  * AI Store — browse, check, download and run open-source models.
@@ -27,6 +28,12 @@ type StoreModel = {
 };
 type ModelFile = { path: string; sizeBytes: number; url: string; recommended: boolean };
 type FacetBucket = { value: string; label: string; count: number };
+type Advice = {
+  recommended?: ModelFile;
+  options: Array<{ file: ModelFile; estimatedRamGB: number; note: string }>;
+  rejected: Array<{ file: ModelFile; estimatedRamGB: number; reason: string }>;
+  summary: string;
+};
 type Category = {
   domain: string;
   domains: string[];
@@ -82,6 +89,10 @@ export default function AIStore() {
   const [comparePrompt, setComparePrompt] = useState("");
   const [compareReport, setCompareReport] = useState<{ results: Array<{ modelId: string; status: string; content?: string; error?: string; latencyMs: number }>; ranked: string[]; note: string } | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  // The results list can run to dozens of cards; only the visible ones are rendered.
+  const [scrollTop, setScrollTop] = useState(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const undo = useUndoRedo();
 
   const capabilitiesQuery = trpc.aiStore.capabilities.useQuery();
   const taxonomyQuery = trpc.aiStore.taxonomy.useQuery();
@@ -90,6 +101,17 @@ export default function AIStore() {
   const installedQuery = trpc.aiStore.installed.useQuery();
   const diskQuery = trpc.aiStore.disk.useQuery();
   const metricsQuery = trpc.ops.metrics.useQuery(undefined, { enabled: showDiagnostics, refetchOnWindowFocus: false });
+  const auditQuery = trpc.ops.audit.useQuery({ limit: 20 }, { enabled: showDiagnostics, refetchOnWindowFocus: false });
+  const logsQuery = trpc.ops.logs.useQuery({ limit: 40 }, { enabled: showDiagnostics, refetchOnWindowFocus: false });
+  const supervisionQuery = trpc.ops.supervision.useQuery(undefined, { enabled: showDiagnostics, refetchOnWindowFocus: false });
+  const shutdownMutation = trpc.ops.shutdown.useMutation({
+    onSuccess: (result) => toast.message("Shut down", {
+      description: result.timedOut.length
+        ? `Drained ${result.drained.length}. Did not finish: ${result.timedOut.join(", ")}.`
+        : `Drained ${result.drained.length} task(s) in ${result.elapsedMs} ms.`,
+    }),
+    onError: (error) => toast.error(error.message),
+  });
   const resetCaches = trpc.ops.resetCaches.useMutation({
     onSuccess: (result) => toast.message("Caches cleared", { description: result.message }),
     onError: (error) => toast.error(error.message),
@@ -137,12 +159,39 @@ export default function AIStore() {
     onError: (error) => { setProgress(null); toast.error(error.message); },
   });
 
+  const utils = trpc.useUtils();
+
   const removeMutation = trpc.aiStore.remove.useMutation({
     onSuccess: (result) => {
-      if (result.removed) { toast.message("Removed", { description: result.message }); void installedQuery.refetch(); }
-      else toast.error(result.message);
+      if (result.removed) {
+        toast.message("Removed", { description: result.message });
+        void installedQuery.refetch();
+      } else {
+        toast.error(result.message);
+      }
     },
   });
+
+  /**
+   * Prefetch a model's detail when the pointer reaches its card.
+   *
+   * The research is consistent that preloading one step ahead is one of the cheapest
+   * ways to make an app feel instant: by the time the click lands, the answer is usually
+   * already in the cache.
+   */
+  const prefetchDetail = (id: string) => {
+    if (!id) return;
+    void utils.aiStore.detail.prefetch({ id }, { staleTime: 60_000 });
+  };
+
+  // Undo for a removal is only possible if the file is still there, so it is not offered
+  // — the message says the file is gone rather than pretending it can be restored.
+  useShortcuts([
+    { keys: "mod+z", label: "Undo", run: () => { void undo.undo(); }, ignoreInInputs: true },
+    { keys: "mod+shift+z", label: "Redo", run: () => { void undo.redo(); }, ignoreInInputs: true },
+    { keys: "escape", label: "Clear selection", run: () => { setSelected(null); setAnswer(null); }, ignoreInInputs: false },
+    { keys: "mod+shift+k", label: "Clear caches", run: () => resetCaches.mutate(), ignoreInInputs: true },
+  ]);
 
   const runMutation = trpc.aiStore.run.useMutation({
     onSuccess: (result) => {
@@ -158,8 +207,12 @@ export default function AIStore() {
   });
 
   const models = (searchQuery.data?.models ?? []) as unknown as StoreModel[];
+  // A virtual window over the results. With 24 per page this is insurance rather than a
+  // necessity, but the same hook covers a 500-row list without a rewrite.
+  const window_ = useVirtualWindow({ itemCount: models.length, itemHeight: 104, viewportHeight: 900, scrollTop });
+  const visibleModels = models.slice(window_.start, window_.end);
   const hardware = searchQuery.data?.hardware;
-  const detail = detailQuery.data;
+  const detail = detailQuery.data as (typeof detailQuery.data & { advice?: Advice; fitExplanation?: string }) | undefined;
   const files = (detail?.files ?? []) as ModelFile[];
   const recommendedFile = files.find((file) => file.recommended) ?? files[0];
   const installedIds = useMemo(
@@ -187,6 +240,9 @@ export default function AIStore() {
             <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${tokenQuery.data?.configured ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-amber-300/25 bg-amber-400/10 text-amber-200"}`}>
               <BadgeCheck className="h-3 w-3" />
               {tokenQuery.data?.configured ? "Hugging Face token stored" : "No Hugging Face token — gated models and hosted runs need one"}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-muted-foreground">
+              {formatShortcut("mod+z")} undo · {formatShortcut("escape")} clear selection
             </span>
             {hardware ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[10px] text-muted-foreground">
@@ -308,8 +364,12 @@ export default function AIStore() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Results */}
-        <div className="space-y-3 xl:col-span-2">
+        {/* Results. Only the visible cards are rendered, so a long page stays smooth. */}
+        <div
+          className="space-y-3 xl:col-span-2"
+          ref={resultsRef}
+          onScroll={(event) => setScrollTop((event.target as HTMLDivElement).scrollTop)}
+        >
           {searchQuery.isLoading ? (
             <div className="gx-panel flex items-center justify-center p-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -323,10 +383,12 @@ export default function AIStore() {
               </p>
             </div>
           ) : (
-            models.map((model) => (
+            visibleModels.map((model) => (
               <button
                 key={model.id}
                 type="button"
+                onMouseEnter={() => prefetchDetail(model.id)}
+                onFocus={() => prefetchDetail(model.id)}
                 onClick={() => { setSelected(model.id); setAnswer(null); }}
                 className={`gx-panel gx-panel-hover block w-full p-4 text-left ${selected === model.id ? "ring-1 ring-primary/50" : ""}`}
               >
@@ -385,6 +447,28 @@ export default function AIStore() {
                   <div className={`rounded-xl border p-3 text-[11px] ${COMPATIBILITY_TONE[detail.compatibility.status] ?? COMPATIBILITY_TONE.unknown}`}>
                     <p className="font-semibold">{COMPATIBILITY_LABEL[detail.compatibility.status] ?? detail.compatibility.status}</p>
                     <p className="mt-1 leading-relaxed">{detail.compatibility.reason}</p>
+                  </div>
+                ) : null}
+
+                {detail?.advice ? (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[11px]">
+                    <p className="font-semibold text-primary">Which file to download</p>
+                    <p className="mt-1 leading-relaxed text-foreground/85">{detail.advice.summary}</p>
+                    {detail.advice.options.length > 1 ? (
+                      <div className="mt-2 space-y-1">
+                        {detail.advice.options.slice(0, 4).map((option) => (
+                          <div key={option.file.path} className="flex items-center justify-between gap-2 text-[10px]">
+                            <span className="truncate text-muted-foreground" title={option.note}>{option.note}</span>
+                            <span className="flex-shrink-0 text-foreground/80">{option.estimatedRamGB} GB</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {detail.advice.rejected.length ? (
+                      <p className="mt-2 text-[10px] text-amber-300/80">
+                        {detail.advice.rejected.length} larger option{detail.advice.rejected.length === 1 ? "" : "s"} will not fit here.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -661,6 +745,58 @@ export default function AIStore() {
                     >
                       <RefreshCw className="h-3 w-3" /> Clear all caches
                     </button>
+
+                    {/* Supervised processes: anything restarted, and how often. */}
+                    {supervisionQuery.data && Object.keys(supervisionQuery.data.restarts).length > 0 ? (
+                      <div className="space-y-1 pt-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Restarts</p>
+                        {Object.entries(supervisionQuery.data.restarts).map(([name, count]) => (
+                          <div key={name} className="flex items-center justify-between text-[10px]">
+                            <span className="text-muted-foreground">{name}</span><span className="text-amber-300">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {/* The structured log, already redacted when it was written. */}
+                    {logsQuery.data?.records?.length ? (
+                      <div className="space-y-1 pt-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Recent log</p>
+                        <div className="max-h-40 space-y-0.5 overflow-auto rounded-lg border border-white/10 bg-black/30 p-2">
+                          {logsQuery.data.records.slice(-12).reverse().map((record, index) => (
+                            <p key={`${record.time}-${index}`} className="truncate text-[10px] text-muted-foreground" title={record.message}>
+                              <span className={record.level === "error" ? "text-rose-300" : record.level === "warn" ? "text-amber-300" : ""}>{record.level}</span>{" "}
+                              {record.message}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    ) : logsQuery.data?.note ? (
+                      <p className="text-[10px] text-muted-foreground/70">{logsQuery.data.note}</p>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      className="gx-seg-btn w-full"
+                      disabled={shutdownMutation.isPending}
+                      onClick={() => shutdownMutation.mutate()}
+                    >
+                      {shutdownMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      Drain running work and stop
+                    </button>
+
+                    {/* Audit trail: who did what, and whether it worked. */}
+                    {auditQuery.data?.entries?.length ? (
+                      <div className="space-y-1 pt-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Recent actions</p>
+                        {auditQuery.data.entries.slice(0, 6).map((entry, index) => (
+                          <div key={`${entry.time}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
+                            <span className="truncate text-muted-foreground">{entry.action}{entry.target ? ` · ${entry.target}` : ""}</span>
+                            <span className={entry.outcome === "ok" ? "text-emerald-300" : "text-rose-300"}>{entry.outcome}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">Counters are unavailable.</p>

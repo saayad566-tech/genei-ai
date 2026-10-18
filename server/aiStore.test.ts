@@ -127,15 +127,46 @@ describe("download", () => {
     expect(listLocalModels(dir)).toHaveLength(1);
   });
 
-  it("discards a short download instead of keeping a broken model", async () => {
+  it("never promotes a short download to a model, but keeps the bytes for a resume", async () => {
     const dir = tmp();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array(100), { status: 200 })));
 
     const result = await downloadModel({ id: "org/model", filePath: "model.gguf", url: "https://example/model.gguf", expectedBytes: 2048, dataDir: dir });
     expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/discarded/i);
+    expect(result.message).toMatch(/resume from 100 bytes/i);
+    // It is not a model, because it is not complete.
     expect(listLocalModels(dir)).toHaveLength(0);
-    expect(fs.readdirSync(path.join(modelsDir(dir), "org/model")).some((f) => f.endsWith(".part"))).toBe(false);
+    // But the partial file is kept, so the next attempt does not start from zero.
+    expect(fs.readdirSync(path.join(modelsDir(dir), "org/model")).some((f) => f.endsWith(".part"))).toBe(true);
+  });
+
+  it("resumes a partial download with a range request", async () => {
+    const dir = tmp();
+    const target = path.join(modelsDir(dir), "org/model");
+    fs.mkdirSync(target, { recursive: true });
+    fs.writeFileSync(path.join(target, "model.gguf.part"), Buffer.alloc(1000));
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array(1048), { status: 206 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadModel({ id: "org/model", filePath: "model.gguf", url: "https://example/model.gguf", expectedBytes: 2048, dataDir: dir });
+    expect(result.ok).toBe(true);
+    // It asked for the remainder rather than the whole file.
+    expect((fetchMock.mock.calls[0][1].headers as Record<string, string>).range).toBe("bytes=1000-");
+    expect(fs.statSync(result.path!).size).toBe(2048);
+  });
+
+  it("starts over when the server ignores the range", async () => {
+    const dir = tmp();
+    const target = path.join(modelsDir(dir), "org/model");
+    fs.mkdirSync(target, { recursive: true });
+    fs.writeFileSync(path.join(target, "model.gguf.part"), Buffer.alloc(1000));
+
+    // 200, not 206: the server sent the whole file, so the partial cannot be appended to.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array(2048), { status: 200 })));
+    const result = await downloadModel({ id: "org/model", filePath: "model.gguf", url: "https://example/model.gguf", expectedBytes: 2048, dataDir: dir });
+    expect(result.ok).toBe(true);
+    expect(fs.statSync(result.path!).size).toBe(2048);
   });
 
   it("reports a refused download", async () => {

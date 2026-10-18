@@ -9,6 +9,10 @@ import { enforceRateLimit, limiter } from "./_core/rateLimit";
 import { liveness, readiness, metrics, resetCaches, diskSpace } from "./_core/ops";
 import { compareModels } from "./modelCompare";
 import { facetModels } from "./aiStore";
+import { advise, explainFit } from "./modelAdvisor";
+import { audit, type AuditAction } from "./_core/audit";
+import { lifecycle, supervisor } from "./_core/lifecycle";
+import { logger, Logger, newCorrelationId } from "./_core/logger";
 import { MODEL_DOMAINS, DOMAIN_LABELS, DOMAIN_DESCRIPTIONS, SIZE_CLASSES, RUNNABILITY, CAPABILITY_DOMAIN } from "../shared/modelTaxonomy";
 import { CAPABILITY_IDS, CAPABILITY_LABELS, CAPABILITY_DESCRIPTIONS } from "../shared/modelCapabilities";
 import {
@@ -544,9 +548,42 @@ export const appRouter = router({
     metrics: protectedProcedure.query(async ({ ctx }) => metrics(limiter.usage(ctx.user.id))),
 
     /** Drop every cache, so fresh data can be forced without a restart. */
-    resetCaches: protectedProcedure.mutation(async () => {
+    resetCaches: protectedProcedure.mutation(async ({ ctx }) => {
       const cleared = resetCaches();
+      audit.record({ action: "cache.cleared", userId: ctx.user.id, outcome: "ok", detail: `${cleared} entries` });
       return { cleared, message: `Cleared ${cleared} cached entr${cleared === 1 ? "y" : "ies"}.` };
+    }),
+
+    /** The structured log, newest first. Secrets are redacted before they are written. */
+    logs: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(500).optional() }).optional())
+      .query(async ({ input }) => {
+        const file = process.env.GENEI_LOG_FILE?.trim();
+        if (!file) return { records: [], note: "No log file is configured, so there is nothing to read. Set GENEI_LOG_FILE to keep one." };
+        return { records: Logger.readRecent(file, input?.limit ?? 100) };
+      }),
+
+    /** The audit trail: who did what, and whether it worked. */
+    audit: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(500).optional(), action: z.string().max(40).optional() }).optional())
+      .query(async ({ input, ctx }) => ({
+        entries: audit.recent(input?.limit ?? 100, {
+          action: input?.action as AuditAction | undefined,
+          userId: ctx.user.id,
+        }),
+        summary: audit.summary(),
+      })),
+
+    /** Which supervised processes have been restarted, and how often. */
+    supervision: protectedProcedure.query(async () => ({ restarts: supervisor.history() })),
+
+    /**
+     * Drain running work and stop. Exposed so a shutdown can be requested deliberately
+     * rather than only happening when the window closes.
+     */
+    shutdown: protectedProcedure.mutation(async () => {
+      const result = await lifecycle.shutdown();
+      return result;
     }),
   }),
 
@@ -629,7 +666,18 @@ export const appRouter = router({
         const { model, files, error } = await resolveModel(input.id, { token });
         const hardware = await detectHardware();
         const profile = { ramGB: hardware.ramGB, vramGB: hardware.vramGB, backends: hardware.backends };
-        return { model, files, error, compatibility: files.length ? checkCompatibility(files, profile) : undefined, hardware: profile };
+        const compatibility = files.length ? checkCompatibility(files, profile) : undefined;
+        // The fit check says whether it runs; the advisor says which file to pick.
+        const advice = files.length
+          ? advise(files, {
+              availableGB: hardware.vramGB && hardware.vramGB > 0 ? hardware.vramGB : hardware.ramGB,
+              basis: hardware.vramGB && hardware.vramGB > 0 ? "video memory" : "system memory",
+            })
+          : undefined;
+        return {
+          model, files, error, compatibility, advice, hardware: profile,
+          fitExplanation: compatibility ? explainFit(compatibility) : undefined,
+        };
       }),
 
     install: protectedProcedure
@@ -642,6 +690,8 @@ export const appRouter = router({
           id: input.id, filePath: input.filePath, url: input.url,
           expectedBytes: input.expectedBytes, dataDir: config.dataDir, token,
         });
+        audit.record({ action: "model.installed", userId: ctx.user.id, target: input.id, outcome: result.ok ? "ok" : "failed", detail: result.message });
+        if (result.ok) logger.info("Model installed", { model: input.id, bytes: result.bytes }, newCorrelationId("install"));
         return result;
       }),
 
@@ -649,7 +699,11 @@ export const appRouter = router({
 
     remove: protectedProcedure
       .input(z.object({ id: z.string().min(1).max(200) }))
-      .mutation(async ({ input }) => removeLocalModel(runtimeConfig().dataDir, input.id)),
+      .mutation(async ({ input, ctx }) => {
+        const result = removeLocalModel(runtimeConfig().dataDir, input.id);
+        audit.record({ action: "model.removed", userId: ctx.user.id, target: input.id, outcome: result.removed ? "ok" : "failed", detail: result.message });
+        return result;
+      }),
 
     run: protectedProcedure
       .input(z.object({

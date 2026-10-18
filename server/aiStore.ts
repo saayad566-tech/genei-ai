@@ -375,6 +375,21 @@ export async function downloadModel(input: {
   try {
     const headers: Record<string, string> = { "user-agent": "GeneiAI" };
     if (input.token) headers.authorization = `Bearer ${input.token}`;
+
+    // Resume where a previous attempt stopped, rather than starting a 30 GB transfer
+    // again. The server has to agree: if it answers 200 instead of 206 it has ignored the
+    // range, so the partial file is discarded and the download starts clean.
+    let alreadyHave = 0;
+    if (fs.existsSync(partial)) {
+      alreadyHave = fs.statSync(partial).size;
+      if (alreadyHave > 0 && alreadyHave < input.expectedBytes) {
+        headers.range = `bytes=${alreadyHave}-`;
+      } else {
+        fs.rmSync(partial, { force: true });
+        alreadyHave = 0;
+      }
+    }
+
     const response = await fetchImpl(input.url, { headers });
     if (!response.ok) {
       return { ok: false, message: `The download was refused with HTTP ${response.status}.` };
@@ -383,8 +398,15 @@ export async function downloadModel(input: {
       return { ok: false, message: "The download returned no body." };
     }
 
-    const handle = fs.createWriteStream(partial);
-    let received = 0;
+    const resumed = response.status === 206 && alreadyHave > 0;
+    if (alreadyHave > 0 && !resumed) {
+      // The server ignored the range, so the partial file cannot be appended to.
+      fs.rmSync(partial, { force: true });
+      alreadyHave = 0;
+    }
+
+    const handle = fs.createWriteStream(partial, { flags: resumed ? "a" : "w" });
+    let received = alreadyHave;
     const reader = response.body.getReader();
     try {
       for (;;) {
@@ -403,15 +425,21 @@ export async function downloadModel(input: {
     }
 
     if (received !== input.expectedBytes) {
-      fs.rmSync(partial, { force: true });
-      return { ok: false, bytes: received, message: `The download ended after ${received} of ${input.expectedBytes} bytes, so it was discarded rather than kept as a model.` };
+      // Keep the partial file when there is a chance of resuming; a later attempt picks
+      // up from here. Only a completed, verified file becomes a model.
+      return {
+        ok: false,
+        bytes: received,
+        message: `The download ended after ${received} of ${input.expectedBytes} bytes. The partial file was kept so the next attempt can resume from ${received} bytes rather than starting again.`,
+      };
     }
 
     fs.renameSync(partial, target);
     return { ok: true, path: target, bytes: received, message: `Downloaded ${received} bytes to ${path.basename(target)}.` };
   } catch (error) {
-    fs.rmSync(partial, { force: true });
-    return { ok: false, message: `The download failed: ${error instanceof Error ? error.message : "unknown error"}.` };
+    // The partial file is deliberately left in place: a network drop should not cost the
+    // user everything downloaded so far.
+    return { ok: false, message: `The download failed: ${error instanceof Error ? error.message : "unknown error"}. Any progress was kept so the next attempt can resume.` };
   }
 }
 
