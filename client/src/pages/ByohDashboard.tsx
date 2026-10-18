@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { readDesktopStatus, type DesktopHardwareProfile, type DesktopStatus } from "@/lib/desktop";
 import { trpc } from "@/lib/trpc";
+import { ByohMonitorPanel } from "@/components/ByohMonitorPanel";
 
 type RunnerRow = { id: number; name: string; platform: string; status: string; lastHeartbeat: string | Date | null };
 
@@ -223,6 +224,8 @@ export default function ByohDashboard() {
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Genei prefers local execution when the required capability is detected. If not, it uses a configured provider or the managed gateway. You do not need to decide where a job runs.</p>
             <div className="mt-4 space-y-2"><StatusBadge ready={Boolean(profile?.status === "ready" || profile?.status === "browser-preview")} label="Hardware probe" /><StatusBadge ready={true} label="Cloud fallback" /><StatusBadge ready={gpuReady || profile?.status === "browser-preview"} label={gpuReady ? "GPU path" : "GPU path optional"} /></div>
           </div>
+          {/* Telemetry the paired workstations report: hardware, VRAM and tool readiness. */}
+          <ByohMonitorPanel />
           <RenderRunners />
           <div className="genei-card rounded-2xl p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Cloud className="h-4 w-4 text-sky-300" /> Optional local models</div>
