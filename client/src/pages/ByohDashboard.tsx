@@ -18,9 +18,114 @@ import {
   Video,
   Workflow,
   XCircle,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { readDesktopStatus, type DesktopHardwareProfile, type DesktopStatus } from "@/lib/desktop";
+import { trpc } from "@/lib/trpc";
+
+type RunnerRow = { id: number; name: string; platform: string; status: string; lastHeartbeat: string | Date | null };
+
+function RenderRunners() {
+  const runnersQuery = trpc.runners.list.useQuery();
+  const [name, setName] = useState("");
+  const [platform, setPlatform] = useState("linux");
+  const [pairedToken, setPairedToken] = useState<string | null>(null);
+  const [logRunnerId, setLogRunnerId] = useState<number | null>(null);
+
+  const pair = trpc.runners.pair.useMutation({
+    onSuccess: (result) => {
+      // The token is shown once, exactly as the server says. It is not stored here.
+      setPairedToken(result.token);
+      setName("");
+      void runnersQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const revoke = trpc.runners.revoke.useMutation({
+    onSuccess: () => { toast.message("Runner revoked"); void runnersQuery.refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const logsQuery = trpc.runners.logs.useQuery(
+    { runnerId: logRunnerId ?? 0, limit: 50 },
+    { enabled: logRunnerId !== null },
+  );
+
+  const runners = (runnersQuery.data ?? []) as RunnerRow[];
+
+  return (
+    <div className="genei-card rounded-2xl p-5">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Monitor className="h-4 w-4 text-primary" /> Render runners
+        <span className="text-[10px] font-normal text-muted-foreground">another computer that does the heavy work</span>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+        A paired runner is a machine you own that renders jobs for this account. Pairing issues a token once; the runner sends it with every heartbeat.
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input className="genei-input min-w-[10rem] flex-1 text-sm" placeholder="Runner name" value={name} onChange={(event) => setName(event.target.value)} />
+        <select className="genei-input text-sm" value={platform} onChange={(event) => setPlatform(event.target.value)}>
+          <option value="linux">Linux</option>
+          <option value="win32">Windows</option>
+          <option value="darwin">macOS</option>
+        </select>
+        <button type="button" className="gx-cta" disabled={pair.isPending || !name.trim()} onClick={() => pair.mutate({ name: name.trim(), platform })}>
+          {pair.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Pair
+        </button>
+      </div>
+
+      {pairedToken ? (
+        <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+          <div className="text-[10px] font-semibold text-amber-200">Shown once — copy it now</div>
+          <code className="mt-1 block break-all font-mono text-[10px] text-foreground">{pairedToken}</code>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid gap-2">
+        {runners.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No runners are paired yet.</div>
+        ) : (
+          runners.map((runner) => (
+            <div key={runner.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-secondary/10 p-3">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-foreground">{runner.name} · {runner.platform}</div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {runner.status}
+                  {runner.lastHeartbeat ? ` · last seen ${new Date(runner.lastHeartbeat).toLocaleString()}` : " · never seen"}
+                </div>
+              </div>
+              <div className="flex flex-shrink-0 gap-2">
+                <button type="button" className="gx-seg-btn" onClick={() => setLogRunnerId(runner.id === logRunnerId ? null : runner.id)}>
+                  {runner.id === logRunnerId ? "Hide logs" : "Logs"}
+                </button>
+                {runner.status !== "revoked" ? (
+                  <button
+                    type="button"
+                    className="gx-seg-btn"
+                    onClick={() => {
+                      if (window.confirm(`Revoke "${runner.name}"? It will stop being able to send work.`)) revoke.mutate({ id: runner.id });
+                    }}
+                  >
+                    Revoke
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {logRunnerId !== null ? (
+        <div className="mt-3 max-h-48 overflow-auto rounded-xl border border-border bg-black/20 p-3 font-mono text-[10px] text-muted-foreground">
+          {logsQuery.isLoading ? "Loading…" : (logsQuery.data ?? []).length === 0 ? "No log entries for this runner." : (logsQuery.data ?? []).map((entry) => (
+            <div key={entry.id}>{new Date(entry.createdAt).toLocaleTimeString()} · {entry.level} · {entry.message}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const capabilityTools = [
   { name: "Image generation", path: "/image", icon: Image, local: "GPU or CPU", cloud: "Managed gateway", accent: "oklch(0.72 0.18 210)" },
@@ -118,6 +223,7 @@ export default function ByohDashboard() {
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Genei prefers local execution when the required capability is detected. If not, it uses a configured provider or the managed gateway. You do not need to decide where a job runs.</p>
             <div className="mt-4 space-y-2"><StatusBadge ready={Boolean(profile?.status === "ready" || profile?.status === "browser-preview")} label="Hardware probe" /><StatusBadge ready={true} label="Cloud fallback" /><StatusBadge ready={gpuReady || profile?.status === "browser-preview"} label={gpuReady ? "GPU path" : "GPU path optional"} /></div>
           </div>
+          <RenderRunners />
           <div className="genei-card rounded-2xl p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Cloud className="h-4 w-4 text-sky-300" /> Optional local models</div>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Nothing is downloaded during first launch. The current build keeps local model installation optional while the cloud and BYOK paths remain available.</p>

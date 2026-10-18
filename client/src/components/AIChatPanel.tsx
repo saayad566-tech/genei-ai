@@ -42,6 +42,41 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
 
   const chatMutation = trpc.ai.chat.useMutation();
 
+  // Messages the assistant has already recorded for this account. `ai.chat` persists
+  // every turn, so this is the real conversation rather than a client-side copy.
+  const historyQuery = trpc.chat.history.useQuery({ limit: 50 }, { enabled: open });
+  const clearHistory = trpc.chat.clearHistory.useMutation({
+    onSuccess: () => {
+      setMessages((current) => current.filter((message) => message.id === "welcome"));
+      void historyQuery.refetch();
+    },
+  });
+  const historyLoaded = useRef(false);
+
+  useEffect(() => {
+    // Merge once per open, so a background refetch cannot reorder what is on screen.
+    if (!open) {
+      historyLoaded.current = false;
+      return;
+    }
+    const persisted = historyQuery.data;
+    if (historyLoaded.current || !persisted || persisted.length === 0) return;
+    historyLoaded.current = true;
+    setMessages((current) => {
+      const welcome = current.filter((message) => message.id === "welcome");
+      const restored: Message[] = persisted
+        .slice()
+        .reverse()
+        .map((row) => ({
+          id: `history-${row.id}`,
+          role: row.role === "user" ? "user" : "assistant",
+          content: row.content,
+          timestamp: new Date(row.createdAt),
+        }));
+      return [...welcome, ...restored];
+    });
+  }, [open, historyQuery.data]);
+
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 300);
@@ -156,7 +191,19 @@ export function AIChatPanel({ open, onClose }: AIChatPanelProps) {
                 <button onClick={clearChat} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Clear chat">
                   <Trash2 className="w-4 h-4" />
                 </button>
-                <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Clear this conversation? The stored messages are deleted.")) clearHistory.mutate();
+            }}
+            disabled={clearHistory.isPending}
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:text-destructive"
+            aria-label="Clear conversation history"
+            title="Clear conversation history"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>

@@ -34,6 +34,20 @@ export default function AssetLibrary() {
 
   const { data: assets, isLoading, refetch } = trpc.assets.list.useQuery();
   const uploadAssetMutation = trpc.assets.upload.useMutation();
+  const [saveUrl, setSaveUrl] = useState("");
+  const [saveName, setSaveName] = useState("");
+  const [saveType, setSaveType] = useState("video");
+  // Save an asset that already exists somewhere (a provider output, a fetched
+  // reference) into the library, so it is recorded rather than only linked.
+  const saveAssetMutation = trpc.assets.save.useMutation({
+    onSuccess: () => {
+      toast.success("Asset saved to the library");
+      setSaveUrl("");
+      setSaveName("");
+      refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const deleteAssetMutation = trpc.assets.delete.useMutation({
     onSuccess: () => { refetch(); toast.success("Asset deleted"); },
     onError: () => toast.error("Failed to delete asset"),
@@ -188,6 +202,45 @@ export default function AssetLibrary() {
             <LayoutList className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Save an asset that already exists elsewhere into the library */}
+      <div className="genei-card flex flex-wrap items-center gap-2 rounded-xl p-3">
+        <input
+          className="genei-input min-w-[12rem] flex-1 text-sm"
+          placeholder="Asset name"
+          value={saveName}
+          onChange={(event) => setSaveName(event.target.value)}
+        />
+        <input
+          className="genei-input min-w-[16rem] flex-[2] text-sm"
+          placeholder="https://… (a provider output or a fetched reference)"
+          value={saveUrl}
+          onChange={(event) => setSaveUrl(event.target.value)}
+        />
+        <select className="genei-input text-sm" value={saveType} onChange={(event) => setSaveType(event.target.value)}>
+          <option value="video">Video</option>
+          <option value="image">Image</option>
+          <option value="audio">Audio</option>
+          <option value="document">Document</option>
+        </select>
+        <button
+          type="button"
+          className="gx-cta"
+          disabled={saveAssetMutation.isPending || !saveName.trim() || !saveUrl.trim()}
+          onClick={() => {
+            const url = saveUrl.trim();
+            saveAssetMutation.mutate({
+              name: saveName.trim(),
+              type: saveType,
+              storageUrl: url,
+              // The library keys an asset by where it lives; a remote URL keys on itself.
+              storageKey: url,
+            });
+          }}
+        >
+          {saveAssetMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save to library
+        </button>
       </div>
 
       {/* Assets Grid/List */}

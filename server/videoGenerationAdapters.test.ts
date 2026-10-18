@@ -59,7 +59,104 @@ describe("real video generation adapters", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not claim live support for providers without an official adapter contract", async () => {
-    await expect(submitVideoGeneration(7, { provider: "pika", prompt: "Test" })).resolves.toMatchObject({ status: "failed", error: expect.stringContaining("pika") });
+  it("does not claim live support for a provider with no documented API", async () => {
+    // Runway, Kling and HeyGen all have adapters now; Pika publishes no public contract,
+    // so it must say that rather than pretend a request was sent.
+    await expect(submitVideoGeneration(7, { provider: "pika", prompt: "Test" })).resolves.toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("documented public generation API"),
+    });
+  });
+  it("submits Kling with a signed JWT and the documented text2video contract", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("ak_test:sk_test")) as never);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 0, data: { task_id: "kling-task-1", task_status: "submitted" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitVideoGeneration(7, { provider: "kling", prompt: "A lighthouse in a storm", duration: 5, ratio: "16:9" });
+
+    expect(result).toEqual({ taskId: "kling-task-1", status: "pending" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.klingai.com/v1/videos/text2video");
+    expect(init.method).toBe("POST");
+    // The credential is an HS256 JWT signed with the access/secret pair, not the raw key.
+    const auth = (init.headers as Record<string, string>).Authorization;
+    expect(auth.startsWith("Bearer ")).toBe(true);
+    const [header, payload] = auth.slice(7).split(".");
+    expect(JSON.parse(Buffer.from(header, "base64url").toString())).toEqual({ alg: "HS256", typ: "JWT" });
+    expect(JSON.parse(Buffer.from(payload, "base64url").toString()).iss).toBe("ak_test");
+    expect(JSON.parse(init.body)).toEqual({ model_name: "kling-v2-6", prompt: "A lighthouse in a storm", aspect_ratio: "16:9", duration: "5", mode: "std" });
+    vi.unstubAllGlobals();
+  });
+
+  it("polls Kling and returns the finished video", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("ak_test:sk_test")) as never);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 0, data: { task_status: "succeed", task_result: { videos: [{ id: "v1", url: "https://cdn.kling/v.mp4", duration: "5" }] } } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(pollVideoGenerationTask(7, "kling", "kling-task-1")).resolves.toEqual({ taskId: "kling-task-1", status: "completed", videoUrl: "https://cdn.kling/v.mp4" });
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.klingai.com/v1/videos/text2video/kling-task-1");
+    vi.unstubAllGlobals();
+  });
+
+  it("reports a Kling credential that is missing its secret key", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("ak_only")) as never);
+    const result = await submitVideoGeneration(7, { provider: "kling", prompt: "x" });
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatch(/access key and a secret key/i);
+  });
+
+  it("surfaces a Kling API error rather than pretending it was accepted", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("ak_test:sk_test")) as never);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 1102, message: "Insufficient balance" }), { status: 200 })));
+    const result = await submitVideoGeneration(7, { provider: "kling", prompt: "x" });
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatch(/Insufficient balance/);
+    vi.unstubAllGlobals();
+  });
+
+  it("submits HeyGen through the v3 video-agent endpoint", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("heygen-key")) as never);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { session_id: "sess_abc", status: "generating", video_id: null } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitVideoGeneration(7, { provider: "heygen", prompt: "A presenter explaining the launch" });
+
+    expect(result).toEqual({ taskId: "sess_abc", status: "processing" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.heygen.com/v3/video-agents");
+    expect((init.headers as Record<string, string>)["X-Api-Key"]).toBe("heygen-key");
+    expect(JSON.parse(init.body)).toEqual({ prompt: "A presenter explaining the launch" });
+    vi.unstubAllGlobals();
+  });
+
+  it("prefers the video id when HeyGen assigns one immediately", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("heygen-key")) as never);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { session_id: "sess_abc", video_id: "vid_123", status: "processing" } }), { status: 200 })));
+    const result = await submitVideoGeneration(7, { provider: "heygen", prompt: "x" });
+    expect(result.taskId).toBe("vid_123");
+    vi.unstubAllGlobals();
+  });
+
+  it("polls HeyGen v3 and returns the video URL", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("heygen-key")) as never);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: "vid_123", status: "completed", video_url: "https://files.heygen.ai/v.mp4" } }), { status: 200 })));
+    await expect(pollVideoGenerationTask(7, "heygen", "vid_123")).resolves.toEqual({ taskId: "vid_123", status: "completed", videoUrl: "https://files.heygen.ai/v.mp4" });
+    vi.unstubAllGlobals();
+  });
+
+  it("reports a HeyGen failure with the provider's own message", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("heygen-key")) as never);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: "vid_123", status: "failed", failure_message: "Script too long for selected avatar" } }), { status: 200 })));
+    const result = await pollVideoGenerationTask(7, "heygen", "vid_123");
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatch(/Script too long/);
+    vi.unstubAllGlobals();
+  });
+
+  it("says plainly that Pika has no documented public API instead of guessing one", async () => {
+    vi.mocked(getDb).mockResolvedValue(mockDb(encryptV2("pika-key")) as never);
+    const result = await submitVideoGeneration(7, { provider: "pika", prompt: "x" });
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatch(/does not publish a documented public generation API/i);
   });
 });

@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import {
-  Music, Video, Image, Smartphone, Globe, Mic, Zap, Sparkles,
-  TrendingUp, Users, Archive, Clock, ArrowRight, Play,
-  Wand2, Bot, Pen, Megaphone, Code2, Film, Palette, Monitor, CheckCircle2, Loader2
-} from "lucide-react";
+import { Archive, ArrowRight, Bot, CheckCircle2, Clock, Code2, Film, Globe, Image, Loader2, Megaphone, Mic, Monitor, Music, Palette, Pen, Play, Smartphone, Sparkles, Trash2, TrendingUp, Users, Video, Wand2, Zap } from "lucide-react";
 import { useEffect } from "react";
 import { readDesktopStatus, type DesktopStatus } from "@/lib/desktop";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -53,6 +50,24 @@ export default function Home() {
   const [desktopStatus, setDesktopStatus] = useState<DesktopStatus | null>(null);
   const statsQuery = trpc.stats.overview.useQuery(undefined, { enabled: isAuthenticated });
   const projectsQuery = trpc.projects.list.useQuery(undefined, { enabled: isAuthenticated });
+  const [newProjectTitle, setNewProjectTitle] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+  const createProject = trpc.projects.create.useMutation({
+    onSuccess: () => {
+      toast.message("Project created", { description: newProjectTitle });
+      setNewProjectTitle("");
+      setCreatingProject(false);
+      void projectsQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const deleteProject = trpc.projects.delete.useMutation({
+    onSuccess: () => {
+      toast.message("Project deleted");
+      void projectsQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const stats = statsQuery.data || { totalAssets: 0, totalProjects: 0, totalApiKeys: 0, totalMessages: 0 };
   const recentProjects = projectsQuery.data?.slice(0, 4) || [];
@@ -226,10 +241,37 @@ export default function Home() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold font-display text-foreground">Recent Projects</h2>
-              <Link href="/assets">
-                <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
-              </Link>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setCreatingProject((open) => !open)}
+                >
+                  {creatingProject ? "Cancel" : "New project"}
+                </button>
+                <Link href="/assets">
+                  <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
+                </Link>
+              </div>
             </div>
+            {creatingProject ? (
+              <div className="genei-card mb-3 flex flex-wrap gap-2 rounded-xl p-3">
+                <input
+                  className="genei-input min-w-0 flex-1 text-sm"
+                  placeholder="Project title"
+                  value={newProjectTitle}
+                  onChange={(event) => setNewProjectTitle(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="gx-cta"
+                  disabled={createProject.isPending || !newProjectTitle.trim()}
+                  onClick={() => createProject.mutate({ title: newProjectTitle.trim(), type: "video" })}
+                >
+                  {createProject.isPending ? "Creating…" : "Create"}
+                </button>
+              </div>
+            ) : null}
             <div className="genei-card rounded-xl overflow-hidden">
               {recentProjects.length === 0 ? (
                 <div className="p-6 text-center">
@@ -248,6 +290,19 @@ export default function Home() {
                       <div className="text-xs font-medium text-foreground truncate">{proj.title}</div>
                       <div className="text-[10px] text-muted-foreground capitalize">{proj.type}</div>
                     </div>
+                    <button
+                      type="button"
+                      className="flex-shrink-0 rounded-lg border border-border p-1.5 text-muted-foreground hover:border-destructive/50 hover:text-destructive"
+                      aria-label={`Delete ${proj.title}`}
+                      onClick={() => {
+                        // Deleting a project cannot be undone, so it is confirmed first.
+                        if (window.confirm(`Delete "${proj.title}"? This cannot be undone.`)) {
+                          deleteProject.mutate({ id: proj.id });
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${proj.status === "completed" ? "bg-green-500/20 text-green-400" : "bg-secondary text-muted-foreground"}`}>
                       {proj.status}
                     </span>

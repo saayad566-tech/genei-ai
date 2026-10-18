@@ -22,19 +22,9 @@ type Declared = { name: string; reason: string };
  * external runner, a mobile client) is expected to use; none is wired here.
  */
 const DECLARED_UNREACHABLE: Declared[] = [
-  { name: "assets.save", reason: "Persisting a generated asset is done by the director job path; this is the manual equivalent for an external client." },
-  { name: "projects.create", reason: "The studio creates its project through director.createProject, which also compiles the graph. This is the bare create for an external client." },
-  { name: "projects.delete", reason: "Deleting a project is a destructive operation with no UI; it stays API-only until an archive screen needs it." },
-  { name: "runners.pair", reason: "Pairing a render runner is an operator action performed by an external runner client, not from this UI." },
-  { name: "runners.revoke", reason: "Revoking a runner is the counterpart to pairing and is likewise operator-only." },
-  { name: "runners.logs", reason: "Runner logs are read by the runner operator, not by the studio UI." },
-  { name: "director.submitProviderVideo", reason: "Submitting to a hosted video provider needs a configured provider key; the studio UI does not offer that path yet." },
-  { name: "director.pollProviderVideo", reason: "Polls a hosted provider task; it has no caller until the submit path above is offered." },
-  { name: "director.jobs", reason: "Job listing for the orchestration view; the DAG dashboard reads director.getProject and nodeDetails instead." },
-  { name: "director.updateJob", reason: "Job state is written by the worker path, not by the client." },
-  { name: "director.saveQc", reason: "Quality-control results are written by the review path; this is the manual write used by tooling." },
-  { name: "chat.history", reason: "Chat history is owned by the page that hosts AIChatBox, which is a presentational component; wiring persistence is feature work." },
-  { name: "chat.clearHistory", reason: "The counterpart to chat.history; same reasoning." },
+  // Empty, deliberately. Every one of the 71 procedures is now called by the client,
+  // the Python director or the desktop shell. An entry here would need a reason why a
+  // real capability has no caller; there are none left.
 ];
 
 /** Extract every "router.procedure" path declared in routers.ts. */

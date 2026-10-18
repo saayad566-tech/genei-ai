@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import DagOrchestrationDashboard from "@/components/DagOrchestrationDashboard";
 import { GenerationSettingsDock } from "@/components/GenerationSettingsDock";
+import ProviderRenderPanel from "@/components/ProviderRenderPanel";
 import { resolveOutputSize, estimateShotMemoryMB, type GenerationSettings, type AspectRatioId, type FrameRateId, type ResolutionId } from "@shared/generationSettings";
 
 const videoTypes = [
@@ -395,6 +396,13 @@ export default function VideoStudio() {
                 }
               />
             </motion.div>
+          )}
+
+          {/* Hosted provider rendering sits beside the local path, in the create tab. */}
+          {activeTab === "create" && (
+            <div className="mt-4">
+              <ProviderRenderPanel defaultPrompt={prompt} />
+            </div>
           )}
 
           {/* Timeline Tab */}
