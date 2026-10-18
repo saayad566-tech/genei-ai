@@ -5,6 +5,11 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { generateImage } from "./_core/imageGeneration";
 import { invokeLLM } from "./_core/llm";
 import { encryptSecret, decryptSecret } from "./_core/keyVault";
+import { CAPABILITY_IDS, CAPABILITY_LABELS, CAPABILITY_DESCRIPTIONS } from "../shared/modelCapabilities";
+import {
+  searchModels, resolveModel, checkCompatibility, downloadModel, executeModel,
+  listLocalModels, removeLocalModel, readProviderToken, tokenStatus, modelsDir,
+} from "./aiStore";
 import { generateWithModel, getModelCapabilities } from "./modelGateway";
 import { checkVideoProviderHealth } from "./videoProviders";
 import { submitVideoGeneration, pollVideoGenerationTask } from "./videoGenerationAdapters";
@@ -515,6 +520,100 @@ export const appRouter = router({
   }),
 
   // ── Workflows (ComfyUI-Style Node Graphs) ──────────────────────────────
+
+  // ── AI Store ──────────────────────────────────────────────────────────────
+  // A catalogue of open-source models: browse and classify them, check they fit this
+  // machine, download them, and run them locally or through a hosted endpoint.
+  aiStore: router({
+    /** The capability taxonomy, so the UI filters come from one place. */
+    capabilities: protectedProcedure.query(() =>
+      CAPABILITY_IDS.map((id) => ({ id, label: CAPABILITY_LABELS[id], description: CAPABILITY_DESCRIPTIONS[id] })),
+    ),
+
+    /** Whether a Hugging Face token is stored. Never returns the token. */
+    token: protectedProcedure.query(async ({ ctx }) => tokenStatus(ctx.user.id, "huggingface")),
+
+    search: protectedProcedure
+      .input(z.object({
+        query: z.string().max(120).optional(),
+        capability: z.string().max(40).optional(),
+        sort: z.enum(["downloads", "likes", "recent"]).optional(),
+        ggufOnly: z.boolean().optional(),
+        limit: z.number().int().min(1).max(60).optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        const token = await readProviderToken(ctx.user.id, "huggingface");
+        const capability = input.capability && (CAPABILITY_IDS as readonly string[]).includes(input.capability)
+          ? (input.capability as (typeof CAPABILITY_IDS)[number])
+          : undefined;
+        const result = await searchModels({ ...input, capability }, { token });
+        // Fit is computed against this machine, so the card can say so before a download.
+        const hardware = await detectHardware();
+        return {
+          ...result,
+          models: result.models.map((model) => ({ ...model, compatibility: undefined })),
+          hardware: { ramGB: hardware.ramGB, vramGB: hardware.vramGB, backends: hardware.backends },
+        };
+      }),
+
+    detail: protectedProcedure
+      .input(z.object({ id: z.string().min(3).max(200) }))
+      .query(async ({ input, ctx }) => {
+        const token = await readProviderToken(ctx.user.id, "huggingface");
+        const { model, files, error } = await resolveModel(input.id, { token });
+        const hardware = await detectHardware();
+        const profile = { ramGB: hardware.ramGB, vramGB: hardware.vramGB, backends: hardware.backends };
+        return { model, files, error, compatibility: files.length ? checkCompatibility(files, profile) : undefined, hardware: profile };
+      }),
+
+    install: protectedProcedure
+      .input(z.object({ id: z.string().min(3).max(200), filePath: z.string().min(1), url: z.string().url(), expectedBytes: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const token = await readProviderToken(ctx.user.id, "huggingface");
+        const config = runtimeConfig();
+        const result = await downloadModel({
+          id: input.id, filePath: input.filePath, url: input.url,
+          expectedBytes: input.expectedBytes, dataDir: config.dataDir, token,
+        });
+        return result;
+      }),
+
+    installed: protectedProcedure.query(async () => listLocalModels(runtimeConfig().dataDir)),
+
+    remove: protectedProcedure
+      .input(z.object({ id: z.string().min(1).max(200) }))
+      .mutation(async ({ input }) => removeLocalModel(runtimeConfig().dataDir, input.id)),
+
+    run: protectedProcedure
+      .input(z.object({
+        modelId: z.string().min(3).max(200),
+        mode: z.enum(["local", "hosted"]),
+        messages: z.array(z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string().min(1).max(20000) })).min(1).max(40),
+        localPath: z.string().max(1000).optional(),
+        maxTokens: z.number().int().min(1).max(8192).optional(),
+        temperature: z.number().min(0).max(2).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const token = input.mode === "hosted" ? await readProviderToken(ctx.user.id, "huggingface") : undefined;
+        const config = runtimeConfig();
+        const llamaBinary = config.llamaBinary;
+        return executeModel({
+          modelId: input.modelId,
+          messages: input.messages,
+          mode: input.mode,
+          localPath: input.localPath,
+          binaryPath: input.mode === "local" ? llamaBinary : undefined,
+          baseUrl: config.llamaUrl,
+          token,
+          maxTokens: input.maxTokens,
+          temperature: input.temperature,
+        });
+      }),
+
+    /** Where downloads are written, shown in the UI so the user knows. */
+    location: protectedProcedure.query(async () => ({ directory: modelsDir(runtimeConfig().dataDir) })),
+  }),
+
   workflows: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();

@@ -23,6 +23,7 @@ import ByohDashboard from "@/pages/ByohDashboard";
 import ComfyWorkflowStudio from "@/pages/ComfyWorkflowStudio";
 import DesktopSetupWizard from "./pages/DesktopSetupWizard";
 import ModelLibrary from "./pages/ModelLibrary";
+import AIStore from "./pages/AIStore";
 import TeamWorkspace from "./pages/TeamWorkspace";
 import Monetization from "./pages/Monetization";
 import ExportCenter from "./pages/ExportCenter";
@@ -78,6 +79,7 @@ function Router() {
         <Route path="/comfy" component={ComfyWorkflowStudio} />
         <Route path="/setup-wizard" component={DesktopSetupWizard} />
         <Route path="/library" component={ModelLibrary} />
+        <Route path="/ai-store" component={AIStore} />
         <Route path="/team" component={TeamWorkspace} />
         <Route path="/monetization" component={Monetization} />
         <Route path="/export" component={ExportCenter} />
