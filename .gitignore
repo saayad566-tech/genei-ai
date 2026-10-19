@@ -118,3 +118,8 @@ temp/
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
 .project-config.json
+
+# Android release signing — never commit the keystore or its password
+android/keystore.properties
+*.keystore
+*.jks

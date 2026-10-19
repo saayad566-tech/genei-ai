@@ -74,3 +74,69 @@ project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/
 and installable on any device, but it is **not** a release signature and must not be
 published to a store. A release build needs `assembleRelease` with a keystore configured
 in `android/app/build.gradle`.
+
+
+---
+
+## Release builds
+
+`assembleRelease` and `bundleRelease` both work and produce **release-signed** artifacts.
+
+### The signing key
+
+Android applications are **self-signed by design** — there is no CA for Android app signing.
+Google Play uses Play App Signing, which wraps your upload key; a self-signed release key is
+the correct and standard approach for distribution outside Play, and for the upload key
+itself.
+
+The signing configuration reads `android/keystore.properties`, which is **gitignored**. If
+that file is absent the release build is simply unsigned rather than silently falling back
+to a debug key — a debug-signed artifact published as a release is a real problem, so the
+build refuses to pretend.
+
+```properties
+# android/keystore.properties — NEVER COMMIT THIS
+storeFile=/absolute/path/to/genei-release.keystore
+storePassword=…
+keyAlias=genei
+keyPassword=…
+```
+
+Generate the key once and keep it safe. **Losing it means you can never update the app** on
+an installed device — Android rejects an update signed by a different key.
+
+```sh
+keytool -genkeypair -v -keystore genei-release.keystore -alias genei \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+### Building
+
+```sh
+cd android
+./gradlew assembleRelease    # -> app/build/outputs/apk/release/app-release.apk
+./gradlew bundleRelease      # -> app/build/outputs/bundle/release/app-release.aab
+```
+
+### Verifying what you built
+
+```sh
+# APKs are APK-signed (v2/v3):
+apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
+
+# AABs are JAR-signed (v1), so apksigner cannot read them — use jarsigner:
+jarsigner -verify -verbose:summary -certs app/build/outputs/bundle/release/app-release.aab
+```
+
+`apksigner` reporting *"Missing AndroidManifest.xml"* on an AAB is **not** a defect: the
+AAB stores its manifest at `base/manifest/AndroidManifest.xml`, which is the bundle layout,
+not the APK layout.
+
+### Two things to know before publishing
+
+- **No timestamp.** `jarsigner` notes the signatures carry no timestamp. Not a defect, but it
+  means the signature cannot be validated after the certificate expires (2054 here). Add
+  `-tsa` if you need long-term validation.
+- **No `arm64-v8a` native library — because there are none.** This app is pure Java/Kotlin
+  with no native code, so it runs on every ABI rather than shipping an x86-only build. The
+  usual "arm64 missing" defect does not apply.
