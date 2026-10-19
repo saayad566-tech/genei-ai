@@ -1,0 +1,5 @@
+// Generated equivalent of what `cap sync android` writes when the project has no
+// cordova plugins. Capacitor's own build script applies this file, so it must exist.
+ext {
+  cordovaAndroidVersion = '14.0.1'
+}
