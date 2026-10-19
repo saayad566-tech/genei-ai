@@ -8,6 +8,7 @@ import { encryptSecret, decryptSecret } from "./_core/keyVault";
 import { enforceRateLimit, limiter } from "./_core/rateLimit";
 import { liveness, readiness, metrics, resetCaches, diskSpace } from "./_core/ops";
 import { compareModels } from "./modelCompare";
+import { submitRuntimeJob, getRuntimeJob, listRuntimeJobs, type RuntimeTaskType } from "./runtimeJobs";
 import { facetModels } from "./aiStore";
 import { advise, explainFit } from "./modelAdvisor";
 import { audit, type AuditAction } from "./_core/audit";
@@ -1392,6 +1393,30 @@ export const appRouter = router({
   // Health is a live probe of each tool, never a cached claim. Resolution reports
   // every candidate it tried, so a fallback is always visible to the user.
   adapters: router({
+    /**
+     * The execution plane's submit endpoint. This is what a paired runner or the CLI
+     * calls: it runs a real adapter and returns a job whose status reflects what actually
+     * happened. A job is only "completed" when an artifact exists on disk.
+     */
+    submit: protectedProcedure
+      .input(z.object({
+        taskType: z.enum(["probe", "extract-frame", "assemble", "transcode", "text", "image", "video", "lipsync", "upscale", "transcribe"]),
+        payload: z.record(z.string(), z.unknown()).default({}),
+      }))
+      .mutation(async ({ input }) => submitRuntimeJob({ taskType: input.taskType as RuntimeTaskType, payload: input.payload })),
+
+    /** Poll a submitted job. Reports the real status, never an optimistic one. */
+    poll: protectedProcedure
+      .input(z.object({ jobId: z.string().min(1).max(200) }))
+      .query(async ({ input }) => {
+        const job = getRuntimeJob(input.jobId);
+        if (!job) return { jobId: input.jobId, status: "failed" as const, error: `No job named ${input.jobId} is known to this runtime. It may have aged out of the bounded history.` };
+        return job;
+      }),
+
+    /** The runtime's recent jobs, newest first. */
+    jobs: protectedProcedure.query(async () => listRuntimeJobs(50)),
+
     health: protectedProcedure.query(() => adapterHealth(buildAdapters())),
     resolve: protectedProcedure
       .input(z.object({ capability: z.enum(["video_generation", "image_generation", "lipsync", "upscale", "transcribe", "review", "assemble"]) }))

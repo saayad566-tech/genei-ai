@@ -72,6 +72,9 @@ export function ExecutionPlanePanel() {
   const [contextResult, setContextResult] = useState<{ status: string; detail: string } | null>(null);
 
   const hardwareQuery = trpc.adapters.hardware.useQuery(undefined, { refetchOnWindowFocus: false });
+  // The execution plane's real job history. Every entry ran through a real adapter; a job
+  // is only "completed" when an output file exists on disk.
+  const runtimeJobsQuery = trpc.adapters.jobs.useQuery(undefined, { refetchOnWindowFocus: false });
   const queueQuery = trpc.queue.status.useQuery(undefined, {
     refetchOnWindowFocus: false,
     refetchInterval: (query) => {
@@ -121,6 +124,36 @@ export function ExecutionPlanePanel() {
 
   return (
     <section className="gx-panel p-5" data-testid="execution-plane">
+
+      {/* Runtime jobs — what the execution plane has actually run. */}
+      <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-foreground">Runtime jobs</p>
+          <span className="text-[10px] text-muted-foreground">{runtimeJobsQuery.data?.length ?? 0} recorded</span>
+        </div>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          Jobs submitted to the execution plane. A job reports <span className="text-emerald-300">completed</span> only
+          when an output file exists on disk — a call returning is not the same as work being done.
+        </p>
+        {(runtimeJobsQuery.data ?? []).length === 0 ? (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Nothing has run yet. Submit a probe or an assembly through the runtime to see it here.
+          </p>
+        ) : (
+          <div className="mt-2 space-y-1">
+            {(runtimeJobsQuery.data ?? []).slice(0, 8).map((job) => (
+              <div key={job.id} className="flex items-center justify-between gap-2 text-[10px]">
+                <span className="truncate text-muted-foreground" title={job.outputPath ?? job.error ?? ""}>
+                  {job.taskType} · {job.id.slice(0, 14)}
+                </span>
+                <span className={job.status === "completed" ? "text-emerald-300" : job.status === "failed" ? "text-rose-300" : "text-amber-300"}>
+                  {job.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Server className="h-4 w-4 text-[var(--genei-cyan)]" />
