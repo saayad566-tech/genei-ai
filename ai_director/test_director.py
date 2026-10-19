@@ -68,7 +68,7 @@ def test_video_orchestration_and_qa():
     project = Project(id="test-3", title="Test", brief="Test brief")
     director = AIDirector(project)
     project = director.decompose_brief()
-    provider = MockCloudProvider()
+    provider = MockCloudProvider(allow_mock=True)
     video_orch = VideoOrchestrator(provider)
     qa = EllipseScanQA()
 
@@ -83,7 +83,9 @@ def test_video_orchestration_and_qa():
 
 def test_full_pipeline_orchestration():
     project = Project(id="test-4", title="Integration Test", brief="A historic documentary segment.")
-    config = Config(policy="cloud_only")
+    # mock_mode is opt-in: this exercises the orchestration logic with a test
+    # double, and says so.
+    config = Config(policy="cloud_only", mock_mode=True)
     orch = PipelineOrchestrator(config)
     result = orch.run_project(project)
     assert result.status == "completed"

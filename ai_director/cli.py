@@ -17,7 +17,12 @@ def main():
 
     print(f"Starting Genei AI Director for project: {project.title}")
     result = orch.run_project(project)
-    print(json.dumps({"status": result.status, "scenes": len(result.scenes)}, indent=2))
+    # Report how it actually ran. A mock run must never look like a real one.
+    print(json.dumps({
+        "status": result.status,
+        "scenes": len(result.scenes),
+        "execution_mode": result.execution_mode,
+    }, indent=2))
 
 if __name__ == "__main__":
     main()

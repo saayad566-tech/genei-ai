@@ -252,6 +252,9 @@ class Project:
     production_constitution: Dict[str, Any] = field(default_factory=dict)
     asset_lineage: List[AssetLineage] = field(default_factory=list)
     jobs: List[DAGJob] = field(default_factory=list)
+    #: How this project was executed: "local-runtime" for a real run, "mock" for a test
+    #: double. Carried on the project so nothing downstream can imply more than happened.
+    execution_mode: str = "unrun"
     qc_reports: List[QCReport] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
 

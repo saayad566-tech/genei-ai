@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .models import DAGJob, Project, RepairAttempt
 from .config import Config
-from .providers import MockCloudProvider, MockLocalRunner
+from .providers import select_provider
 from .director import AIDirector
 from .voice import VoiceDirector
 from .video import VideoOrchestrator
@@ -13,7 +13,11 @@ from .upscale import PostProduction
 class PipelineOrchestrator:
     def __init__(self, config: Config):
         self.config = config
-        self.provider = MockLocalRunner() if config.policy == "local_only" else MockCloudProvider()
+        # select_provider prefers the real local runtime and raises rather than silently
+        # substituting a mock. A run with no runtime must fail, not fabricate a film.
+        self.provider = select_provider(config)
+        #: True only when a real runtime is behind the provider.
+        self.real_execution = bool(getattr(self.provider, "real", False))
 
     def _job(self, project: Project, kind: str, subject_id: str, stage: str) -> DAGJob:
         job = DAGJob(id=f"job_{kind}_{subject_id}", kind=kind, subject_id=subject_id, stage=stage, status="running")
@@ -71,4 +75,7 @@ class PipelineOrchestrator:
 
         failed_jobs = [job for job in project.jobs if job.status == "failed"]
         project.status = "completed" if not failed_jobs else "needs_review"
+
+        # Record how this ran, so a caller can never mistake a mock run for a real one.
+        project.execution_mode = "local-runtime" if self.real_execution else "mock"
         return project
