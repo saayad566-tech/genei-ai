@@ -1,0 +1,117 @@
+name: Dependency security audit
+
+# Scans the production dependency tree for known advisories.
+#
+# Why this exists: a manual review found 93 advisories across 601 production
+# dependencies — 3 critical and 23 high — and nothing in the pipeline would have
+# caught them. This makes that a permanent, automated check.
+#
+# It is deliberately not on a push trigger for the whole tree: it is cheap, so it runs
+# on every pull request and on a schedule, and it can be dispatched by hand.
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/security-audit.yml"
+  schedule:
+    # Weekly, so a new advisory against an unchanged tree is still caught.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Production dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Reproducible baseline: the same command a developer runs locally.
+      - name: Audit production dependencies (JSON)
+        run: pnpm audit --prod --json > audit-report.json || true
+
+      # Fails on critical and high only. Moderate and low are reported, not blocked,
+      # so the build does not go permanently red and train people to ignore it.
+      - name: Fail on critical and high advisories
+        run: |
+          node - <<'NODE'
+          const fs = require("fs");
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync("audit-report.json", "utf8"));
+          } catch (error) {
+            console.error("Could not parse the audit report:", error.message);
+            process.exit(1);
+          }
+          const v = report?.metadata?.vulnerabilities ?? {};
+          const critical = v.critical ?? 0;
+          const high = v.high ?? 0;
+          const moderate = v.moderate ?? 0;
+          const low = v.low ?? 0;
+
+          const summary = [
+            "### Dependency security audit",
+            "",
+            "| Severity | Count |",
+            "|---|---|",
+            `| Critical | ${critical} |`,
+            `| High | ${high} |`,
+            `| Moderate | ${moderate} |`,
+            `| Low | ${low} |`,
+          ].join("\n");
+          if (process.env.GITHUB_STEP_SUMMARY) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
+          }
+          console.log(summary);
+
+          // Name the packages, so the failure is actionable rather than a number.
+          const advisories = Object.values(report?.advisories ?? {});
+          const blocking = advisories.filter((a) => a.severity === "critical" || a.severity === "high");
+          if (blocking.length) {
+            console.error("\nBlocking advisories:");
+            for (const a of blocking) {
+              console.error(`  [${a.severity}] ${a.module_name} ${a.vulnerable_versions} -> patched ${a.patched_versions}`);
+            }
+          }
+
+          if (critical > 0 || high > 0) {
+            console.error(`\nFailing: ${critical} critical and ${high} high advisories in production dependencies.`);
+            process.exit(1);
+          }
+          console.log("\nNo critical or high advisories in production dependencies.");
+          NODE
+
+      # Always publish the full report, so a moderate finding is visible even on success.
+      - name: Upload the full report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-report
+          path: audit-report.json
+          retention-days: 30
+          if-no-files-found: warn

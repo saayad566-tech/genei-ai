@@ -1,0 +1,23 @@
+{
+  "name": "huggingface-hub",
+  "gap": "The AI Store cannot list, classify or download open-source models without a model catalogue, and no local source provides one.",
+  "purpose": "Browse, classify, check fit, download and run open-source models from the Hugging Face Hub.",
+  "selected": {
+    "kind": "api",
+    "option": "Hugging Face Hub HTTP API (huggingface.co/api)",
+    "why": "Free, no paid tier required, and the de-facto catalogue for open weights. Alternatives considered: a local curated list (would go stale immediately) and OpenRouter's catalogue (commercial models, not open weights)."
+  },
+  "acceptance_criteria": [
+    "Search returns live models with a capability classification derived from real metadata.",
+    "A model's file listing and sizes are read from the repository, not assumed.",
+    "A gated model is reported as gated rather than silently failing.",
+    "No token is ever written to a log, an audit record or an error message."
+  ],
+  "changes": [{ "kind": "network", "description": "Outbound HTTPS calls to huggingface.co only" }],
+  "commands": [],
+  "risk_level": "medium",
+  "rollback": "Remove the stored Hugging Face token and disable the AI Store catalogue route.",
+  "reversible": true,
+  "data_touched": false,
+  "credentials": "A user-supplied Hugging Face token, stored encrypted in the existing api_keys table and never logged."
+}

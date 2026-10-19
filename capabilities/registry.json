@@ -1,0 +1,461 @@
+{
+  "capabilities": {
+    "drizzle-orm": {
+      "approval_by": "akshya",
+      "approval_ref": null,
+      "approved_sha256": null,
+      "dependencies": [],
+      "evidence": "ran pnpm exec vitest run server/drizzleUpgrade.test.ts --reporter=basic -> exit 0 at 2026-10-19T07:10:07+00:00",
+      "failure_reason": "",
+      "history": [
+        {
+          "at": "2026-10-19T07:10:00+00:00",
+          "status": "discovered"
+        },
+        {
+          "at": "2026-10-19T07:10:00+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:10:01+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:10:01+00:00",
+          "status": "installed"
+        },
+        {
+          "at": "2026-10-19T07:10:07+00:00",
+          "status": "verified"
+        }
+      ],
+      "kind": "package",
+      "license": "",
+      "name": "drizzle-orm",
+      "plan_hash": null,
+      "purpose": "Typed database access and migrations for all 19 tables",
+      "recovery_note": "",
+      "requires": {},
+      "risk_level": "medium",
+      "rollback": "Revert the dependency range and reinstall from the previous lockfile",
+      "rollback_tested": false,
+      "sha256": "",
+      "sha256_trusted": false,
+      "source": "",
+      "status": "verified",
+      "tests": [
+        "pnpm exec vitest run server/drizzleUpgrade.test.ts --reporter=basic"
+      ],
+      "verify_result": {
+        "artifact_sha256": null,
+        "at": "2026-10-19T07:10:07+00:00",
+        "command": [
+          "pnpm",
+          "exec",
+          "vitest",
+          "run",
+          "server/drizzleUpgrade.test.ts",
+          "--reporter=basic"
+        ],
+        "cwd": null,
+        "env": {
+          "arch": "x86_64",
+          "os": "linux",
+          "python": "3.12.13"
+        },
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "\n RUN  v2.1.9 /scratch/work/genei-ai\n\n \u2713 server/drizzleUpgrade.test.ts (10 tests) 26ms\n\n Test Files  1 passed (1)\n      Tests  10 passed (10)\n   Start at  07:10:04\n   Duration  2.12s (transform 287ms, setup 0ms, collect 844ms, tests 26ms, environment 0ms, prepare 397ms)\n\n",
+        "timeout": false
+      }
+    },
+    "ffmpeg": {
+      "approval_by": "akshya",
+      "approval_ref": null,
+      "approved_sha256": null,
+      "dependencies": [],
+      "evidence": "ran /scratch/.local/lib/python3.12/site-packages/static_ffmpeg/bin/linux/ffmpeg -version -> exit 0 at 2026-10-19T07:09:38+00:00",
+      "failure_reason": "",
+      "history": [
+        {
+          "at": "2026-10-19T07:09:32+00:00",
+          "status": "discovered"
+        },
+        {
+          "at": "2026-10-19T07:09:33+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:09:34+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:09:36+00:00",
+          "status": "installed"
+        },
+        {
+          "at": "2026-10-19T07:09:38+00:00",
+          "status": "verified"
+        }
+      ],
+      "kind": "tool",
+      "license": "",
+      "name": "ffmpeg",
+      "plan_hash": null,
+      "purpose": "Media probing, frame extraction and scene assembly for the video pipeline",
+      "recovery_note": "",
+      "requires": {},
+      "risk_level": "low",
+      "rollback": "Remove static-ffmpeg from the build environment",
+      "rollback_tested": false,
+      "sha256": "",
+      "sha256_trusted": false,
+      "source": "",
+      "status": "verified",
+      "tests": [
+        "/scratch/.local/lib/python3.12/site-packages/static_ffmpeg/bin/linux/ffmpeg -version"
+      ],
+      "verify_result": {
+        "artifact_sha256": null,
+        "at": "2026-10-19T07:09:38+00:00",
+        "command": [
+          "/scratch/.local/lib/python3.12/site-packages/static_ffmpeg/bin/linux/ffmpeg",
+          "-version"
+        ],
+        "cwd": null,
+        "env": {
+          "arch": "x86_64",
+          "os": "linux",
+          "python": "3.12.13"
+        },
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "--enable-libxml2 --enable-libsoxr --enable-openssl --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-vulkan --enable-libshaderc --enable-libvorbis --enable-libxcb --enable-xlib --enable-libpulse --enable-opencl --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-amf --enable-libaom --enable-libaribb24 --enable-avisynth --enable-chromaprint --enable-libdav1d --enable-libdavs2 --enable-libdvdread --enable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --enable-frei0r --enable-libgme --enable-libkvazaar --enable-libaribcaption --enable-libass --enable-libbluray --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenm",
+        "timeout": false
+      }
+    },
+    "huggingface-hub": {
+      "approval_by": "akshya",
+      "approval_ref": null,
+      "approved_sha256": null,
+      "dependencies": [],
+      "evidence": "ran node capabilities/hf-verify.mjs -> exit 0 at 2026-10-19T07:11:54+00:00",
+      "failure_reason": "",
+      "history": [
+        {
+          "at": "2026-10-19T07:10:00+00:00",
+          "status": "discovered"
+        },
+        {
+          "at": "2026-10-19T07:10:00+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:10:22+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:10:22+00:00",
+          "status": "installed"
+        },
+        {
+          "at": "2026-10-19T07:10:42+00:00",
+          "status": "failed"
+        },
+        {
+          "at": "2026-10-19T07:11:07+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:11:07+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:11:08+00:00",
+          "status": "installed"
+        },
+        {
+          "at": "2026-10-19T07:11:28+00:00",
+          "status": "failed"
+        },
+        {
+          "at": "2026-10-19T07:11:52+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:11:52+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:11:52+00:00",
+          "status": "installed"
+        },
+        {
+          "at": "2026-10-19T07:11:54+00:00",
+          "status": "verified"
+        }
+      ],
+      "kind": "api",
+      "license": "",
+      "name": "huggingface-hub",
+      "plan_hash": "b859b32d5395d4236cf54f9bf37abc83b2f8d3680bf37f8a65425bfcb928c7ce",
+      "purpose": "Live model catalogue, weight listing and downloads for the AI Store",
+      "recovery_note": "The first verification failed because the command ran from a directory where the project's undici dependency does not resolve, and a bare node fetch does not use the proxy the server installs. Re-verifying through the project's own network path.",
+      "requires": {},
+      "risk_level": "medium",
+      "rollback": "Remove the stored Hugging Face token and disable the AI Store catalogue route",
+      "rollback_tested": false,
+      "sha256": "",
+      "sha256_trusted": false,
+      "source": "",
+      "status": "verified",
+      "tests": [
+        "node capabilities/hf-verify.mjs"
+      ],
+      "verify_result": {
+        "artifact_sha256": null,
+        "at": "2026-10-19T07:11:54+00:00",
+        "command": [
+          "node",
+          "capabilities/hf-verify.mjs"
+        ],
+        "cwd": null,
+        "env": {
+          "arch": "x86_64",
+          "os": "linux",
+          "python": "3.12.13"
+        },
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "",
+        "timeout": false
+      }
+    },
+    "llama-cpp": {
+      "approval_by": "akshya",
+      "approval_ref": null,
+      "approved_sha256": null,
+      "dependencies": [],
+      "evidence": "",
+      "failure_reason": "",
+      "history": [
+        {
+          "at": "2026-10-19T07:09:32+00:00",
+          "status": "discovered"
+        },
+        {
+          "at": "2026-10-19T07:09:34+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:09:34+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:09:36+00:00",
+          "status": "installed"
+        }
+      ],
+      "kind": "tool",
+      "license": "",
+      "name": "llama-cpp",
+      "plan_hash": null,
+      "purpose": "On-device inference through llama-server for locally downloaded GGUF models",
+      "recovery_note": "",
+      "requires": {},
+      "risk_level": "low",
+      "rollback": "Remove the llama.cpp binary and the adapter",
+      "rollback_tested": false,
+      "sha256": "",
+      "sha256_trusted": false,
+      "source": "",
+      "status": "installed",
+      "tests": [],
+      "verify_result": null
+    },
+    "pnpm-audit": {
+      "approval_by": "akshya",
+      "approval_ref": null,
+      "approved_sha256": null,
+      "dependencies": [],
+      "evidence": "ran pnpm audit --prod --audit-level high -> exit 0 at 2026-10-19T07:09:43+00:00",
+      "failure_reason": "",
+      "history": [
+        {
+          "at": "2026-10-19T07:09:33+00:00",
+          "status": "discovered"
+        },
+        {
+          "at": "2026-10-19T07:09:35+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:09:36+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:09:37+00:00",
+          "status": "installed"
+        },
+        {
+          "at": "2026-10-19T07:09:43+00:00",
+          "status": "verified"
+        }
+      ],
+      "kind": "tool",
+      "license": "",
+      "name": "pnpm-audit",
+      "plan_hash": null,
+      "purpose": "Production dependency advisory scanning, wired into CI",
+      "recovery_note": "",
+      "requires": {},
+      "risk_level": "low",
+      "rollback": "Delete .github/workflows/security-audit.yml",
+      "rollback_tested": false,
+      "sha256": "",
+      "sha256_trusted": false,
+      "source": "",
+      "status": "verified",
+      "tests": [
+        "pnpm audit --prod --audit-level high"
+      ],
+      "verify_result": {
+        "artifact_sha256": null,
+        "at": "2026-10-19T07:09:43+00:00",
+        "command": [
+          "pnpm",
+          "audit",
+          "--prod",
+          "--audit-level",
+          "high"
+        ],
+        "cwd": null,
+        "env": {
+          "arch": "x86_64",
+          "os": "linux",
+          "python": "3.12.13"
+        },
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "No known vulnerabilities found\n",
+        "timeout": false
+      }
+    },
+    "vitest": {
+      "approval_by": "akshya",
+      "approval_ref": null,
+      "approved_sha256": null,
+      "dependencies": [],
+      "evidence": "ran pnpm exec vitest --version -> exit 0 at 2026-10-19T07:09:40+00:00",
+      "failure_reason": "",
+      "history": [
+        {
+          "at": "2026-10-19T07:09:33+00:00",
+          "status": "discovered"
+        },
+        {
+          "at": "2026-10-19T07:09:35+00:00",
+          "status": "assessed"
+        },
+        {
+          "at": "2026-10-19T07:09:35+00:00",
+          "status": "approved"
+        },
+        {
+          "at": "2026-10-19T07:09:37+00:00",
+          "status": "installed"
+        },
+        {
+          "at": "2026-10-19T07:09:40+00:00",
+          "status": "verified"
+        }
+      ],
+      "kind": "tool",
+      "license": "",
+      "name": "vitest",
+      "plan_hash": null,
+      "purpose": "Test runner for the JS/TS suites",
+      "recovery_note": "",
+      "requires": {},
+      "risk_level": "low",
+      "rollback": "Remove vitest from devDependencies",
+      "rollback_tested": false,
+      "sha256": "",
+      "sha256_trusted": false,
+      "source": "",
+      "status": "verified",
+      "tests": [
+        "pnpm exec vitest --version"
+      ],
+      "verify_result": {
+        "artifact_sha256": null,
+        "at": "2026-10-19T07:09:40+00:00",
+        "command": [
+          "pnpm",
+          "exec",
+          "vitest",
+          "--version"
+        ],
+        "cwd": null,
+        "env": {
+          "arch": "x86_64",
+          "os": "linux",
+          "python": "3.12.13"
+        },
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "vitest/2.1.9 linux-x64 node-v20.20.2\n",
+        "timeout": false
+      }
+    }
+  },
+  "lessons": [
+    {
+      "at": "2026-10-19T06:45:27+00:00",
+      "capability": "",
+      "capability_version": "",
+      "lesson": "The registry defaults to ./capability-registry.json relative to the working directory, and the skill sandbox directory is recreated from the package every session. A registry populated there does not survive, so the weekly review can never accumulate history. Always pass --registry with a durable path.",
+      "source": "observed: audit log genesis record seq=0 after a fresh skill materialisation",
+      "status": "verified",
+      "topic": "registry-persistence"
+    },
+    {
+      "at": "2026-10-19T06:45:27+00:00",
+      "capability": "",
+      "capability_version": "",
+      "lesson": "pnpm audit --prod on genei-ai reports 93 advisories across 601 production dependencies: 3 critical, 23 high, 55 moderate, 12 low. Six affected packages are direct dependencies (axios, drizzle-orm, mysql2, nanoid, @trpc/server, @capacitor/android); the rest are transitive. Only dompurify has no patched version available.",
+      "source": "pnpm audit --prod --json, 2026-10-19",
+      "status": "verified",
+      "topic": "dependency-advisories"
+    },
+    {
+      "at": "2026-10-19T07:12:07+00:00",
+      "capability": "",
+      "capability_version": "",
+      "lesson": "The registry now lives at capabilities/registry.json inside the repository, which is the only location that survives a session, a package reset and a sandbox recycle. Every command must pass --registry explicitly, or it writes to a path that is discarded.",
+      "source": "verified: the registry persisted across the re-materialisation of the skill directory and its audit chain is intact",
+      "status": "verified",
+      "topic": "registry-durability"
+    },
+    {
+      "at": "2026-10-19T07:12:08+00:00",
+      "capability": "",
+      "capability_version": "",
+      "lesson": "93 production advisories were reduced to 0 by raising six direct dependencies to their lowest patched version within the existing major range, and pinning eleven transitive packages with pnpm overrides to the lowest patched version in the same major line. drizzle-orm 0.44.6 -> 0.45.4 left its range deliberately and was validated by a new test asserting every table keeps its name, columns and primary key, that SQL stays parameterised, and that migrations remain in parity. No major versions were jumped and no advisories were suppressed.",
+      "source": "pnpm audit --prod before and after, plus tsc, 469 vitest, 60 pytest and a clean production build",
+      "status": "verified",
+      "topic": "dependency-remediation"
+    },
+    {
+      "at": "2026-10-19T07:12:08+00:00",
+      "capability": "",
+      "capability_version": "",
+      "lesson": "A focusable-element filter that checks offsetParent is wrong: it is null for every position:fixed element, so it excludes exactly the elements inside a fixed modal that the focus trap exists to find. Filter on hidden and disabled instead.",
+      "source": "found by a failing jsdom test in round 19; fixed and covered by a test",
+      "status": "verified",
+      "topic": "focusable-offsetparent"
+    }
+  ],
+  "updated": "2026-10-19T07:12:08+00:00",
+  "version": 3
+}
