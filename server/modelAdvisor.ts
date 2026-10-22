@@ -61,7 +61,10 @@ export function advise(files: ModelFile[], memory: { availableGB: number | null;
   });
 
   const available = memory.availableGB;
-  if (available === null || available <= 0) {
+  // `=== null` alone is not enough: an absent field arrives as `undefined`, which slips
+  // past the check, makes every comparison NaN, and produces a confusing "nothing fits"
+  // instead of the clear "memory could not be read". Treat any non-finite value as unknown.
+  if (available === null || available === undefined || !Number.isFinite(available) || available <= 0) {
     return {
       options: [],
       rejected: [],

@@ -30,6 +30,24 @@ export const CAPABILITY_IDS = [
 
 export type CapabilityId = (typeof CAPABILITY_IDS)[number];
 
+/**
+ * Normalise the Hub's `tags` into a clean string array.
+ *
+ * The API documents `tags` as an array of strings, but it does not always deliver that:
+ * a single string has been observed where an array was expected, and entries can be null.
+ * `tags ?? []` does not help in either case — a string is not nullish, and it has no
+ * `.find`, so the guard silently fails and the call throws on live data.
+ *
+ * Every consumer goes through here instead, so the shape is settled once.
+ */
+export function normaliseTags(tags: unknown): string[] {
+  if (Array.isArray(tags)) {
+    return tags.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  }
+  if (typeof tags === "string" && tags.length > 0) return [tags];
+  return [];
+}
+
 export type CapabilitySignal = {
   id: CapabilityId;
   /** 0–1. Higher means a more direct signal produced it. */
@@ -141,20 +159,28 @@ function readString(source: Record<string, unknown> | undefined, key: string): s
 }
 
 /** "Qwen2.5-Coder-7B-Instruct" -> "7B". Read from the name; nothing else is reliable. */
-export function readParameterScale(id: string): string | undefined {
+export function readParameterScale(id: string | undefined | null): string | undefined {
+  // A missing id is a missing answer, not a crash.
+  if (typeof id !== "string" || id.length === 0) return undefined;
   const match = id.match(/(\d+(?:\.\d+)?)\s*[xX]?\s*([BM])\b/);
-  return match ? `${match[1]}${match[2].toUpperCase()}` : undefined;
+  if (!match) return undefined;
+  // Guard the parse itself: a wild id must not produce NaN downstream.
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return `${match[1]}${match[2].toUpperCase()}`;
 }
 
 /** "…-Q4_K_M.gguf" or a gguf metadata block -> "Q4_K_M". */
-export function readQuantization(meta: ModelMeta): string | undefined {
-  const fromName = meta.id.match(/(Q\d(?:_[A-Z0-9]+)*|IQ\d(?:_[A-Z0-9]+)*|F16|F32|BF16)/i);
+export function readQuantization(meta: ModelMeta | undefined | null): string | undefined {
+  if (!meta || typeof meta !== "object") return undefined;
+  const fromName = typeof meta.id === "string"
+    ? meta.id.match(/(Q\d(?:_[A-Z0-9]+)*|IQ\d(?:_[A-Z0-9]+)*|F16|F32|BF16)/i)
+    : null;
   if (fromName) return fromName[1].toUpperCase();
   const gguf = meta.gguf as Record<string, unknown> | undefined;
   const quant = readString(gguf, "quantization") ?? readString(gguf, "quant_method");
   if (quant) return quant;
-  const tag = (meta.tags ?? []).find((entry) => /^quant/i.test(entry));
-  return tag;
+  return normaliseTags(meta.tags).find((entry) => /^quant/i.test(entry));
 }
 
 function readContextLength(meta: ModelMeta): number | undefined {
@@ -200,7 +226,7 @@ export function classifyModel(meta: ModelMeta): CapabilityProfile {
     notes.push(`The pipeline tag "${pipeline}" has no mapping here, so it did not set a capability.`);
   }
 
-  for (const tag of meta.tags ?? []) {
+  for (const tag of normaliseTags(meta.tags)) {
     const clean = tag.replace(/^license:/i, "license:").trim();
     for (const rule of TAG_RULES) {
       if (rule.match.test(clean)) {

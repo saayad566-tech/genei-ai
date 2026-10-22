@@ -1,3 +1,4 @@
+import { normaliseTags } from "./modelCapabilities";
 /**
  * Model taxonomy — the dimensions the AI Store browses by.
  *
@@ -179,10 +180,10 @@ export type Lineage = { baseModels: string[]; relation: LineageRelation };
  * `base_model:quantized:Qwen/Qwen2.5-7B-Instruct` are the two forms that appear in
  * practice; the relation is inferred from the tag itself and stated rather than assumed.
  */
-export function readLineage(tags: string[]): Lineage {
+export function readLineage(tags: unknown): Lineage {
   const baseModels: string[] = [];
   let relation: LineageRelation = "base";
-  for (const tag of tags) {
+  for (const tag of normaliseTags(tags)) {
     const match = tag.match(/^base_model:(?:(finetune|quantized|adapter|merge|peft):)?(.+)$/i);
     if (!match) continue;
     const [, kind, model] = match;
@@ -228,9 +229,10 @@ const LANGUAGE_CODE = /^[a-z]{2,3}(-[a-z]{2,4})?$/i;
 const NON_LANGUAGE_TAGS = new Set(["en", "code", "math"]);
 
 /** Language tags are bare ISO codes; everything else in the tag list is not a language. */
-export function readLanguages(tags: string[]): string[] {
+export function readLanguages(tags: unknown): string[] {
   const found: string[] = [];
-  for (const tag of tags) {
+  // The Hub does not always deliver an array of strings, so settle the shape first.
+  for (const tag of normaliseTags(tags)) {
     if (tag.includes(":") || tag.includes("/")) continue;
     if (!LANGUAGE_CODE.test(tag)) continue;
     if (NON_LANGUAGE_TAGS.has(tag) && tag !== "en") continue;
@@ -277,7 +279,9 @@ export function categorise(input: CategoryInput): ModelCategory {
   const unknown: string[] = [];
 
   const domains: ModelDomain[] = [];
-  for (const capability of input.capabilities) {
+  // A caller that omits capabilities means "none known", not "crash".
+  const signals = Array.isArray(input.capabilities) ? input.capabilities : [];
+  for (const capability of signals) {
     const domain = CAPABILITY_DOMAIN[capability.id];
     if (domain && !domains.includes(domain)) domains.push(domain);
   }
