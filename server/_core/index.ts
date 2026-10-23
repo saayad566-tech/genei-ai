@@ -11,6 +11,8 @@ import { registerDirectorWebhookRoutes } from "../webhookRouter";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { liveness, readiness } from "./ops";
+import { runtimeConfig } from "../adapters";
 import { configureProxyFromEnvironment } from "./network";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -63,6 +65,50 @@ async function startServer() {
     }
     res.download(filePath, filename);
   });
+  /**
+   * Unauthenticated health probes.
+   *
+   * These exist because the tRPC health procedures require a session, and a load balancer,
+   * container orchestrator or uptime monitor has no credentials. Without these there is no
+   * way to ask "is this instance alive?" from outside, which is a production gap rather
+   * than a nicety.
+   *
+   * They are registered BEFORE the static handler so the SPA catch-all does not swallow
+   * them and answer with index.html — which is exactly what happened when only the tRPC
+   * procedures existed.
+   *
+   * Deliberately minimal: no version numbers, no paths, no environment detail. A public
+   * probe should confirm liveness, not describe the system to an anonymous caller.
+   */
+  app.get("/healthz", (_req, res) => {
+    // Liveness: the process is up and the event loop is turning. Never checks dependencies,
+    // because a liveness failure should restart the process, not mask a dependency outage.
+    res.status(200).json(liveness());
+  });
+
+  app.get("/readyz", (_req, res) => {
+    // Readiness: can this instance actually serve work? Reports the real gating conditions.
+    //
+    // `readiness()` needs the data directory — it checks that the directory is writable and
+    // that there is room on the disk. Calling it with no argument threw
+    // "Cannot read properties of undefined (reading 'dataDir')", which is exactly the kind
+    // of failure a readiness probe must never have: it reported "not ready" for a reason
+    // that had nothing to do with readiness.
+    try {
+      const report = readiness({ dataDir: runtimeConfig().dataDir });
+      // Ready only when every gating check passed; a degraded instance should be taken out
+      // of rotation, not quietly served.
+      const ready = report.state === "healthy" && report.checks.every((check) => check.ok);
+      res.status(ready ? 200 : 503).json({ ...report, ready });
+    } catch (error) {
+      // A probe that throws is not ready, and must say so plainly rather than 500 vaguely.
+      res.status(503).json({
+        ready: false,
+        checks: [{ name: "readiness", ok: false, detail: error instanceof Error ? error.message : "readiness probe failed" }],
+      });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

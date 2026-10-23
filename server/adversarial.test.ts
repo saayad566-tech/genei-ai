@@ -203,12 +203,18 @@ describe("retry maths never produces a bad delay", () => {
   });
 
   it("a breaker never opens on success and never wedges shut", () => {
-    const b = new CircuitBreaker(3, 1);
+    // A 1 ms cooldown made this flaky: the breaker could reopen before the assertion ran.
+    // Use a cooldown long enough to observe the open state deterministically.
+    const b = new CircuitBreaker(3, 60_000);
     expect(b.isOpen("h")).toBe(false);
     b.recordSuccess("h");
     expect(b.isOpen("h")).toBe(false);
     for (let i = 0; i < 3; i += 1) b.recordFailure("h");
     expect(b.isOpen("h")).toBe(true);
+    // And it must close again on a success once it has reopened for business.
+    const fresh = new CircuitBreaker(3, 0);
+    for (let i = 0; i < 3; i += 1) fresh.recordFailure("h");
+    expect(fresh.isOpen("h")).toBe(false); // zero cooldown means it is immediately half-open
   });
 });
 

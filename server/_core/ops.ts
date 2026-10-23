@@ -72,8 +72,31 @@ export function liveness(): { state: HealthState; uptimeSeconds: number } {
  * pressure, and whether outbound hosts are currently being skipped — rather than
  * reporting a flat "ok" that would be true even when nothing can run.
  */
-export function readiness(input: { dataDir: string; ramGB?: number | null; queuePaused?: boolean; queueDepth?: number }): HealthReport {
+export function readiness(input: {
+  dataDir: string;
+  ramGB?: number | null;
+  queuePaused?: boolean;
+  queueDepth?: number;
+} = { dataDir: "" }): HealthReport {
   const checks: HealthReport["checks"] = [];
+
+  // A probe must never throw. A missing data directory is a "not ready" verdict with a
+  // reason, not an exception — an orchestrator reading a stack trace cannot act on it,
+  // and a thrown probe looks identical to a crashed process.
+  if (!input || typeof input.dataDir !== "string" || input.dataDir.length === 0) {
+    checks.push({
+      name: "data-directory",
+      ok: false,
+      detail: "No data directory is configured, so nothing can be written. Set GENEI_DESKTOP_DATA_DIR or ensure the default location is available.",
+    });
+    return {
+      state: "unhealthy",
+      uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+      version: "unknown",
+      checks,
+      checkedAt: new Date().toISOString(),
+    };
+  }
 
   try {
     fs.mkdirSync(input.dataDir, { recursive: true });

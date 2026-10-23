@@ -30,10 +30,16 @@ const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserI
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
-    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
-    if (!ENV.oAuthServerUrl) {
-      console.error(
-        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
+    if (ENV.oAuthServerUrl) {
+      console.log(`[OAuth] Configured against ${ENV.oAuthServerUrl}.`);
+    } else {
+      // Not an error. This deployment may not use hosted OAuth at all, and the application
+      // starts and serves correctly without it — the sign-in routes are simply unavailable.
+      // It used to print "ERROR" here, which is a false alarm that sends an operator looking
+      // for a fault that does not exist. State the consequence and what to do instead.
+      console.warn(
+        "[OAuth] Disabled: OAUTH_SERVER_URL is not set, so the hosted sign-in routes are unavailable. " +
+        "The application runs normally without it. Set OAUTH_SERVER_URL to enable hosted sign-in."
       );
     }
   }
