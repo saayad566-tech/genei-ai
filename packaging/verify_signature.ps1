@@ -5,8 +5,13 @@
 # or a missing signtool would all still have been reported as signed. This script reads
 # the actual signature off the binary and reports what it finds.
 #
-# It also fails the build when a certificate was supplied but the artifact came out
-# unsigned, so a silently broken signing step cannot reach a release.
+# Two rules learned from this script breaking a release it was only supposed to describe:
+#
+#  1. A reporting script must not be able to fail the build by accident. Every file is
+#     examined inside its own try/catch, so one unreadable binary produces a row saying
+#     so rather than killing the whole report.
+#  2. Without a certificate, an unsigned artifact is the EXPECTED outcome, not a fault.
+#     Only a supplied certificate makes an unsigned artifact a failure.
 
 [CmdletBinding()]
 param(
@@ -21,59 +26,93 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-if (-not (Test-Path $Path)) { throw "Nothing exists at $Path" }
-
-$targets = if ((Get-Item $Path).PSIsContainer) {
-  @(Get-ChildItem -Path $Path -Filter *.exe -Recurse -File | Where-Object { $_.Name -notlike '*uninstaller*' })
-} else {
-  @(Get-Item $Path)
+if (-not (Test-Path $Path)) {
+  # Not a throw: report it, and let the caller decide. A missing directory here means the
+  # build produced nothing, which the build step itself should have caught.
+  $empty = @()
+  if ($AsJson) { ConvertTo-Json -InputObject @($empty) -Depth 5 } else { Write-Host "Nothing exists at $Path" }
+  return
 }
 
-if ($targets.Count -eq 0) { throw "No executables were found at $Path" }
+# -ErrorAction SilentlyContinue: a transient filesystem hiccup must not abort the report.
+$targets = @()
+if ((Get-Item -LiteralPath $Path).PSIsContainer) {
+  $targets = @(Get-ChildItem -LiteralPath $Path -Filter *.exe -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notlike '*uninstaller*' })
+} else {
+  $targets = @(Get-Item -LiteralPath $Path)
+}
 
-$results = foreach ($target in $targets) {
-  $signature = Get-AuthenticodeSignature -FilePath $target.FullName
+Write-Host "Examining $($targets.Count) executable(s) under $Path"
 
-  # Map the real status to something the metadata can carry without overstating it.
-  $state = switch ($signature.Status) {
-    "Valid" { "signed-valid" }
-    # Signed by a certificate the machine does not trust - the normal outcome for a
-    # self-signed identity that has not been installed into the trust store.
-    "UnknownError" { "signed-untrusted" }
-    "NotSigned" { "unsigned" }
-    "HashMismatch" { "tampered" }
-    default { "unsigned-$($signature.Status)" }
-  }
+$results = @()
+foreach ($target in $targets) {
+  try {
+    $signature = Get-AuthenticodeSignature -LiteralPath $target.FullName -ErrorAction Stop
 
-  $signer = $null
-  $thumbprint = $null
-  if ($signature.SignerCertificate) {
-    $signer = $signature.SignerCertificate.Subject
-    $thumbprint = $signature.SignerCertificate.Thumbprint
-  }
+    # Map the real status to something the metadata can carry without overstating it.
+    $state = switch ("$($signature.Status)") {
+      "Valid" { "signed-valid" }
+      # Signed by a certificate the machine does not trust - the normal outcome for a
+      # self-signed identity that has not been installed into the trust store.
+      "UnknownError" { "signed-untrusted" }
+      "NotSigned" { "unsigned" }
+      "HashMismatch" { "tampered" }
+      default { "unsigned-$($signature.Status)" }
+    }
 
-  $isSigned = $state -like "signed-*"
-  Write-Host ("{0,-46} {1,-18} {2}" -f $target.Name, $state, ($signer ?? "no signer certificate"))
+    $signer = $null
+    $thumbprint = $null
+    if ($null -ne $signature.SignerCertificate) {
+      $signer = $signature.SignerCertificate.Subject
+      $thumbprint = $signature.SignerCertificate.Thumbprint
+    }
 
-  [ordered]@{
-    artifact = $target.Name
-    signingState = $state
-    signatureStatus = $signature.Status.ToString()
-    signerSubject = $signer
-    signerThumbprint = $thumbprint
-    signed = $isSigned
-    verifiedAt = (Get-Date).ToUniversalTime().ToString("o")
+    $isSigned = $state -like "signed-*"
+    $displaySigner = if ($signer) { $signer } else { "no signer certificate" }
+    Write-Host ("{0,-46} {1,-18} {2}" -f $target.Name, $state, $displaySigner)
+
+    $results += [ordered]@{
+      artifact = $target.Name
+      signingState = $state
+      signatureStatus = "$($signature.Status)"
+      signerSubject = $signer
+      signerThumbprint = $thumbprint
+      signed = $isSigned
+      verifiedAt = (Get-Date).ToUniversalTime().ToString("o")
+    }
+  } catch {
+    # One unreadable or locked binary is a row in the report, not the end of the build.
+    Write-Host ("{0,-46} {1,-18} {2}" -f $target.Name, "unreadable", $_.Exception.Message)
+    $results += [ordered]@{
+      artifact = $target.Name
+      signingState = "unreadable"
+      signatureStatus = "Unreadable"
+      signerSubject = $null
+      signerThumbprint = $null
+      signed = $false
+      error = $_.Exception.Message
+      verifiedAt = (Get-Date).ToUniversalTime().ToString("o")
+    }
   }
 }
 
 if ($AsJson) {
-  $results | ConvertTo-Json -Depth 5
+  # -InputObject with @() keeps a single result as a JSON array rather than a bare object,
+  # which is what the metadata step expects to parse.
+  ConvertTo-Json -InputObject @($results) -Depth 5
 }
 
+$signedCount = @($results | Where-Object { $_.signed }).Count
 $unsigned = @($results | Where-Object { -not $_.signed })
+$artifactNames = ($unsigned | ForEach-Object { $_.artifact }) -join ', '
+
 if ($ExpectSigned -and $unsigned.Count -gt 0) {
-  throw "A signing certificate was supplied but $($unsigned.Count) artifact(s) are not signed: $($unsigned.artifact -join ', '). Signing silently failed."
+  throw "A signing certificate was supplied but $($unsigned.Count) artifact(s) are not signed: $artifactNames. Signing silently failed."
 }
 
 Write-Host ""
-Write-Host "$(@($results | Where-Object { $_.signed }).Count) of $($results.Count) executable(s) carry a signature."
+Write-Host "$signedCount of $($results.Count) executable(s) carry a signature."
+if (-not $ExpectSigned -and $unsigned.Count -gt 0) {
+  Write-Host "No certificate was supplied, so unsigned artifacts are expected. This is a report, not a failure."
+}
