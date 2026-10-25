@@ -1,0 +1,126 @@
+name: Build Genei AI iOS
+
+# iOS cannot be built on Linux — Apple requires macOS and Xcode. This workflow exists
+# because a macOS runner is the only place the iOS target can be compiled at all, and it
+# is the honest way to provide iOS support from a Linux-only development environment.
+#
+# What this produces:
+#   * A SIMULATOR build, which needs no Apple Developer account and no signing
+#     certificate. It proves the app compiles and links against the iOS SDK.
+#   * A device .ipa is NOT produced here, because that requires an Apple Developer
+#     signing identity and provisioning profile, which cannot be created autonomously.
+#
+# Manual only, deliberately: it consumes macOS minutes, and a build with no signing
+# identity cannot produce a shippable artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_ipa:
+        description: "Also attempt an unsigned device .ipa (still needs a signing identity to install)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: build-ios-simulator
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the web assets
+        run: pnpm build
+
+      # `cap add ios` generates the Xcode project from Capacitor's own template. Doing it
+      # here rather than committing a hand-written project keeps it correct by construction.
+      - name: Add the iOS platform
+        run: npx cap add ios
+
+      - name: Sync the web build into the iOS project
+        run: npx cap sync ios
+
+      - name: Show what was generated
+        run: |
+          ls -la ios/App || true
+          echo "--- schemes ---"
+          xcodebuild -list -project ios/App/App.xcodeproj || true
+
+      - name: Build for the simulator (no signing required)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Assert the app bundle was produced
+        run: |
+          set -euo pipefail
+          APP=$(find build -name "App.app" -maxdepth 6 | head -1)
+          if [ -z "$APP" ]; then
+            echo "::error::The build reported success but produced no App.app bundle."
+            exit 1
+          fi
+          echo "Produced: $APP"
+          ls -la "$APP" | head -20
+
+      - name: Package the simulator build
+        run: |
+          set -euo pipefail
+          APP=$(find build -name "App.app" -maxdepth 6 | head -1)
+          ditto -c -k --sequesterRsrc --keepParent "$APP" Genei-AI-iOS-simulator.zip
+          shasum -a 256 Genei-AI-iOS-simulator.zip
+
+      - name: Upload the simulator build
+        uses: actions/upload-artifact@v4
+        with:
+          name: genei-ios-simulator
+          path: Genei-AI-iOS-simulator.zip
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Attempt an unsigned device archive
+        if: ${{ inputs.build_ipa == 'true' }}
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive || echo "::warning::An unsigned device archive failed. A signing identity is required for a distributable .ipa."
