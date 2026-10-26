@@ -3,6 +3,13 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { generateImage } from "./_core/imageGeneration";
+import {
+  analyseVideoToPlan,
+  LikenessConsentError,
+  planOriginalVideo,
+  buildAvatarProfile,
+  vlmConfigFromEnv,
+} from "./videoToAvatar";
 import { invokeLLM } from "./_core/llm";
 import { encryptSecret, decryptSecret } from "./_core/keyVault";
 import { enforceRateLimit, limiter } from "./_core/rateLimit";
@@ -591,6 +598,67 @@ export const appRouter = router({
   // ── AI Store ──────────────────────────────────────────────────────────────
   // A catalogue of open-source models: browse and classify them, check they fit this
   // machine, download them, and run them locally or through a hosted endpoint.
+  /**
+   * Video-to-avatar: analyse an uploaded video, derive an avatar from it, and plan a new
+   * original video starring that avatar.
+   *
+   * The consent gate lives in the engine, not only here, so no caller can reach generation
+   * without affirming likeness rights.
+   */
+  avatarVideo: router({
+    /** What the UI must show before it can enable the analyse action. */
+    requirements: protectedProcedure.query(() => ({
+      visionModelConfigured: vlmConfigFromEnv() !== null,
+      visionModelHint:
+        "Set GENEI_VLM_URL and GENEI_VLM_MODEL to a vision-capable OpenAI-compatible server to enable analysis.",
+      consentRequired: true,
+      consentText:
+        "I confirm I am the person in this video, or that I hold their written permission to create new footage of them.",
+    })),
+
+    /**
+     * Analyse a video the user has already uploaded to the app's media directory.
+     *
+     * Takes a server-side path rather than the bytes, because the upload already exists and
+     * re-sending 12 MB through tRPC would be wasteful. The path is confined to the media
+     * directory so it cannot be used to read arbitrary files.
+     */
+    analyse: protectedProcedure
+      .input(
+        z.object({
+          relativePath: z.string().min(1).max(400),
+          consentAffirmed: z.boolean(),
+          consentBasis: z.string().min(3).max(400),
+          frameCount: z.number().int().min(2).max(16).optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const { runtimeConfig } = await import("./adapters");
+        const path = await import("node:path");
+        const fs = await import("node:fs/promises");
+
+        const mediaDir = runtimeConfig().mediaDir;
+        const resolved = path.resolve(mediaDir, input.relativePath);
+        // Refuse anything that escapes the media directory.
+        if (!resolved.startsWith(path.resolve(mediaDir))) {
+          throw new Error("The video path must be inside the app's media directory.");
+        }
+        const exists = await fs.stat(resolved).then(() => true).catch(() => false);
+        if (!exists) throw new Error("That video is not in the media directory. Upload it first.");
+
+        try {
+          return await analyseVideoToPlan(resolved, {
+            affirmed: input.consentAffirmed,
+            affirmedAt: new Date().toISOString(),
+            basis: input.consentBasis,
+          }, { frameCount: input.frameCount });
+        } catch (error) {
+          if (error instanceof LikenessConsentError) throw error;
+          throw error;
+        }
+      }),
+  }),
+
   aiStore: router({
     /** The capability taxonomy, so the UI filters come from one place. */
     capabilities: protectedProcedure.query(() =>

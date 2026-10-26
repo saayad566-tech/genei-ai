@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, Archive, BarChart3, Bell, Bot, Boxes, ChevronDown, ChevronLeft, ChevronRight, Clock, Cloud, Cpu, CreditCard, DollarSign, Download, Globe, Home, Image, Key, LayoutTemplate, LogOut, Menu, Mic, Monitor, Music, PackageOpen, Palette, Plus, Search, Settings, ShoppingBag, Smartphone, Sparkles, Upload, Users, Video, Workflow, X, Zap } from "lucide-react";
+import { Activity, Archive, BarChart3, Bell, Bot, Boxes, ChevronDown, ChevronLeft, ChevronRight, Clock, Cloud, Cpu, CreditCard, DollarSign, Download, Globe, Home, Image, Key, LayoutTemplate, LogOut, Menu, Mic, Monitor, Music, PackageOpen, Palette, Plus, Search, Settings, ShoppingBag, Smartphone, Sparkles, Upload, UserRound, Users, Video, Workflow, X, Zap } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ const mainNavItems = [
   { id: "byoh", label: "Hardware & Runtime", icon: Monitor, path: "/byoh", badge: "BUILT-IN", badgeColor: "cyan" },
   { id: "library", label: "Capability Library", icon: PackageOpen, path: "/library", badge: "LOCAL", badgeColor: "cyan" },
   { id: "ai-store", label: "AI Store", icon: Boxes, path: "/ai-store", badge: "NEW", badgeColor: "purple" },
+  { id: "avatar-video", label: "Video to Avatar", icon: UserRound, path: "/avatar-video", badge: "NEW", badgeColor: "cyan" },
   { id: "comfy", label: "ComfyUI Graph Studio", icon: Workflow, path: "/comfy", badge: "PRO", badgeColor: "purple" },
   { id: "team", label: "Team Workspace", icon: Users, path: "/team" },
   { id: "monetization", label: "Monetization", icon: DollarSign, path: "/monetization" },
