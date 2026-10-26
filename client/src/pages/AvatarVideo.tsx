@@ -27,6 +27,7 @@ type Probe = {
   sizeBytes: number;
 };
 type Avatar = {
+  name: string;
   appearance: string;
   wardrobe: string[];
   distinguishing: string[];
@@ -50,6 +51,24 @@ export default function AvatarVideo() {
   const [consentAffirmed, setConsentAffirmed] = useState(false);
   const [consentBasis, setConsentBasis] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [characterId, setCharacterId] = useState<string>("");
+  const [similarity, setSimilarity] = useState(0.6);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+
+  const characters = trpc.characters.list.useQuery();
+  const saveCharacter = trpc.characters.save.useMutation();
+  const removeCharacter = trpc.characters.remove.useMutation();
+
+  async function onRemoveCharacter(id: string, name: string) {
+    try {
+      await removeCharacter.mutateAsync({ id });
+      if (characterId === id) setCharacterId("");
+      setSavedNote(`Removed "${name}" from your library.`);
+      await characters.refetch();
+    } catch (cause) {
+      setSavedNote(cause instanceof Error ? cause.message : "Could not remove the character.");
+    }
+  }
   const [error, setError] = useState<string | null>(null);
 
   const analyse = trpc.avatarVideo.analyse.useMutation();
@@ -60,6 +79,8 @@ export default function AvatarVideo() {
       consentAffirmed,
       consentBasis: consentBasis.trim(),
       frameCount: 8,
+      characterId: characterId || undefined,
+      similarity,
     });
   }
 
@@ -67,6 +88,23 @@ export default function AvatarVideo() {
     relativePath.trim().length > 0 && consentAffirmed && consentBasis.trim().length >= 3 && !analyse.isPending;
 
   const visionReady = requirements.data?.visionModelConfigured ?? false;
+
+  async function onSaveCharacter(name: string) {
+    if (!result || result.status !== "planned") return;
+    try {
+      await saveCharacter.mutateAsync({
+        name,
+        appearance: result.avatar.appearance,
+        wardrobe: result.avatar.wardrobe,
+        distinguishing: result.avatar.distinguishing,
+        origin: "derived-from-video",
+      });
+      setSavedNote(`Saved "${name}" to your library.`);
+      await characters.refetch();
+    } catch (cause) {
+      setSavedNote(cause instanceof Error ? cause.message : "Could not save the character.");
+    }
+  }
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -123,6 +161,76 @@ export default function AvatarVideo() {
           </p>
         </div>
 
+        {/* Whose face appears in the output. */}
+        <div className="rounded-lg border border-border/60 p-4">
+          <label htmlFor="character" className="mb-1.5 block text-sm font-medium">
+            Character for the new video
+          </label>
+          <select
+            id="character"
+            value={characterId}
+            onChange={(event) => setCharacterId(event.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Use the person in the uploaded video</option>
+            {(characters.data ?? []).map((character) => (
+              <option key={character.id} value={character.id}>
+                {character.name} — {character.appearance.slice(0, 48)}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Pick a saved character, or leave this on the uploaded video's person. Either way the source video
+            still sets the style and pacing.
+          </p>
+          {(characters.data ?? []).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {(characters.data ?? []).map((character) => (
+                <span key={character.id} className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-xs">
+                  {character.name}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveCharacter(character.id, character.name)}
+                    aria-label={`Remove ${character.name}`}
+                    className="text-muted-foreground hover:text-red-400"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {characters.isSuccess && (characters.data ?? []).length === 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your character library is empty. Analyse a video and save the result as a character to reuse it.
+            </p>
+          )}
+        </div>
+
+        {/* How closely to follow the source's form. */}
+        <div>
+          <label htmlFor="similarity" className="mb-1.5 block text-sm font-medium">
+            Similarity to the source — {Math.round(similarity * 100)}%
+          </label>
+          <input
+            id="similarity"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={similarity}
+            onChange={(event) => setSimilarity(Number(event.target.value))}
+            className="w-full accent-[hsl(var(--primary))]"
+          />
+          <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+            <span>Free original</span>
+            <span>Follows the source's form closely</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Similarity controls the rhythm, shot count and visual style — never a frame-for-frame copy.
+          </p>
+        </div>
+
         {/* Consent gate. The engine enforces this too; the UI must not hide it. */}
         <div className="rounded-lg border border-border/60 p-4">
           <div className="flex items-start gap-3">
@@ -167,12 +275,20 @@ export default function AvatarVideo() {
         )}
       </form>
 
-      {result && <ResultPanel result={result} />}
+      {result && <ResultPanel result={result} onSaveCharacter={onSaveCharacter} savedNote={savedNote} />}
     </div>
   );
 }
 
-function ResultPanel({ result }: { result: AnalysisResult }) {
+function ResultPanel({
+  result,
+  onSaveCharacter,
+  savedNote,
+}: {
+  result: AnalysisResult;
+  onSaveCharacter?: (name: string) => void;
+  savedNote?: string | null;
+}) {
   const probe = result.status === "planned" ? result.probe : result.probe;
 
   // Stopped early: name the stage and the reason, and show whatever was actually read.
@@ -212,7 +328,7 @@ function ResultPanel({ result }: { result: AnalysisResult }) {
       </div>
 
       <ProbeCard probe={result.probe} />
-      <AvatarCard avatar={result.avatar} />
+      <AvatarCard avatar={result.avatar} onSave={onSaveCharacter} savedNote={savedNote} />
       <PlanCard plan={result.plan} />
     </section>
   );
@@ -248,7 +364,15 @@ function ProbeCard({ probe }: { probe: Probe }) {
   );
 }
 
-function AvatarCard({ avatar }: { avatar: Avatar }) {
+function AvatarCard({
+  avatar,
+  onSave,
+  savedNote,
+}: {
+  avatar: Avatar;
+  onSave?: (name: string) => void;
+  savedNote?: string | null;
+}) {
   return (
     <div className="gx-panel p-4">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
@@ -277,6 +401,15 @@ function AvatarCard({ avatar }: { avatar: Avatar }) {
           {avatar.consistencyPrompt}
         </pre>
       </div>
+
+      {onSave && (
+        <div className="mt-3 flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => onSave(avatar.name)}>
+            Save as a reusable character
+          </Button>
+          {savedNote && <span className="text-xs text-muted-foreground">{savedNote}</span>}
+        </div>
+      )}
     </div>
   );
 }

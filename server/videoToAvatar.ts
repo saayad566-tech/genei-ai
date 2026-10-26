@@ -612,3 +612,145 @@ export async function assembleScenes(clipPaths: string[], outPath: string): Prom
   const probe = await probeVideo(outPath);
   return { outPath, sizeBytes: st.size, durationSeconds: probe.durationSeconds };
 }
+
+/* ------------------------------------------------------------------ *
+ * Character selection — whose face appears in the output
+ * ------------------------------------------------------------------ */
+
+export type CharacterSource = "derived" | "library" | "uploaded-face";
+
+/**
+ * The character to place in the generated video.
+ *
+ * This is deliberately separate from the analysis. The video tells us the *style* and
+ * *structure* to follow; the character tells us *who* appears. A user may want the person
+ * from the source video, a saved character, or a face they uploaded — and those are three
+ * different products from the same analysis.
+ */
+export type CharacterRef = {
+  source: CharacterSource;
+  /** Present when source is "library". */
+  id?: string;
+  name: string;
+  appearance: string;
+  wardrobe: string[];
+  distinguishing: string[];
+  /** The fragment that keeps the face identical across scenes. */
+  consistencyPrompt: string;
+  /** A reference face image, when one was supplied. */
+  referenceImage?: string;
+};
+
+export function characterFromAvatar(avatar: AvatarProfile): CharacterRef {
+  return {
+    source: "derived",
+    name: avatar.name,
+    appearance: avatar.appearance,
+    wardrobe: avatar.wardrobe,
+    distinguishing: avatar.distinguishing,
+    consistencyPrompt: avatar.consistencyPrompt,
+  };
+}
+
+export function characterFromRecord(record: {
+  id: string;
+  name: string;
+  appearance: string;
+  wardrobe: string[];
+  distinguishing: string[];
+  referenceImage?: string;
+}, consistencyPrompt: string): CharacterRef {
+  return {
+    source: record.referenceImage ? "uploaded-face" : "library",
+    id: record.id,
+    name: record.name,
+    appearance: record.appearance,
+    wardrobe: record.wardrobe,
+    distinguishing: record.distinguishing,
+    consistencyPrompt,
+    referenceImage: record.referenceImage,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Similar-video planning — follow the source, with a chosen face
+ * ------------------------------------------------------------------ */
+
+/**
+ * How closely to follow the source video.
+ *
+ *   0.0  a free original: same person and mood, new structure
+ *   1.0  a close companion piece: same shot count, same pacing, same style
+ *
+ * Similarity is about *form* — rhythm, shot count, visual style — never about reproducing
+ * the source frame for frame. The output remains a new work; it is not an edit or a copy.
+ */
+export function clampSimilarity(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0.5;
+  return Math.min(1, Math.max(0, value));
+}
+
+/** Beat templates keyed by pacing, so the plan's rhythm actually matches the source. */
+const PACING_BEATS: Record<string, string[]> = {
+  slow: ["A long held establishing view.", "The character turns slowly toward camera.", "A quiet close beat.", "The scene settles and holds."],
+  measured: ["Establishes the character in the space.", "A close reaction.", "Movement through the setting.", "A held look to camera.", "The scene resolves."],
+  brisk: ["A quick establishing cut.", "A reaction beat.", "Movement, faster.", "A glance to camera.", "Cut away."],
+  fast: ["Hard cut in.", "A fast reaction.", "Rapid movement.", "A snapped glance to camera.", "Cut out."],
+};
+
+export function planSimilarVideo(
+  character: CharacterRef,
+  analysis: SubjectDescription,
+  similarity: number | undefined = 0.5,
+): OriginalPlan {
+  const level = clampSimilarity(similarity);
+  const pacing = (analysis.pacing || "measured").toLowerCase();
+  const beats = PACING_BEATS[pacing] ?? PACING_BEATS.measured;
+
+  // Shot count: at high similarity follow the source's count; at low similarity use a
+  // sensible five-beat structure. Clamped so a source claiming 200 shots cannot produce
+  // an unusable plan.
+  const sourceShots = Math.min(12, Math.max(1, analysis.shotCount));
+  const targetShots = Math.round(5 + (sourceShots - 5) * level);
+  const shotCount = Math.min(12, Math.max(3, targetShots));
+
+  const setting = analysis.setting[0] ?? "a neutral interior";
+  const style = analysis.visualStyle.join(", ") || "natural light, neutral palette";
+  const mood = analysis.mood;
+
+  // Base scene length follows pacing; similarity tightens the match to the source's rhythm.
+  const baseDuration = pacing === "fast" ? 3 : pacing === "brisk" ? 4 : pacing === "slow" ? 7 : 5;
+
+  const scenes: PlannedScene[] = Array.from({ length: shotCount }, (_, i) => {
+    const beat = beats[i % beats.length];
+    const isLast = i === shotCount - 1;
+    return {
+      index: i + 1,
+      durationSeconds: isLast ? baseDuration + 1 : baseDuration,
+      action: beat,
+      prompt: [
+        character.consistencyPrompt,
+        `Setting: ${setting}.`,
+        `Style: ${style}. Mood: ${mood}.`,
+        beat,
+        // Negative-prompt style guards, kept in every scene so quality does not drift.
+        "Photorealistic, consistent face and wardrobe, no distortion, no warping, no extra limbs, no flicker.",
+      ].join(" "),
+      camera: i === 0 ? "slow push in" : isLast ? "slow pull out" : "tracking, following the subject",
+      avatarOnScreen: true,
+    };
+  });
+
+  const totalDurationSeconds = scenes.reduce((sum, scene) => sum + scene.durationSeconds, 0);
+
+  return {
+    title: `${character.name} — following ${Math.round(level * 100)}% of the source's form`,
+    logline: `A new short featuring ${character.name}, matching the source's pacing and visual style (${mood}).`,
+    scenes,
+    totalDurationSeconds,
+    originalityNote:
+      `This plan follows the source's form — its pacing (${pacing}), shot count and visual style — ` +
+      `and does not reproduce its frames, sequence or audio. It is a new work starring ${character.name}, ` +
+      "not a copy or an edit of the uploaded video.",
+  };
+}

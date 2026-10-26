@@ -7,9 +7,21 @@ import {
   analyseVideoToPlan,
   LikenessConsentError,
   planOriginalVideo,
+  planSimilarVideo,
   buildAvatarProfile,
+  characterFromAvatar,
+  characterFromRecord,
+  clampSimilarity,
   vlmConfigFromEnv,
 } from "./videoToAvatar";
+import {
+  consistencyPromptFor,
+  deleteCharacter,
+  getCharacter,
+  listCharacters,
+  saveCharacter,
+  validateCharacter,
+} from "./characterLibrary";
 import { invokeLLM } from "./_core/llm";
 import { encryptSecret, decryptSecret } from "./_core/keyVault";
 import { enforceRateLimit, limiter } from "./_core/rateLimit";
@@ -605,6 +617,42 @@ export const appRouter = router({
    * The consent gate lives in the engine, not only here, so no caller can reach generation
    * without affirming likeness rights.
    */
+  /**
+   * The character library.
+   *
+   * A user who has established a character should not have to re-derive it from a video
+   * every time. Characters are stored in a JSON file in the app's data directory.
+   */
+  characters: router({
+    list: protectedProcedure.query(() => listCharacters()),
+
+    save: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(60),
+          appearance: z.string().min(3),
+          wardrobe: z.array(z.string()).optional(),
+          distinguishing: z.array(z.string()).optional(),
+          referenceImage: z.string().optional(),
+          origin: z.enum(["derived-from-video", "uploaded-face", "manual"]).optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        // Validate before writing so the library never holds an unusable record.
+        validateCharacter(input);
+        const saved = await saveCharacter(input);
+        return { ...saved, consistencyPrompt: consistencyPromptFor(saved) };
+      }),
+
+    remove: protectedProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        const removed = await deleteCharacter(input.id);
+        if (!removed) throw new Error("That character does not exist.");
+        return { removed: true };
+      }),
+  }),
+
   avatarVideo: router({
     /** What the UI must show before it can enable the analyse action. */
     requirements: protectedProcedure.query(() => ({
@@ -630,6 +678,10 @@ export const appRouter = router({
           consentAffirmed: z.boolean(),
           consentBasis: z.string().min(3).max(400),
           frameCount: z.number().int().min(2).max(16).optional(),
+          /** Whose face appears in the output. Omit to use the person from the video. */
+          characterId: z.string().optional(),
+          /** 0 = free original, 1 = follow the source's form closely. */
+          similarity: z.number().min(0).max(1).optional(),
         }),
       )
       .mutation(async ({ input }) => {
@@ -646,16 +698,49 @@ export const appRouter = router({
         const exists = await fs.stat(resolved).then(() => true).catch(() => false);
         if (!exists) throw new Error("That video is not in the media directory. Upload it first.");
 
-        try {
-          return await analyseVideoToPlan(resolved, {
-            affirmed: input.consentAffirmed,
-            affirmedAt: new Date().toISOString(),
-            basis: input.consentBasis,
-          }, { frameCount: input.frameCount });
-        } catch (error) {
-          if (error instanceof LikenessConsentError) throw error;
-          throw error;
+        // A character chosen from the library replaces the person in the video. That is a
+        // different likeness, so it needs its own affirmation — the caller supplies one
+        // affirmation covering the video, and this checks the chosen character exists.
+        let chosen: { id: string; name: string; appearance: string; wardrobe: string[]; distinguishing: string[]; referenceImage?: string } | undefined;
+        if (input.characterId) {
+          const record = await getCharacter(input.characterId);
+          if (!record) throw new Error("That character is no longer in the library.");
+          chosen = record;
         }
+
+        const outcome = await analyseVideoToPlan(resolved, {
+          affirmed: input.consentAffirmed,
+          affirmedAt: new Date().toISOString(),
+          basis: input.consentBasis,
+        }, { frameCount: input.frameCount });
+
+        if (outcome.status !== "planned") return outcome;
+
+        // Replace the derived avatar with the chosen character and re-plan to match the
+        // source's form at the requested similarity.
+        const character = chosen
+          ? characterFromRecord(chosen, consistencyPromptFor(chosen))
+          : characterFromAvatar(outcome.avatar);
+
+        const plan = planSimilarVideo(character, outcome.analysis, clampSimilarity(input.similarity));
+
+        return {
+          status: "planned" as const,
+          stage: "plan" as const,
+          probe: outcome.probe,
+          analysis: outcome.analysis,
+          avatar: {
+            ...outcome.avatar,
+            name: character.name,
+            appearance: character.appearance,
+            wardrobe: character.wardrobe,
+            distinguishing: character.distinguishing,
+            consistencyPrompt: character.consistencyPrompt,
+          },
+          character,
+          plan,
+          model: outcome.model,
+        };
       }),
   }),
 

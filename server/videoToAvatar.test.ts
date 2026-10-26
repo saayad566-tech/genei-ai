@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { promises as fs } from "node:fs";
+import { promises as fs, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
 import {
@@ -60,6 +61,28 @@ function fakeVlm(content = VLM_REPLY, status = 200): typeof fetch {
 
 let FRAME: string;
 
+/**
+ * Whether a working ffmpeg/ffprobe pair exists — resolved SYNCHRONOUSLY at module load.
+ *
+ * `it.skipIf(x)` is evaluated when the test is defined, during module collection, which is
+ * before any `beforeAll` runs. A flag set in `beforeAll` is therefore always false at that
+ * point, and the guard silently skipped every real-ffmpeg test instead of running them.
+ */
+const ffmpegAvailable: boolean = (() => {
+  try {
+    const configured = process.env.GENEI_FFMPEG_BIN?.trim();
+    const candidate = configured || path.join(FFMPEG_DIR, "ffmpeg");
+    if (!configured && !existsSync(candidate)) return false;
+    process.env.GENEI_FFMPEG_BIN = candidate;
+    const pair = resolveFfmpegPair();
+    execFileSync(pair.ffmpeg, ["-version"], { stdio: "ignore" });
+    execFileSync(pair.ffprobe, ["-version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
 beforeAll(async () => {
   // Point the module at the static ffmpeg build if it is not already on PATH.
   if (!process.env.GENEI_FFMPEG_BIN) {
@@ -67,6 +90,7 @@ beforeAll(async () => {
     const exists = await fs.stat(candidate).then(() => true).catch(() => false);
     if (exists) process.env.GENEI_FFMPEG_BIN = candidate;
   }
+
   // A real 1x1 JPEG, so the analysis tests exercise the actual data-URL path.
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "v2a-frame-"));
   FRAME = path.join(dir, "frame.jpg");
@@ -117,7 +141,7 @@ describe("probe — real ffprobe on a real video", () => {
     expect(pair.ffprobe).toMatch(/ffprobe(\.exe)?$/);
   });
 
-  it("reads the real duration, resolution and codec", { timeout: 30_000 }, async () => {
+  it.skipIf(!ffmpegAvailable)("reads the real duration, resolution and codec", { timeout: 30_000 }, async () => {
     const probe = await probeVideo(REAL_VIDEO);
     expect(probe.durationSeconds).toBeGreaterThan(0);
     expect(probe.width).toBeGreaterThan(0);
@@ -130,7 +154,7 @@ describe("probe — real ffprobe on a real video", () => {
     await expect(probeVideo("/definitely/not/here.mp4")).rejects.toThrow(/No video file/i);
   });
 
-  it("rejects a file that is not a video", async () => {
+  it.skipIf(!ffmpegAvailable)("rejects a file that is not a video", async () => {
     const notVideo = path.join(os.tmpdir(), `not-a-video-${Date.now()}.mp4`);
     await fs.writeFile(notVideo, "this is plain text, not a video");
     await expect(probeVideo(notVideo)).rejects.toThrow(/ffprobe could not read|no video stream/i);
@@ -142,7 +166,7 @@ describe("probe — real ffprobe on a real video", () => {
  * ------------------------------------------------------------------ */
 
 describe("extract — real ffmpeg frames", () => {
-  it("produces real, non-empty JPEG frames", { timeout: 60_000 }, async () => {
+  it.skipIf(!ffmpegAvailable)("produces real, non-empty JPEG frames", { timeout: 60_000 }, async () => {
     const probe = await probeVideo(REAL_VIDEO);
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "v2a-test-"));
     const frames = await extractAnalysisFrames(REAL_VIDEO, probe, 4, dir);
@@ -299,7 +323,7 @@ describe("original plan", () => {
  * ------------------------------------------------------------------ */
 
 describe("pipeline", () => {
-  it("reaches a plan with a working vision model on the real video", { timeout: 60_000 }, async () => {
+  it.skipIf(!ffmpegAvailable)("reaches a plan with a working vision model on the real video", { timeout: 60_000 }, async () => {
     const result = await analyseVideoToPlan(REAL_VIDEO, CONSENT, {
       frameCount: 3,
       config: { baseUrl: "http://x/v1", model: "test-vlm" },
@@ -314,7 +338,7 @@ describe("pipeline", () => {
     }
   });
 
-  it("stops at 'analyse' and says why when no vision model is configured", { timeout: 60_000 }, async () => {
+  it.skipIf(!ffmpegAvailable)("stops at 'analyse' and says why when no vision model is configured", { timeout: 60_000 }, async () => {
     const result = await analyseVideoToPlan(REAL_VIDEO, CONSENT, {
       frameCount: 2,
       config: null,
@@ -343,7 +367,7 @@ describe("pipeline", () => {
  * ------------------------------------------------------------------ */
 
 describe("assemble — real ffmpeg concat", () => {
-  it("concatenates real clips and reports a real duration", { timeout: 60_000 }, async () => {
+  it.skipIf(!ffmpegAvailable)("concatenates real clips and reports a real duration", { timeout: 60_000 }, async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "v2a-asm-"));
     const { ffmpeg } = resolveFfmpegPair();
     const { execFile } = await import("node:child_process");
