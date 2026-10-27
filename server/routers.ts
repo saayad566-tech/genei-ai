@@ -80,6 +80,7 @@ import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
 import { checkContinuity, gateRender, markStale, summarise, type ContinuityProject } from "@shared/continuity";
 import { deleteContinuityProject, listContinuityProjects, loadContinuityProject, saveContinuityProject } from "./continuityStore";
+import { reviewTakes, scoreConfigFromEnv, SCORER_REQUIREMENT, scoreIdentity } from "./visualContinuity";
 
 type ProviderHealth = { status: "healthy" | "invalid" | "unreachable" | "unsupported" | "needs_configuration"; message: string; checkedAt: string };
 
@@ -714,6 +715,66 @@ export const appRouter = router({
           const removed = await deleteContinuityProject(ctx.user.id, input.id);
           if (!removed) throw new Error("That project does not exist.");
           return { removed: true };
+        }),
+    }),
+
+    /**
+     * Visual continuity — how closely a take matches the approved reference.
+     *
+     * Returns a similarity score with its basis and caveats, never a verdict and never a
+     * guarantee. Unscorable takes are reported as unscored, not as failures.
+     */
+    visual: router({
+      status: protectedProcedure.query(() => ({
+        configured: scoreConfigFromEnv() !== null,
+        requirement: SCORER_REQUIREMENT,
+      })),
+
+      score: protectedProcedure
+        .input(
+          z.object({
+            reference: z.string().min(1),
+            take: z.string().min(1),
+            identityNotes: z.array(z.string()).optional(),
+          }),
+        )
+        .mutation(async ({ input }) => {
+          const { runtimeConfig } = await import("./adapters");
+          const nodePath = await import("node:path");
+          const mediaDir = runtimeConfig().mediaDir;
+          const inMedia = (relative: string) => {
+            const resolved = nodePath.resolve(mediaDir, relative);
+            if (!resolved.startsWith(nodePath.resolve(mediaDir))) {
+              throw new Error("Both images must be inside the media directory.");
+            }
+            return resolved;
+          };
+          return scoreIdentity({
+            referencePaths: [inMedia(input.reference)],
+            takePath: inMedia(input.take),
+            identityNotes: input.identityNotes,
+          });
+        }),
+
+      review: protectedProcedure
+        .input(
+          z.object({
+            reference: z.string().min(1),
+            takes: z.array(z.string().min(1)).min(1).max(50),
+          }),
+        )
+        .mutation(async ({ input }) => {
+          const { runtimeConfig } = await import("./adapters");
+          const nodePath = await import("node:path");
+          const mediaDir = runtimeConfig().mediaDir;
+          const inMedia = (relative: string) => {
+            const resolved = nodePath.resolve(mediaDir, relative);
+            if (!resolved.startsWith(nodePath.resolve(mediaDir))) {
+              throw new Error("All images must be inside the media directory.");
+            }
+            return resolved;
+          };
+          return reviewTakes(input.takes.map(inMedia), [inMedia(input.reference)]);
         }),
     }),
 

@@ -21,6 +21,11 @@ export default function Continuity() {
   const saveProject = trpc.savedProjects.save.useMutation();
   const loadProject = trpc.savedProjects.load.useQuery;
   const removeProject = trpc.savedProjects.remove.useMutation();
+  const visualStatus = trpc.visual.status.useQuery();
+  const scoreVisual = trpc.visual.score.useMutation();
+  const reviewVisual = trpc.visual.review.useMutation();
+  const [refImage, setRefImage] = useState("");
+  const [takeImage, setTakeImage] = useState("");
   const [projectName, setProjectName] = useState("Episode 1");
   const [loadId, setLoadId] = useState<number | null>(null);
 
@@ -140,6 +145,73 @@ export default function Continuity() {
         )}
 
         {error && <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-300">{error}</p>}
+      </section>
+
+      <section className="gx-panel mb-6 p-5">
+        <h2 className="mb-1 text-sm font-medium">Identity check</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Compares a generated take with the approved reference and returns a similarity score with its
+          caveats. A score is one review signal — never a guarantee that the face is identical.
+        </p>
+
+        {visualStatus.isSuccess && !visualStatus.data.configured && (
+          <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-300">
+            {visualStatus.data.requirement}
+          </p>
+        )}
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input value={refImage} onChange={(e) => setRefImage(e.target.value)} placeholder="reference.jpg (approved)" className="rounded-md border border-border bg-background px-3 py-1.5 text-sm" />
+          <input value={takeImage} onChange={(e) => setTakeImage(e.target.value)} placeholder="take.jpg (generated)" className="rounded-md border border-border bg-background px-3 py-1.5 text-sm" />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={scoreVisual.isPending || !refImage.trim() || !takeImage.trim()}
+            onClick={() => scoreVisual.mutate({ reference: refImage.trim(), take: takeImage.trim() })}
+          >
+            Score one take
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={reviewVisual.isPending || !refImage.trim() || !takeImage.trim()}
+            onClick={() => reviewVisual.mutate({ reference: refImage.trim(), takes: [takeImage.trim()] })}
+          >
+            Review takes
+          </Button>
+        </div>
+
+        {scoreVisual.data && (
+          <div className="mt-3 rounded-md border border-border/60 p-3 text-sm">
+            {scoreVisual.data.status === "scored" ? (
+              <>
+                <p className="font-medium">
+                  {scoreVisual.data.score} / 100 — {scoreVisual.data.band}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{scoreVisual.data.basis}</p>
+                <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  {scoreVisual.data.caveats.map((c: string) => <li key={c}>· {c}</li>)}
+                </ul>
+              </>
+            ) : (
+              <p className="text-xs text-amber-300">{scoreVisual.data.reason}</p>
+            )}
+          </div>
+        )}
+
+        {reviewVisual.data && (
+          <div className="mt-3 rounded-md border border-border/60 p-3 text-xs">
+            <p className="text-muted-foreground">{reviewVisual.data.note}</p>
+            {reviewVisual.data.unscored.length > 0 && (
+              <p className="mt-1 text-amber-300">Unscored: {reviewVisual.data.unscored.join(", ")}</p>
+            )}
+            {reviewVisual.data.belowThreshold.length > 0 && (
+              <p className="mt-1 text-red-300">Below threshold: {reviewVisual.data.belowThreshold.join(", ")}</p>
+            )}
+          </div>
+        )}
       </section>
 
       {report && (
