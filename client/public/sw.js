@@ -1,5 +1,5 @@
 const CACHE_NAME = "genei-shell-v2";
-const APP_SHELL = ["/", "/manifest.json", "/genei-icon.svg"];
+const APP_SHELL = ["./", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -24,7 +24,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/manus-storage/")) return;
+  if (url.pathname.includes("/api/") || url.pathname.includes("/manus-storage/")) return;
 
   event.respondWith(
     fetch(request)
@@ -35,6 +35,6 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match("/")))
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("./")))
   );
 });

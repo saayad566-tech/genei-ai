@@ -2,16 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="Genei AI — create music, videos, images, apps, websites, and workflows from one intelligent creator ecosystem." />
     <meta name="theme-color" content="#8b5cf6" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Genei AI" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/svg+xml" href="/genei-icon.svg" />
-    <link rel="apple-touch-icon" href="/genei-icon.svg" />
+    <script src="./config.js"></script>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="./genei-icon.svg" />
+    <link rel="apple-touch-icon" href="./genei-icon.svg" />
     <title>Genei AI — Creator Ecosystem</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,10 +24,9 @@
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => undefined);
+          navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(() => undefined);
         });
       }
     </script>
-    <script defer src="%VITE_ANALYTICS_ENDPOINT%/umami" data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
   </body>
 </html>

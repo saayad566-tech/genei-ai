@@ -150,9 +150,28 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+/**
+ * Development-only instrumentation is excluded from production builds.
+ *
+ * `vitePluginManusDebugCollector` injects a DOM-selector runtime and `data-loc` attributes
+ * carrying every source path into the bundle. Shipping it means a released webview app
+ * carries debug tooling, leaks its own source tree, and parses code no user needs.
+ *
+ * `jsxLocPlugin` does the same job for JSX source locations. Both are kept for `pnpm dev`.
+ */
+const isProduction = process.env.NODE_ENV === "production";
+
+const plugins = [
+  react(),
+  tailwindcss(),
+  ...(isProduction ? [] : [jsxLocPlugin(), vitePluginManusDebugCollector(), vitePluginManusRuntime()]),
+];
 
 export default defineConfig({
+  // Relative base. Without this, Vite emits /assets/... which resolves against the
+  // filesystem root inside a WebView and 404s every script. Every web-to-APK packager
+  // fails on exactly this, and the error looks like a compilation problem.
+  base: "./",
   plugins,
   resolve: {
     alias: {
