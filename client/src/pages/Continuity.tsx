@@ -15,6 +15,8 @@ import { Loader2, ShieldCheck, AlertTriangle, Info, XCircle } from "lucide-react
  */
 export default function Continuity() {
   const check = trpc.continuity.check.useMutation();
+  const gate = trpc.continuity.gate.useMutation();
+  const stale = trpc.continuity.stale.useMutation();
   const [source, setSource] = useState(EXAMPLE);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +25,11 @@ export default function Continuity() {
     try {
       const parsed = JSON.parse(source);
       await check.mutateAsync(parsed);
+      // A gate decision and the stale set are derived from the same project, so they are
+      // computed together rather than making the user press three buttons.
+      await gate.mutateAsync({ ...parsed, override: false });
+      const firstCharacter = parsed.characters?.[0]?.id;
+      if (firstCharacter) await stale.mutateAsync({ ...parsed, change: { kind: "character", id: firstCharacter } });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The project could not be read.");
     }
@@ -74,6 +81,43 @@ export default function Continuity() {
               <p className="mt-1 text-xs text-muted-foreground">{report.coverage}</p>
             </div>
           </div>
+
+          {gate.data && (
+            <div className={`gx-panel flex items-start gap-3 border-l-2 p-4 ${gate.data.allowed ? "border-emerald-500/60" : "border-red-500/60"}`}>
+              <ShieldCheck className={`mt-0.5 h-4 w-4 shrink-0 ${gate.data.allowed ? "text-emerald-400" : "text-red-400"}`} />
+              <div className="text-sm">
+                <p className="font-medium">
+                  Render gate: {gate.data.allowed ? "may proceed" : "blocked"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{gate.data.reason}</p>
+                {gate.data.blocking.length > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {gate.data.blocking.length} blocking · {gate.data.advisory.length} advisory
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {stale.data && (
+            <div className="gx-panel p-4">
+              <h2 className="mb-1 text-sm font-medium">Change propagation</h2>
+              <p className="text-xs text-muted-foreground">
+                Changing <span className="font-mono">{stale.data.staleSceneIds.length}</span> scene(s) would need
+                re-rendering; <span className="font-mono">{stale.data.unaffectedSceneIds.length}</span> would not.
+              </p>
+              <ul className="mt-2 space-y-1 text-xs">
+                {stale.data.reasons.map((entry) => (
+                  <li key={entry.sceneId} className="text-muted-foreground">
+                    <span className="font-mono text-primary">{entry.sceneId}</span> — {entry.reason}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Unaffected: <span className="font-mono">{stale.data.unaffectedSceneIds.join(", ") || "none"}</span>
+              </p>
+            </div>
+          )}
 
           {report.issues.length > 0 && (
             <ol className="space-y-2">

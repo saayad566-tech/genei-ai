@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkContinuity, summarise, type ContinuityProject, type SceneRecord } from "./continuity";
+import { checkContinuity, gateRender, markStale, summarise, type ContinuityProject, type SceneRecord } from "./continuity";
 
 /**
  * Continuity engine.
@@ -258,5 +258,179 @@ describe("report shape and honesty", () => {
     const p = base();
     p.scenes = [scene({ id: "s1", index: 1, locationId: "moon" })];
     expect(summarise(checkContinuity(p))).toMatch(/error/i);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Lighting and camera style
+ * ------------------------------------------------------------------ */
+
+describe("lighting and camera continuity", () => {
+  it("flags a lighting change with no motivation", () => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, lighting: { key: "window-left", temperature: "5600K" } }),
+      scene({ id: "s2", index: 2, lighting: { key: "window-right", temperature: "3200K" } }),
+    ];
+    expect(codes(p)).toContain("LIGHTING_SHIFT");
+  });
+
+  it("accepts a lighting change the scene motivates", () => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, lighting: { key: "window-left", temperature: "5600K" } }),
+      scene({
+        id: "s2",
+        index: 2,
+        lighting: { key: "window-right", temperature: "3200K" },
+        changeReason: "Dusk falls and a lamp is switched on.",
+      }),
+    ];
+    expect(codes(p)).not.toContain("LIGHTING_SHIFT");
+  });
+
+  it("does not flag identical lighting", () => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, lighting: { key: "window-left", temperature: "5600K" } }),
+      scene({ id: "s2", index: 2, lighting: { key: "window-left", temperature: "5600K" } }),
+    ];
+    expect(codes(p)).not.toContain("LIGHTING_SHIFT");
+  });
+
+  it("flags a camera-style flip", () => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, cameraStyle: "handheld" }),
+      scene({ id: "s2", index: 2, cameraStyle: "locked-off" }),
+    ];
+    expect(codes(p)).toContain("CAMERA_STYLE_FLIP");
+  });
+
+  it("accepts a camera-style change with a reason", () => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, cameraStyle: "handheld" }),
+      scene({ id: "s2", index: 2, cameraStyle: "locked-off", changeReason: "The chase ends; the world goes still." }),
+    ];
+    expect(codes(p)).not.toContain("CAMERA_STYLE_FLIP");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Change propagation
+ * ------------------------------------------------------------------ */
+
+describe("markStale", () => {
+  const project = (): ContinuityProject => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, locationId: "outpost", characters: [{ characterId: "aria", wardrobe: ["coat", "boots"] }] }),
+      scene({ id: "s2", index: 2, locationId: "underbelly", changeReason: "cut", characters: [{ characterId: "kael", wardrobe: ["jacket"] }], props: ["locket"] }),
+      scene({ id: "s3", index: 3, locationId: "outpost", characters: [{ characterId: "aria", wardrobe: ["coat", "boots"], holds: ["envelope"] }] }),
+    ];
+    return p;
+  };
+
+  it("marks only the scenes a character appears in", () => {
+    const result = markStale(project(), { kind: "character", id: "aria" });
+    expect(result.staleSceneIds.sort()).toEqual(["s1", "s3"]);
+    expect(result.unaffectedSceneIds).toEqual(["s2"]);
+  });
+
+  it("returns the unaffected set explicitly, so nothing re-renders everything by accident", () => {
+    const result = markStale(project(), { kind: "character", id: "aria" });
+    expect(result.unaffectedSceneIds.length).toBeGreaterThan(0);
+    expect(result.staleSceneIds.length + result.unaffectedSceneIds.length).toBe(3);
+  });
+
+  it("marks scenes set in a changed location", () => {
+    const result = markStale(project(), { kind: "location", id: "outpost" });
+    expect(result.staleSceneIds.sort()).toEqual(["s1", "s3"]);
+  });
+
+  it("marks a scene that shows a prop, and one where it is held", () => {
+    const shown = markStale(project(), { kind: "prop", id: "locket" });
+    expect(shown.staleSceneIds).toEqual(["s2"]);
+    const held = markStale(project(), { kind: "prop", id: "envelope" });
+    expect(held.staleSceneIds).toEqual(["s3"]);
+  });
+
+  it("gives a reason for every stale scene", () => {
+    const result = markStale(project(), { kind: "character", id: "aria" });
+    expect(result.reasons.length).toBe(result.staleSceneIds.length);
+    for (const entry of result.reasons) expect(entry.reason.length).toBeGreaterThan(0);
+  });
+
+  it("marks nothing for an entity that appears nowhere", () => {
+    const result = markStale(project(), { kind: "character", id: "nobody" });
+    expect(result.staleSceneIds).toEqual([]);
+    expect(result.unaffectedSceneIds.length).toBe(3);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Render gate
+ * ------------------------------------------------------------------ */
+
+describe("gateRender", () => {
+  const withError = () => {
+    const p = base();
+    p.scenes = [scene({ id: "s1", index: 1, characters: [{ characterId: "ghost", wardrobe: [] }] })];
+    return checkContinuity(p);
+  };
+
+  const clean = () => {
+    const p = base();
+    p.scenes = [scene({ id: "s1", index: 1, characters: [{ characterId: "aria", wardrobe: ["coat", "boots"] }] })];
+    return checkContinuity(p);
+  };
+
+  it("allows a clean report", () => {
+    const decision = gateRender(clean());
+    expect(decision.allowed).toBe(true);
+    expect(decision.blocking).toEqual([]);
+  });
+
+  it("blocks on an error-severity finding", () => {
+    const decision = gateRender(withError());
+    expect(decision.allowed).toBe(false);
+    expect(decision.blocking.length).toBeGreaterThan(0);
+    expect(decision.reason).toMatch(/contradiction/i);
+  });
+
+  it("does not block on a warning — blocking on warnings teaches reflexive overriding", () => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, characters: [{ characterId: "aria", wardrobe: ["coat", "boots"] }] }),
+      scene({ id: "s2", index: 2, characters: [{ characterId: "aria", wardrobe: ["dress"] }] }),
+    ];
+    const report = checkContinuity(p);
+    expect(report.counts.warning).toBeGreaterThan(0);
+    expect(gateRender(report).allowed).toBe(true);
+  });
+
+  it("honours an override but records it in the reason", () => {
+    const decision = gateRender(withError(), { override: true, overrideReason: "the ghost is intentional" });
+    expect(decision.allowed).toBe(true);
+    expect(decision.reason).toMatch(/Overridden/i);
+    expect(decision.reason).toContain("the ghost is intentional");
+    expect(decision.blocking.length).toBeGreaterThan(0); // still reported, never hidden
+  });
+
+  it("an override with no stated reason is still recorded as an override", () => {
+    const decision = gateRender(withError(), { override: true });
+    expect(decision.allowed).toBe(true);
+    expect(decision.reason).toMatch(/Overridden/i);
+  });
+
+  it("separates blocking from advisory findings", () => {
+    const p = base();
+    p.scenes = [
+      scene({ id: "s1", index: 1, characters: [{ characterId: "ghost", wardrobe: [] }], props: ["sword"] }),
+    ];
+    const decision = gateRender(checkContinuity(p));
+    expect(decision.blocking.every((i) => i.severity === "error")).toBe(true);
+    expect(decision.advisory.every((i) => i.severity !== "error")).toBe(true);
   });
 });

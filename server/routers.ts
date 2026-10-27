@@ -78,7 +78,7 @@ import { runProofScene } from "./proofScene";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
-import { checkContinuity, summarise, type ContinuityProject } from "@shared/continuity";
+import { checkContinuity, gateRender, markStale, summarise, type ContinuityProject } from "@shared/continuity";
 
 type ProviderHealth = { status: "healthy" | "invalid" | "unreachable" | "unsupported" | "needs_configuration"; message: string; checkedAt: string };
 
@@ -706,6 +706,80 @@ export const appRouter = router({
         const report = checkContinuity(input as ContinuityProject);
         return { ...report, summary: summarise(report) };
       }),
+
+    /**
+     * Decide whether a render may start. Errors block; warnings and notes never do.
+     * An override is honoured but recorded, never silent.
+     */
+    gate: protectedProcedure
+      .input(
+        z.object({
+          characters: z.array(z.object({ id: z.string(), name: z.string(), wardrobe: z.array(z.string()).default([]) })).default([]),
+          locations: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
+          props: z.array(z.object({ id: z.string(), name: z.string(), introducedInSceneId: z.string().optional() })).default([]),
+          scenes: z.array(z.object({
+            id: z.string(),
+            index: z.number().int(),
+            time: z.object({ label: z.string(), order: z.number() }),
+            locationId: z.string(),
+            characters: z.array(z.object({
+              characterId: z.string(),
+              wardrobe: z.array(z.string()).default([]),
+              firstAppearance: z.boolean().optional(),
+              learns: z.array(z.string()).optional(),
+              holds: z.array(z.string()).optional(),
+            })).default([]),
+            props: z.array(z.string()).default([]),
+            screenDirection: z.string().optional(),
+            lighting: z.object({ key: z.string(), temperature: z.string() }).optional(),
+            cameraStyle: z.string().optional(),
+            changeReason: z.string().optional(),
+          })).default([]),
+          override: z.boolean().default(false),
+          overrideReason: z.string().max(400).optional(),
+        }),
+      )
+      .mutation(({ input }) => {
+        const report = checkContinuity(input as ContinuityProject);
+        return gateRender(report, { override: input.override, overrideReason: input.overrideReason });
+      }),
+
+    /**
+     * Which scenes a change invalidates. Returns the unaffected set explicitly, so a caller
+     * cannot accidentally re-render the whole film to fix one character.
+     */
+    stale: protectedProcedure
+      .input(
+        z.object({
+          characters: z.array(z.object({ id: z.string(), name: z.string(), wardrobe: z.array(z.string()).default([]) })).default([]),
+          locations: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
+          props: z.array(z.object({ id: z.string(), name: z.string(), introducedInSceneId: z.string().optional() })).default([]),
+          scenes: z.array(z.object({
+            id: z.string(),
+            index: z.number().int(),
+            time: z.object({ label: z.string(), order: z.number() }),
+            locationId: z.string(),
+            characters: z.array(z.object({
+              characterId: z.string(),
+              wardrobe: z.array(z.string()).default([]),
+              firstAppearance: z.boolean().optional(),
+              learns: z.array(z.string()).optional(),
+              holds: z.array(z.string()).optional(),
+            })).default([]),
+            props: z.array(z.string()).default([]),
+            screenDirection: z.string().optional(),
+            lighting: z.object({ key: z.string(), temperature: z.string() }).optional(),
+            cameraStyle: z.string().optional(),
+            changeReason: z.string().optional(),
+          })).default([]),
+          change: z.discriminatedUnion("kind", [
+            z.object({ kind: z.literal("character"), id: z.string() }),
+            z.object({ kind: z.literal("location"), id: z.string() }),
+            z.object({ kind: z.literal("prop"), id: z.string() }),
+          ]),
+        }),
+      )
+      .mutation(({ input }) => markStale(input as ContinuityProject, input.change)),
   }),
 
   voice: router({

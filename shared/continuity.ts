@@ -54,6 +54,10 @@ export type SceneRecord = {
   props: string[];
   /** Screen direction the camera holds, e.g. "left-to-right". */
   screenDirection?: string;
+  /** Lighting the scene is lit with. A motivated change needs a changeReason. */
+  lighting?: { key: string; temperature: string };
+  /** Camera treatment held for the scene, e.g. "handheld", "locked-off". */
+  cameraStyle?: string;
   /** Why a wardrobe or location change happened, if it did. */
   changeReason?: string;
 };
@@ -84,7 +88,9 @@ export type ContinuityIssue = {
     | "SCREEN_DIRECTION_FLIP"
     | "KNOWS_SOMETHING_UNTAUGHT"
     | "PROP_IN_TWO_PLACES"
-    | "DUPLICATE_SCENE_INDEX";
+    | "DUPLICATE_SCENE_INDEX"
+    | "LIGHTING_SHIFT"
+    | "CAMERA_STYLE_FLIP";
   severity: IssueSeverity;
   sceneId: string;
   /** The reference the scene failed against. A warning with no reference is an opinion. */
@@ -295,6 +301,35 @@ export function checkContinuity(project: ContinuityProject): ContinuityReport {
         });
       }
 
+      // Lighting: a character lit from window-left in the wide must stay lit from
+      // window-left in the close-up. A motivated change (dusk, stepping into shadow) is
+      // fine when the scene says so.
+      if (scene.lighting && previousScene.lighting && !scene.changeReason) {
+        const before = `${previousScene.lighting.key}/${previousScene.lighting.temperature}`;
+        const after = `${scene.lighting.key}/${scene.lighting.temperature}`;
+        if (before !== after) {
+          issues.push({
+            code: "LIGHTING_SHIFT",
+            severity: "warning",
+            sceneId: scene.id,
+            reference: `scene ${previousScene.id} lighting ${before}`,
+            action: "Match the lighting, or state the motivation (dusk, a lamp switched on, stepping into shadow).",
+            message: `Lighting changes from "${before}" to "${after}" between scenes ${previousScene.id} and ${scene.id}.`,
+          });
+        }
+      }
+
+      if (scene.cameraStyle && previousScene.cameraStyle && !scene.changeReason && scene.cameraStyle !== previousScene.cameraStyle) {
+        issues.push({
+          code: "CAMERA_STYLE_FLIP",
+          severity: "warning",
+          sceneId: scene.id,
+          reference: `scene ${previousScene.id} camera ${previousScene.cameraStyle}`,
+          action: "Hold the camera treatment for the scene, or state why it changes.",
+          message: `Camera style changes from "${previousScene.cameraStyle}" to "${scene.cameraStyle}" between scenes ${previousScene.id} and ${scene.id}.`,
+        });
+      }
+
       if (
         scene.screenDirection &&
         previousScene.screenDirection &&
@@ -337,4 +372,117 @@ export function summarise(report: ContinuityReport): string {
   if (report.counts.warning) parts.push(`${report.counts.warning} warning(s)`);
   if (report.counts.note) parts.push(`${report.counts.note} note(s)`);
   return `${parts.join(", ")} across ${report.scenesChecked} scene(s).`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Change propagation — mark only what a change affects
+ * ------------------------------------------------------------------ */
+
+export type EntityChange =
+  | { kind: "character"; id: string }
+  | { kind: "location"; id: string }
+  | { kind: "prop"; id: string };
+
+export type StaleResult = {
+  /** Scenes whose content depends on the changed entity. */
+  staleSceneIds: string[];
+  /** Scenes that are unaffected and must NOT be re-rendered. */
+  unaffectedSceneIds: string[];
+  /** Why each stale scene is stale — a bare id list is not actionable. */
+  reasons: Array<{ sceneId: string; reason: string }>;
+};
+
+/**
+ * Which scenes a change invalidates.
+ *
+ * The point is what it leaves alone. Re-rendering a whole film to fix one character is the
+ * difference between a usable tool and an unusable one, so this returns the unaffected set
+ * explicitly — a caller cannot accidentally treat "everything" as the answer.
+ */
+export function markStale(project: ContinuityProject, change: EntityChange): StaleResult {
+  const staleSceneIds: string[] = [];
+  const unaffectedSceneIds: string[] = [];
+  const reasons: Array<{ sceneId: string; reason: string }> = [];
+
+  for (const scene of project.scenes) {
+    let reason: string | undefined;
+
+    if (change.kind === "character" && scene.characters.some((c) => c.characterId === change.id)) {
+      reason = `features ${change.id}`;
+    } else if (change.kind === "location" && scene.locationId === change.id) {
+      reason = `set in ${change.id}`;
+    } else if (change.kind === "prop") {
+      if (scene.props.includes(change.id)) reason = `shows ${change.id}`;
+      else if (scene.characters.some((c) => (c.holds ?? []).includes(change.id))) reason = `someone holds ${change.id}`;
+    }
+
+    if (reason) {
+      staleSceneIds.push(scene.id);
+      reasons.push({ sceneId: scene.id, reason });
+    } else {
+      unaffectedSceneIds.push(scene.id);
+    }
+  }
+
+  return { staleSceneIds, unaffectedSceneIds, reasons };
+}
+
+/* ------------------------------------------------------------------ *
+ * Render gate
+ * ------------------------------------------------------------------ */
+
+export type GateDecision = {
+  allowed: boolean;
+  /** The findings that block. Empty when allowed. */
+  blocking: ContinuityIssue[];
+  /** Warnings and notes, which never block. */
+  advisory: ContinuityIssue[];
+  reason: string;
+};
+
+/**
+ * Decide whether a render may start.
+ *
+ * Only `error`-severity findings block, and only when no override was supplied. Warnings and
+ * notes are advisory by construction — blocking on a warning would teach users to override
+ * reflexively, which destroys the gate's value.
+ *
+ * An override is honoured but recorded in the reason, so it is never silent.
+ */
+export function gateRender(
+  report: ContinuityReport,
+  options: { override?: boolean; overrideReason?: string } = {},
+): GateDecision {
+  const blocking = report.issues.filter((issue) => issue.severity === "error");
+  const advisory = report.issues.filter((issue) => issue.severity !== "error");
+
+  if (blocking.length === 0) {
+    return {
+      allowed: true,
+      blocking: [],
+      advisory,
+      reason:
+        advisory.length === 0
+          ? "No recorded contradictions. Nothing to review before rendering."
+          : `No contradictions. ${advisory.length} advisory finding(s) worth a look, none blocking.`,
+    };
+  }
+
+  if (options.override) {
+    return {
+      allowed: true,
+      blocking,
+      advisory,
+      reason:
+        `Overridden by the reviewer${options.overrideReason ? `: ${options.overrideReason}` : ""}. ` +
+        `${blocking.length} contradiction(s) were accepted as-is and are recorded against this render.`,
+    };
+  }
+
+  return {
+    allowed: false,
+    blocking,
+    advisory,
+    reason: `${blocking.length} contradiction(s) must be resolved, or the render explicitly overridden.`,
+  };
 }
