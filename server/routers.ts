@@ -15,6 +15,13 @@ import {
   vlmConfigFromEnv,
 } from "./videoToAvatar";
 import {
+  buildSwapPayload,
+  buildSwapPrompt,
+  SWAP_REQUIREMENTS,
+  validateSwapInputs,
+  type SwapInputs,
+} from "./characterSwap";
+import {
   consistencyPromptFor,
   deleteCharacter,
   getCharacter,
@@ -740,6 +747,79 @@ export const appRouter = router({
           character,
           plan,
           model: outcome.model,
+        };
+      }),
+
+    /**
+     * Character swap / video-to-video.
+     *
+     * Different from `analyse`: that plans NEW scenes in the source's style. This reproduces
+     * the source's motion and recomposes it with a different character. The reference video
+     * drives everything; only the subject changes.
+     */
+    swap: protectedProcedure
+      .input(
+        z.object({
+          referenceVideo: z.string().min(1),
+          characterReference: z.string().min(1),
+          wardrobe: z.string().optional(),
+          identityNotes: z.array(z.string()).optional(),
+          consentAffirmed: z.boolean(),
+          consentBasis: z.string().min(3).max(400),
+          /** Submit to the execution plane, or only return the prompt for inspection. */
+          submit: z.boolean().default(false),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        // The same likeness gate as the analyse path: this replaces a person's face.
+        if (!input.consentAffirmed) {
+          throw new Error(
+            "Generating a character swap requires an explicit affirmation that you have the right to use this person's likeness.",
+          );
+        }
+
+        const { runtimeConfig } = await import("./adapters");
+        const nodePath = await import("node:path");
+        const mediaDir = runtimeConfig().mediaDir;
+
+        const resolveInMedia = (relative: string) => {
+          const resolved = nodePath.resolve(mediaDir, relative);
+          if (!resolved.startsWith(nodePath.resolve(mediaDir))) {
+            throw new Error("Both the reference video and the character reference must be inside the media directory.");
+          }
+          return resolved;
+        };
+
+        const inputs: SwapInputs = {
+          referenceVideoPath: resolveInMedia(input.referenceVideo),
+          characterReferencePath: resolveInMedia(input.characterReference),
+          wardrobe: input.wardrobe,
+          identityNotes: input.identityNotes,
+        };
+
+        const sizes = await validateSwapInputs(inputs);
+        const prompt = buildSwapPrompt(inputs);
+
+        // Without submit, return the prompt so the user can inspect exactly what will be sent.
+        if (!input.submit) {
+          return {
+            status: "prepared" as const,
+            prompt,
+            sizes,
+            requirements: SWAP_REQUIREMENTS,
+          };
+        }
+
+        const job = await submitRuntimeJob({
+          taskType: "video",
+          payload: buildSwapPayload(inputs),
+        });
+
+        return {
+          status: "submitted" as const,
+          prompt,
+          sizes,
+          job: { id: job.id, status: job.status, taskType: job.taskType },
         };
       }),
   }),

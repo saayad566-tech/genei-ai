@@ -53,11 +53,16 @@ export default function AvatarVideo() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [characterId, setCharacterId] = useState<string>("");
   const [similarity, setSimilarity] = useState(0.6);
+  const [mode, setMode] = useState<"similar" | "replicate">("similar");
+  const [characterRef, setCharacterRef] = useState("");
+  const [swapPrompt, setSwapPrompt] = useState<{ system: string; user: string; preserve: string[]; replace: string[] } | null>(null);
+  const [swapJob, setSwapJob] = useState<{ id: string; status: string } | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
 
   const characters = trpc.characters.list.useQuery();
   const saveCharacter = trpc.characters.save.useMutation();
   const removeCharacter = trpc.characters.remove.useMutation();
+  const swap = trpc.avatarVideo.swap.useMutation();
 
   async function onRemoveCharacter(id: string, name: string) {
     try {
@@ -106,6 +111,40 @@ export default function AvatarVideo() {
     }
   }
 
+  async function onSwap() {
+    setError(null);
+    setSwapPrompt(null);
+    setSwapJob(null);
+    try {
+      const outcome = await swap.mutateAsync({
+        referenceVideo: relativePath.trim(),
+        characterReference: characterRef.trim(),
+        consentAffirmed,
+        consentBasis: consentBasis.trim(),
+        submit: false,
+      });
+      setSwapPrompt(outcome.prompt);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The character swap could not be prepared.");
+    }
+  }
+
+  async function onSwapSubmit() {
+    setError(null);
+    try {
+      const outcome = await swap.mutateAsync({
+        referenceVideo: relativePath.trim(),
+        characterReference: characterRef.trim(),
+        consentAffirmed,
+        consentBasis: consentBasis.trim(),
+        submit: true,
+      });
+      if (outcome.status === "submitted") setSwapJob({ id: outcome.job.id, status: outcome.job.status });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The job could not be submitted.");
+    }
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -128,6 +167,26 @@ export default function AvatarVideo() {
           and style, and deliberately does not reproduce the original's shots or audio.
         </p>
       </header>
+
+      {/* Two different products, so an explicit choice rather than a slider on one. */}
+      <div className="mb-6 grid gap-2 sm:grid-cols-2">
+        {[
+          { id: "similar" as const, title: "Similar video", body: "New scenes that follow the source's pacing, shot count and style." },
+          { id: "replicate" as const, title: "Character swap", body: "Reproduce the source's motion and camera, with a different character." },
+        ].map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setMode(option.id)}
+            className={`rounded-lg border p-4 text-left transition ${
+              mode === option.id ? "border-primary/60 bg-primary/5" : "border-border/60 hover:border-border"
+            }`}
+          >
+            <span className="block text-sm font-medium">{option.title}</span>
+            <span className="mt-1 block text-xs text-muted-foreground">{option.body}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Honest readiness, before the user does any work. */}
       {requirements.isSuccess && !visionReady && (
@@ -265,6 +324,33 @@ export default function AvatarVideo() {
           </div>
         </div>
 
+        {mode === "replicate" && (
+          <div>
+            <label htmlFor="characterRef" className="mb-1.5 block text-sm font-medium">
+              Character reference (image or short video)
+            </label>
+            <Input
+              id="characterRef"
+              value={characterRef}
+              onChange={(event) => setCharacterRef(event.target.value)}
+              placeholder="e.g. uploads/my-face.jpg"
+              autoComplete="off"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              The face to place in the video. Must be inside the media directory.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={onSwap} disabled={swap.isPending || !consentAffirmed || !characterRef.trim()}>
+                {swap.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Preview the prompt
+              </Button>
+              <Button type="button" onClick={onSwapSubmit} disabled={swap.isPending || !consentAffirmed || !characterRef.trim()}>
+                Submit the swap job
+              </Button>
+            </div>
+          </div>
+        )}
+
         <Button type="submit" disabled={!canAnalyse}>
           {analyse.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
           {analyse.isPending ? "Reading the video…" : "Analyse and plan"}
@@ -274,6 +360,40 @@ export default function AvatarVideo() {
           <div className="rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>
         )}
       </form>
+
+      {swapPrompt && (
+        <section className="gx-panel mt-6 p-4">
+          <h2 className="mb-2 text-sm font-medium">Prompt that will be sent</h2>
+          <p className="mb-1 text-xs text-muted-foreground">System</p>
+          <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-xs">{swapPrompt.system}</pre>
+          <p className="mb-1 text-xs text-muted-foreground">User</p>
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-xs">{swapPrompt.user}</pre>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-xs font-medium">Preserved</p>
+              <ul className="space-y-0.5 text-xs text-muted-foreground">
+                {swapPrompt.preserve.map((item) => <li key={item}>· {item}</li>)}
+              </ul>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium">Replaced</p>
+              <ul className="space-y-0.5 text-xs text-muted-foreground">
+                {swapPrompt.replace.map((item) => <li key={item}>· {item}</li>)}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {swapJob && (
+        <div className="gx-panel mt-4 p-4 text-sm">
+          <p className="font-medium">Job submitted</p>
+          <p className="mt-1 text-muted-foreground">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{swapJob.id}</code> — status{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{swapJob.status}</code>
+          </p>
+        </div>
+      )}
 
       {result && <ResultPanel result={result} onSaveCharacter={onSaveCharacter} savedNote={savedNote} />}
     </div>
