@@ -24,6 +24,7 @@ const Marketplace = lazy(() => import("./pages/Marketplace"));
 const AssetLibrary = lazy(() => import("./pages/AssetLibrary"));
 import ApiIntegrations from "@/pages/ApiIntegrations";
 import AvatarVideo from "@/pages/AvatarVideo";
+import VoiceStudio from "@/pages/VoiceStudio";
 import ByohDashboard from "@/pages/ByohDashboard";
 import ComfyWorkflowStudio from "@/pages/ComfyWorkflowStudio";
 const DesktopSetupWizard = lazy(() => import("./pages/DesktopSetupWizard"));
@@ -93,6 +94,7 @@ function Router() {
         <Route path="/assets" component={AssetLibrary} />
         <Route path="/api" component={ApiIntegrations} />
         <Route path="/avatar-video" component={AvatarVideo} />
+        <Route path="/voice" component={VoiceStudio} />
         <Route path="/byoh" component={ByohDashboard} />
         <Route path="/comfy" component={ComfyWorkflowStudio} />
         <Route path="/setup-wizard" component={DesktopSetupWizard} />

@@ -33,8 +33,15 @@ describe("packaged server bundle", () => {
   it.skipIf(!built)("resolves only packages that ship as production dependencies", () => {
     const bundle = fs.readFileSync(bundlePath, "utf8");
     const specifiers = new Set<string>();
+    // Only a real module specifier counts. Scanning for `from "` anywhere matched prose
+    // inside string literals — a prompt containing `character from "${...}"` was reported
+    // as an undeclared dependency. A package name cannot contain a template expression,
+    // whitespace, or parentheses, so requiring that shape removes the false positive
+    // without weakening the check.
+    const SPECIFIER = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*(\/[\w.-]+)*$/i;
     for (const match of bundle.matchAll(/from "([^".][^"]*)"/g)) {
       const raw = match[1];
+      if (!SPECIFIER.test(raw)) continue;
       const packageName = raw.startsWith("@") ? raw.split("/").slice(0, 2).join("/") : raw.split("/")[0];
       specifiers.add(packageName);
     }

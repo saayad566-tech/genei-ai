@@ -15,6 +15,15 @@ import {
   vlmConfigFromEnv,
 } from "./videoToAvatar";
 import {
+  deleteVoice,
+  engineReport,
+  listVoices,
+  planDub,
+  saveVoice,
+  synthesiseToFile,
+  validateVoice,
+} from "./voiceStudio";
+import {
   buildSwapPayload,
   buildSwapPrompt,
   SWAP_REQUIREMENTS,
@@ -658,6 +667,82 @@ export const appRouter = router({
         if (!removed) throw new Error("That character does not exist.");
         return { removed: true };
       }),
+  }),
+
+  /**
+   * Voice studio.
+   *
+   * Voice profiles, speech synthesis and timed dubbing. The engine abstraction and voice
+   * profiles are informed by studying VoiceStudio (AGPL-3.0); no VoiceStudio code is used,
+   * because copying copyleft source into an MIT project would relicense it.
+   */
+  voice: router({
+    /** What the UI shows before the user writes anything. */
+    status: protectedProcedure.query(() => engineReport()),
+
+    list: protectedProcedure.query(() => listVoices()),
+
+    save: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(60),
+          description: z.string().default(""),
+          kind: z.enum(["cloned", "designed"]).default("designed"),
+          samplePath: z.string().optional(),
+          language: z.string().optional(),
+          engineVoiceId: z.string().optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        validateVoice(input);
+        return saveVoice(input);
+      }),
+
+    remove: protectedProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        const removed = await deleteVoice(input.id);
+        if (!removed) throw new Error("That voice does not exist.");
+        return { removed: true };
+      }),
+
+    /** Synthesise one line to a file in the media directory. */
+    speak: protectedProcedure
+      .input(
+        z.object({
+          text: z.string().min(1).max(4000),
+          voiceId: z.string().min(1),
+          outName: z.string().min(1).max(120),
+          rate: z.number().min(0.5).max(2).optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const { runtimeConfig } = await import("./adapters");
+        const nodePath = await import("node:path");
+        const mediaDir = runtimeConfig().mediaDir;
+
+        const voice = (await listVoices()).find((entry) => entry.id === input.voiceId);
+        if (!voice) throw new Error("That voice is not in the library.");
+
+        // Keep the output inside the media directory and refuse path traversal.
+        const safeName = nodePath.basename(input.outName);
+        const outPath = nodePath.join(mediaDir, safeName);
+        if (!outPath.startsWith(nodePath.resolve(mediaDir))) {
+          throw new Error("The output name must stay inside the media directory.");
+        }
+
+        return synthesiseToFile({ text: input.text, voice, rate: input.rate }, outPath);
+      }),
+
+    /** Fit timed lines into a video's real duration. */
+    planDub: protectedProcedure
+      .input(
+        z.object({
+          totalSeconds: z.number().positive(),
+          segments: z.array(z.object({ startSeconds: z.number().min(0), text: z.string().min(1) })).min(1),
+        }),
+      )
+      .mutation(({ input }) => planDub(input.segments, input.totalSeconds)),
   }),
 
   avatarVideo: router({
