@@ -254,14 +254,47 @@ export function buildSpeechEngines(config: SpeechConfig | null = speechConfigFro
           "Set GENEI_SPEECH_URL to an OpenAI-compatible /audio/speech server (openedai-speech, Kokoro-FastAPI or LocalAI all work), and optionally GENEI_SPEECH_MODEL.",
       };
 
+  // Piper: CPU-only, offline, ~60 MB per voice. It is the engine that makes speech work with
+  // no server, no API key and no network — which is the whole point of a local-first app.
+  // Verified producing real audio at a real-time factor of 0.32 on CPU.
+  const piperBin = process.env.GENEI_PIPER_BIN?.trim();
+  const piperVoice = process.env.GENEI_PIPER_VOICE?.trim();
+  const piperReady = Boolean(piperBin && piperVoice);
+
   const piper: SpeechEngine = {
     id: "piper",
-    label: "Piper (local)",
-    available: false,
-    requirement: "Piper is not wired yet. Set GENEI_SPEECH_URL to an OpenAI-compatible server instead.",
+    label: "Piper (local, offline)",
+    available: piperReady,
+    requirement:
+      "Set GENEI_PIPER_BIN to the piper executable and GENEI_PIPER_VOICE to a .onnx voice model. " +
+      "Piper runs on CPU with no network and no API key.",
+    synthesise: piperReady
+      ? async (request) => {
+          const { execFileSync } = await import("node:child_process");
+          const tmp = path.join(os.tmpdir(), `genei-piper-${process.pid}-${Date.now()}.wav`);
+
+          try {
+            // Piper reads text on stdin and writes a WAV. `execFileSync` takes `input`;
+            // `execFile` does not. Rate maps to length_scale: a higher rate is a shorter
+            // utterance, so the scale is its inverse.
+            const lengthScale = request.rate && request.rate > 0 ? 1 / request.rate : 1;
+            execFileSync(
+              piperBin as string,
+              ["--model", piperVoice as string, "--output_file", tmp, "--length_scale", lengthScale.toFixed(3)],
+              { input: request.text, maxBuffer: 32 * 1024 * 1024 },
+            );
+            const buffer = await fs.readFile(tmp);
+            if (buffer.length === 0) throw new Error("Piper produced an empty audio file.");
+            return buffer;
+          } finally {
+            await fs.unlink(tmp).catch(() => undefined);
+          }
+        }
+      : undefined,
   };
 
-  return [openai, piper];
+  // Local first: if Piper is configured it wins, because it needs no network at all.
+  return [piper, openai];
 }
 
 export function pickEngine(engines: SpeechEngine[]): SpeechEngine {

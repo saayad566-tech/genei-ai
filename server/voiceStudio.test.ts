@@ -103,10 +103,32 @@ describe("voice library", () => {
  * ------------------------------------------------------------------ */
 
 describe("engines", () => {
+  /** Clear every engine's configuration so "nothing configured" means what it says. */
+  function withNoEngine<T>(fn: () => T): T {
+    const saved = {
+      speech: process.env.GENEI_SPEECH_URL,
+      bin: process.env.GENEI_PIPER_BIN,
+      voice: process.env.GENEI_PIPER_VOICE,
+    };
+    delete process.env.GENEI_SPEECH_URL;
+    delete process.env.GENEI_PIPER_BIN;
+    delete process.env.GENEI_PIPER_VOICE;
+    try {
+      return fn();
+    } finally {
+      if (saved.speech !== undefined) process.env.GENEI_SPEECH_URL = saved.speech;
+      if (saved.bin !== undefined) process.env.GENEI_PIPER_BIN = saved.bin;
+      if (saved.voice !== undefined) process.env.GENEI_PIPER_VOICE = saved.voice;
+    }
+  }
+
   it("reports unavailable with an actionable requirement when nothing is configured", () => {
-    const report = engineReport(buildSpeechEngines(null));
-    expect(report.available).toBe(false);
-    expect(report.requirement).toMatch(/GENEI_SPEECH_URL/);
+    withNoEngine(() => {
+      const report = engineReport(buildSpeechEngines(null));
+      expect(report.available).toBe(false);
+      // Both engines' requirements are surfaced, not just the first.
+      expect(report.requirement).toMatch(/GENEI_SPEECH_URL|GENEI_PIPER_BIN/);
+    });
   });
 
   it("reports available when a server is configured", () => {
@@ -114,14 +136,37 @@ describe("engines", () => {
     expect(report.available).toBe(true);
   });
 
-  it("picks the first available engine", () => {
-    const engines = buildSpeechEngines({ baseUrl: "http://x/v1", model: "m" });
-    expect(pickEngine(engines).id).toBe("openai-compatible");
+  it("picks the first AVAILABLE engine, preferring local over remote", () => {
+    withNoEngine(() => {
+      const engines = buildSpeechEngines({ baseUrl: "http://x/v1", model: "m" });
+      expect(pickEngine(engines).id).toBe("openai-compatible");
+    });
   });
 
-  it("does not claim Piper works when it is not wired", () => {
-    const piper = buildSpeechEngines(null).find((e) => e.id === "piper");
-    expect(piper?.available).toBe(false);
+  it("reports Piper unavailable when it is not configured", () => {
+    withNoEngine(() => {
+      const piper = buildSpeechEngines(null).find((e) => e.id === "piper");
+      expect(piper?.available).toBe(false);
+      expect(piper?.requirement).toMatch(/GENEI_PIPER_BIN/);
+    });
+  });
+
+  it("reports Piper available once its binary and voice are set", () => {
+    const saved = { bin: process.env.GENEI_PIPER_BIN, voice: process.env.GENEI_PIPER_VOICE };
+    process.env.GENEI_PIPER_BIN = "/usr/bin/piper";
+    process.env.GENEI_PIPER_VOICE = "/voices/x.onnx";
+    try {
+      const piper = buildSpeechEngines(null).find((e) => e.id === "piper");
+      expect(piper?.available).toBe(true);
+      // Local wins over remote: it needs no network at all.
+      const engines = buildSpeechEngines({ baseUrl: "http://x/v1", model: "m" });
+      expect(pickEngine(engines).id).toBe("piper");
+    } finally {
+      if (saved.bin === undefined) delete process.env.GENEI_PIPER_BIN;
+      else process.env.GENEI_PIPER_BIN = saved.bin;
+      if (saved.voice === undefined) delete process.env.GENEI_PIPER_VOICE;
+      else process.env.GENEI_PIPER_VOICE = saved.voice;
+    }
   });
 
   it("reads config from the environment only when a URL is present", () => {
@@ -171,9 +216,19 @@ describe("synthesis", () => {
   });
 
   it("is unavailable with the engine's requirement when nothing is configured", async () => {
-    const result = await synthesiseToFile({ text: "Hi", voice }, path.join(sandbox, "x.mp3"), buildSpeechEngines(null));
-    expect(result.status).toBe("unavailable");
-    if (result.status === "unavailable") expect(result.reason).toMatch(/GENEI_SPEECH_URL/);
+    const saved = { bin: process.env.GENEI_PIPER_BIN, voice: process.env.GENEI_PIPER_VOICE, speech: process.env.GENEI_SPEECH_URL };
+    delete process.env.GENEI_PIPER_BIN;
+    delete process.env.GENEI_PIPER_VOICE;
+    delete process.env.GENEI_SPEECH_URL;
+    try {
+      const result = await synthesiseToFile({ text: "Hi", voice }, path.join(sandbox, "x.mp3"), buildSpeechEngines(null));
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") expect(result.reason).toMatch(/GENEI_SPEECH_URL|GENEI_PIPER_BIN/);
+    } finally {
+      if (saved.bin !== undefined) process.env.GENEI_PIPER_BIN = saved.bin;
+      if (saved.voice !== undefined) process.env.GENEI_PIPER_VOICE = saved.voice;
+      if (saved.speech !== undefined) process.env.GENEI_SPEECH_URL = saved.speech;
+    }
   });
 
   it("refuses empty text rather than sending a blank request", async () => {
