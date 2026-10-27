@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Loader2, ShieldCheck, AlertTriangle, Info, XCircle } from "lucide-react";
@@ -17,6 +17,46 @@ export default function Continuity() {
   const check = trpc.continuity.check.useMutation();
   const gate = trpc.continuity.gate.useMutation();
   const stale = trpc.continuity.stale.useMutation();
+  const saved = trpc.savedProjects.list.useQuery();
+  const saveProject = trpc.savedProjects.save.useMutation();
+  const loadProject = trpc.savedProjects.load.useQuery;
+  const removeProject = trpc.savedProjects.remove.useMutation();
+  const [projectName, setProjectName] = useState("Episode 1");
+  const [loadId, setLoadId] = useState<number | null>(null);
+
+  const loaded = trpc.savedProjects.load.useQuery(
+    { id: loadId ?? 0 },
+    { enabled: loadId !== null },
+  );
+
+  async function onSaveProject() {
+    setError(null);
+    try {
+      const parsed = JSON.parse(source);
+      await saveProject.mutateAsync({ name: projectName, project: parsed });
+      await saved.refetch();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The project could not be saved.");
+    }
+  }
+
+  async function onRemoveProject(id: number) {
+    try {
+      await removeProject.mutateAsync({ id });
+      if (loadId === id) setLoadId(null);
+      await saved.refetch();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The project could not be removed.");
+    }
+  }
+
+  // When a saved project loads, put it back in the editor. An effect rather than an inline
+  // check, because the editor state is declared below this point.
+  useEffect(() => {
+    if (loadId !== null && loaded.data?.document) {
+      setSource(JSON.stringify(loaded.data.document, null, 2));
+    }
+  }, [loadId, loaded.data]);
   const [source, setSource] = useState(EXAMPLE);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +103,42 @@ export default function Continuity() {
           {check.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
           Check continuity
         </Button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={projectName}
+            onChange={(event) => setProjectName(event.target.value)}
+            placeholder="Project name"
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
+          />
+          <Button type="button" variant="outline" onClick={onSaveProject} disabled={saveProject.isPending}>
+            Save project
+          </Button>
+        </div>
+
+        {saved.isError && (
+          <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-300">
+            Saved projects are unavailable: {saved.error.message}
+          </p>
+        )}
+
+        {saved.isSuccess && (saved.data ?? []).length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs text-muted-foreground">Saved projects</p>
+            <ul className="space-y-1">
+              {(saved.data ?? []).map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between gap-2 rounded-md border border-border/50 px-3 py-1.5 text-xs">
+                  <button type="button" onClick={() => setLoadId(entry.id)} className="text-left hover:text-primary">
+                    {entry.name} · {entry.sceneCount} scene(s) · {entry.lastErrorCount} error(s)
+                  </button>
+                  <button type="button" onClick={() => onRemoveProject(entry.id)} aria-label={`Remove ${entry.name}`} className="text-muted-foreground hover:text-red-400">
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {error && <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-300">{error}</p>}
       </section>
 

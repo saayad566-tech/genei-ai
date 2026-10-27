@@ -79,6 +79,7 @@ import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
 import { checkContinuity, gateRender, markStale, summarise, type ContinuityProject } from "@shared/continuity";
+import { deleteContinuityProject, listContinuityProjects, loadContinuityProject, saveContinuityProject } from "./continuityStore";
 
 type ProviderHealth = { status: "healthy" | "invalid" | "unreachable" | "unsupported" | "needs_configuration"; message: string; checkedAt: string };
 
@@ -677,6 +678,45 @@ export const appRouter = router({
    * profiles are informed by studying VoiceStudio (AGPL-3.0); no VoiceStudio code is used,
    * because copying copyleft source into an MIT project would relicense it.
    */
+    /**
+     * Saved continuity projects, so a check survives a reload.
+     *
+     * Named `savedProjects`, not `projects`: a duplicate key at the appRouter level would
+     * shadow the existing projects router, and TypeScript only caught it because the UI
+     * pages suddenly resolved to the wrong shape.
+     */
+    savedProjects: router({
+      list: protectedProcedure.query(async ({ ctx }) => listContinuityProjects(ctx.user.id)),
+
+      load: protectedProcedure
+        .input(z.object({ id: z.number().int().positive() }))
+        .query(async ({ ctx, input }) => loadContinuityProject(ctx.user.id, input.id)),
+
+      save: protectedProcedure
+        .input(
+          z.object({
+            name: z.string().min(1).max(255),
+            project: z.object({
+              characters: z.array(z.object({ id: z.string(), name: z.string(), wardrobe: z.array(z.string()).default([]) })).default([]),
+              locations: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
+              props: z.array(z.object({ id: z.string(), name: z.string(), introducedInSceneId: z.string().optional() })).default([]),
+              scenes: z.array(z.any()).default([]),
+            }),
+          }),
+        )
+        .mutation(async ({ ctx, input }) =>
+          saveContinuityProject(ctx.user.id, input.name, input.project as never),
+        ),
+
+      remove: protectedProcedure
+        .input(z.object({ id: z.number().int().positive() }))
+        .mutation(async ({ ctx, input }) => {
+          const removed = await deleteContinuityProject(ctx.user.id, input.id);
+          if (!removed) throw new Error("That project does not exist.");
+          return { removed: true };
+        }),
+    }),
+
   continuity: router({
     check: protectedProcedure
       .input(

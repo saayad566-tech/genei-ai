@@ -332,3 +332,26 @@ export const chatMessages = mysqlTable("chat_messages", {
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
+
+/**
+ * A saved continuity project.
+ *
+ * Stored as one JSON document rather than a relational scene graph, deliberately: the
+ * continuity engine takes the whole project at once and a partial read would let a check run
+ * against half a film, which is worse than not running it. The schema version is stored so a
+ * future shape change can migrate instead of silently mis-reading old rows.
+ */
+export const continuityProjects = mysqlTable("continuity_projects", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  /** The whole ContinuityProject document. */
+  document: text("document").notNull(),
+  /** Shape version, so an old document is migrated rather than mis-read. */
+  schemaVersion: int("schemaVersion").default(1).notNull(),
+  /** Cached from the last check, so a list view does not have to re-run the engine. */
+  lastErrorCount: int("lastErrorCount").default(0).notNull(),
+  lastWarningCount: int("lastWarningCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
