@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, Archive, BarChart3, Bell, Bot, Boxes, ChevronDown, ChevronLeft, ChevronRight, Clock, Cloud, Cpu, CreditCard, DollarSign, Download, Globe, Home, Image, Key, LayoutTemplate, LogOut, Menu, Mic, Monitor, Music, PackageOpen, Palette, Plus, Search, Settings, ShoppingBag, Smartphone, Sparkles, Upload, UserRound, Users, Video, Workflow, X, Zap } from "lucide-react";
+import { Activity, Archive, BarChart3, Bell, Bot, Boxes, ChevronDown, ChevronLeft, ChevronRight, Clock, Cloud, Cpu, CreditCard, DollarSign, Download, Globe, Home, Image, Key, LayoutTemplate, LogOut, Menu, Mic, Monitor, Music, PackageOpen, Palette, Plus, Search, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, Upload, UserRound, Users, Video, Workflow, X, Zap } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ const mainNavItems = [
   { id: "app", label: "App Builder", icon: Smartphone, path: "/app" },
   { id: "website", label: "Website Builder", icon: Globe, path: "/website" },
   { id: "voice", label: "Voice Lab", icon: Mic, path: "/voice", badge: "AI", badgeColor: "purple" },
+  { id: "continuity", label: "Continuity", icon: ShieldCheck, path: "/continuity", badge: "AI", badgeColor: "cyan" },
   { id: "automation", label: "Automation", icon: Zap, path: "/automation" },
   { id: "marketplace", label: "Marketplace", icon: ShoppingBag, path: "/marketplace" },
   { id: "assets", label: "Asset Library", icon: Archive, path: "/assets" },

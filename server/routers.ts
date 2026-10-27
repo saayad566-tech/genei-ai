@@ -78,6 +78,7 @@ import { runProofScene } from "./proofScene";
 import { compileDirectorGraphWithPython } from "./pythonDirectorCompiler";
 import { globalSettingsRouter } from "./routers/globalSettings";
 import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchAppNotification, listAppNotifications, markAppNotificationRead } from "./appNotifications";
+import { checkContinuity, summarise, type ContinuityProject } from "@shared/continuity";
 
 type ProviderHealth = { status: "healthy" | "invalid" | "unreachable" | "unsupported" | "needs_configuration"; message: string; checkedAt: string };
 
@@ -676,6 +677,37 @@ export const appRouter = router({
    * profiles are informed by studying VoiceStudio (AGPL-3.0); no VoiceStudio code is used,
    * because copying copyleft source into an MIT project would relicense it.
    */
+  continuity: router({
+    check: protectedProcedure
+      .input(
+        z.object({
+          characters: z.array(z.object({ id: z.string(), name: z.string(), wardrobe: z.array(z.string()).default([]) })).default([]),
+          locations: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
+          props: z.array(z.object({ id: z.string(), name: z.string(), introducedInSceneId: z.string().optional() })).default([]),
+          scenes: z.array(z.object({
+            id: z.string(),
+            index: z.number().int(),
+            time: z.object({ label: z.string(), order: z.number() }),
+            locationId: z.string(),
+            characters: z.array(z.object({
+              characterId: z.string(),
+              wardrobe: z.array(z.string()).default([]),
+              firstAppearance: z.boolean().optional(),
+              learns: z.array(z.string()).optional(),
+              holds: z.array(z.string()).optional(),
+            })).default([]),
+            props: z.array(z.string()).default([]),
+            screenDirection: z.string().optional(),
+            changeReason: z.string().optional(),
+          })).default([]),
+        }),
+      )
+      .mutation(({ input }) => {
+        const report = checkContinuity(input as ContinuityProject);
+        return { ...report, summary: summarise(report) };
+      }),
+  }),
+
   voice: router({
     /** What the UI shows before the user writes anything. */
     status: protectedProcedure.query(() => engineReport()),
