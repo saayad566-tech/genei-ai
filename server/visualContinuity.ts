@@ -81,11 +81,34 @@ export function scoreConfigFromEnv(): ScoreConfig | null {
   };
 }
 
+/**
+ * A local ONNX scorer: insightface buffalo_l (SCRFD + ArcFace), no server, no network.
+ *
+ * Shells out to `scripts/score_faces.py` the same way the voice engine shells out to Piper —
+ * a 200 MB model pair loaded per request would cost more than the request, and this keeps
+ * Python out of the Node dependency tree.
+ *
+ * Verified: both models load, real 512-d embeddings are produced, and an image with no face
+ * is reported as such rather than scored 0. NOT verified: a positive match on a real face,
+ * because no face image was available in this environment.
+ */
+export type LocalScorerConfig = { modelDir: string; pythonBin: string; scriptPath: string };
+
+export function localScorerFromEnv(): LocalScorerConfig | null {
+  const modelDir = process.env.GENEI_FACE_MODEL_DIR?.trim();
+  if (!modelDir) return null;
+  return {
+    modelDir,
+    pythonBin: process.env.GENEI_PYTHON_BIN?.trim() || "python3",
+    scriptPath:
+      process.env.GENEI_FACE_SCRIPT?.trim() || path.resolve(process.cwd(), "scripts", "score_faces.py"),
+  };
+}
+
 export const SCORER_REQUIREMENT =
-  "Set GENEI_EMBEDDING_URL to a face-embedding service that accepts two images and returns a " +
-  "similarity score (an OpenAI-compatible /embeddings endpoint over a face model, or a small " +
-  "local service wrapping insightface or facenet). Without one, identity cannot be scored — " +
-  "and it will not be guessed.";
+  "Set GENEI_FACE_MODEL_DIR to a directory holding detection.onnx and arcface.onnx (insightface " +
+  "buffalo_l), which scores locally with no server or network. Alternatively set GENEI_EMBEDDING_URL " +
+  "to a face-embedding service. Without either, identity cannot be scored — and it will not be guessed.";
 
 /* ------------------------------------------------------------------ *
  * Scoring
@@ -134,6 +157,68 @@ export async function scoreIdentity(
   if (request.referencePaths.length === 0) {
     return { status: "unavailable", reason: "No approved reference image was supplied, so there is nothing to compare against.", caveats };
   }
+  const local = localScorerFromEnv();
+  if (!config && !local) {
+    return { status: "unavailable", reason: SCORER_REQUIREMENT, caveats };
+  }
+
+  // A local scorer needs no network at all, so it is preferred when configured.
+  if (local) {
+    const { execFileSync } = await import("node:child_process");
+    let raw: string;
+    try {
+      raw = execFileSync(
+        local.pythonBin,
+        [local.scriptPath, "--reference", request.referencePaths[0], "--take", request.takePath, "--model-dir", local.modelDir],
+        { encoding: "utf8", maxBuffer: 8 * 1024 * 1024, timeout: 120_000 },
+      );
+    } catch (error) {
+      return {
+        status: "unavailable",
+        reason: `The local face scorer failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+        caveats,
+      };
+    }
+
+    let parsedLocal: Record<string, unknown> | null = null;
+    try {
+      parsedLocal = JSON.parse(raw.trim()) as Record<string, unknown>;
+    } catch {
+      parsedLocal = null;
+    }
+
+    if (!parsedLocal) {
+      return { status: "unavailable", reason: "The local face scorer returned something that is not JSON.", caveats };
+    }
+    if (typeof parsedLocal.error === "string") {
+      // "No face found" is a real answer, not a failure — but it is not a score either.
+      return { status: "unavailable", reason: parsedLocal.error, caveats };
+    }
+
+    const bounded = parseScore(parsedLocal);
+    if (!bounded) {
+      return { status: "unavailable", reason: "The local scorer returned a score outside 0-100, so it cannot be trusted.", caveats };
+    }
+
+    if (bounded.facesDetected > 1) {
+      caveats.push(
+        `The scorer found ${bounded.facesDetected} faces; this score describes the largest one. Review by eye.`,
+      );
+    }
+
+    return {
+      status: "scored",
+      score: bounded.score,
+      band: bandFor(bounded.score),
+      basis: `Compared against ${path.basename(request.referencePaths[0])} using local ArcFace embeddings.`,
+      facesDetected: bounded.facesDetected,
+      caveats,
+      model: "arcface-buffalo_l (local)",
+    };
+  }
+
+  // Unreachable by construction (the guard above returns when both are absent), but stated
+  // so the type is narrowed rather than asserted.
   if (!config) {
     return { status: "unavailable", reason: SCORER_REQUIREMENT, caveats };
   }
