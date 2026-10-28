@@ -15,6 +15,7 @@
  */
 import fs from "node:fs";
 import { buildAdapters, runtimeConfig, type AdapterSet } from "./adapters";
+import { checkContinuity, gateRender, type ContinuityProject } from "@shared/continuity";
 import { logger } from "./_core/logger";
 
 export type RuntimeTaskType =
@@ -71,7 +72,24 @@ function verifyArtifact(outputPath: string | undefined): { ok: boolean; bytes?: 
   }
 }
 
-export type SubmitInput = { taskType: RuntimeTaskType; payload: Record<string, unknown> };
+/**
+ * Continuity context for a render.
+ *
+ * Supplied when the caller has a project to check. Omitted by callers that have no scene
+ * graph — the gate then simply does not run, which is different from passing it.
+ */
+export type ContinuityGateInput = {
+  project: ContinuityProject;
+  override?: boolean;
+  overrideReason?: string;
+};
+
+export type SubmitInput = {
+  taskType: RuntimeTaskType;
+  payload: Record<string, unknown>;
+  /** Checked before a video job starts. An error-severity finding blocks the render. */
+  continuity?: ContinuityGateInput;
+};
 export type SubmitResult = RuntimeJob;
 
 /**
@@ -95,6 +113,27 @@ export async function submitRuntimeJob(input: SubmitInput, adapters: AdapterSet 
   const config = runtimeConfig();
   const finish = (patch: Partial<RuntimeJob>): RuntimeJob =>
     remember({ ...job, ...patch, updatedAt: Date.now() });
+
+  // The continuity gate runs BEFORE the adapter, so a contradictory scene list costs nothing.
+  // It applies to video only: probing or transcribing a file cannot contradict a story.
+  if (input.taskType === "video" && input.continuity) {
+    const report = checkContinuity(input.continuity.project);
+    const decision = gateRender(report, {
+      override: input.continuity.override,
+      overrideReason: input.continuity.overrideReason,
+    });
+
+    if (!decision.allowed) {
+      // Recorded as a failed job rather than thrown: the refusal is part of the job history,
+      // and a caller inspecting jobs should see why nothing was rendered.
+      return finish({
+        status: "failed",
+        error: `Continuity gate blocked this render. ${decision.reason} ${decision.blocking
+          .map((issue) => `${issue.code} in scene ${issue.sceneId}`)
+          .join("; ")}`,
+      });
+    }
+  }
 
   try {
     switch (input.taskType) {
