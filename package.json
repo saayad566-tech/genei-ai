@@ -24,7 +24,8 @@
     "desktop:build:all": "pnpm build && electron-builder --win nsis portable --x64 --publish never",
     "desktop:build:dir": "pnpm build && electron-builder --dir --publish never",
     "android:sync": "pnpm build && cap sync android",
-    "android:build": "pnpm android:sync && cd android && ./gradlew assembleRelease"
+    "android:build": "pnpm android:sync && cd android && ./gradlew assembleRelease",
+    "doctor": "node scripts/doctor.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

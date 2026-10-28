@@ -26,7 +26,16 @@ let sandbox: string;
 let reference: string;
 let take: string;
 
+/**
+ * The local ONNX scorer takes precedence over a remote one when configured, so these tests —
+ * which exercise the remote path with an injected fetch — must clear it. An inherited env var
+ * would silently route every call to the subprocess instead.
+ */
+let savedFaceDir: string | undefined;
+
 beforeAll(async () => {
+  savedFaceDir = process.env.GENEI_FACE_MODEL_DIR;
+  delete process.env.GENEI_FACE_MODEL_DIR;
   sandbox = await fs.mkdtemp(path.join(os.tmpdir(), "genei-visual-"));
   reference = path.join(sandbox, "ref.jpg");
   take = path.join(sandbox, "take.jpg");
@@ -35,6 +44,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (savedFaceDir !== undefined) process.env.GENEI_FACE_MODEL_DIR = savedFaceDir;
   await fs.rm(sandbox, { recursive: true, force: true });
 });
 
