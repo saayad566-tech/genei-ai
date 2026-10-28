@@ -10,6 +10,9 @@
  * returns a real result or throws with the exact thing to set.
  */
 
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { and, desc, eq } from "drizzle-orm";
 import { continuityProjects } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -42,6 +45,65 @@ export type StoredProject = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+function dataDir(): string {
+  return process.env.GENEI_DESKTOP_DATA_DIR?.trim() || path.join(os.homedir(), ".genei");
+}
+
+/* ------------------------------------------------------------------ *
+ * File-backed backend
+ * ------------------------------------------------------------------ */
+
+/**
+ * Without a database, projects are stored as JSON files in the app's data directory.
+ *
+ * This is the same pattern `characterLibrary` and `voiceStudio` already use, and it is the
+ * right one here rather than a second SQL schema: the app is local-first, a project document
+ * is a single JSON value, and a user who has no MySQL should still be able to save their work.
+ *
+ * Writes go to a temp file and rename, so an interrupted write cannot corrupt the store.
+ */
+function projectsFile(userId: number): string {
+  return path.join(dataDir(), `continuity-projects-${userId}.json`);
+}
+
+type FileRow = {
+  id: number;
+  name: string;
+  document: string;
+  schemaVersion: number;
+  lastErrorCount: number;
+  lastWarningCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+async function readFileRows(userId: number): Promise<FileRow[]> {
+  try {
+    const parsed = JSON.parse(await fs.readFile(projectsFile(userId), "utf8")) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    // Tolerate a hand-edited file: drop unusable rows rather than making the store unreachable.
+    return parsed.filter(
+      (row): row is FileRow =>
+        typeof row === "object" && row !== null && typeof (row as FileRow).id === "number" && typeof (row as FileRow).document === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function writeFileRows(userId: number, rows: FileRow[]): Promise<void> {
+  const target = projectsFile(userId);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  const temp = `${target}.${process.pid}.tmp`;
+  await fs.writeFile(temp, JSON.stringify(rows, null, 2), "utf8");
+  await fs.rename(temp, target);
+}
+
+/** True when the file backend should be used instead of MySQL. */
+export function usingFileBackend(): boolean {
+  return !process.env.DATABASE_URL;
+}
 
 async function requireDb() {
   const db = await getDb();
@@ -101,6 +163,57 @@ export async function saveContinuityProject(
   project: ContinuityProject,
 ): Promise<StoredProject> {
   const cleanName = validateName(name);
+
+  if (usingFileBackend()) {
+    const report = checkContinuity(project);
+    const rows = await readFileRows(userId);
+    const now = new Date().toISOString();
+    const existing = rows.find((row) => row.name.toLowerCase() === cleanName.toLowerCase());
+
+    // Same name updates, matching the database path and the character library.
+    if (existing) {
+      existing.document = JSON.stringify(project);
+      existing.schemaVersion = SCHEMA_VERSION;
+      existing.lastErrorCount = report.counts.error;
+      existing.lastWarningCount = report.counts.warning;
+      existing.updatedAt = now;
+      await writeFileRows(userId, rows);
+      return {
+        id: existing.id,
+        name: existing.name,
+        document: project,
+        schemaVersion: SCHEMA_VERSION,
+        lastErrorCount: report.counts.error,
+        lastWarningCount: report.counts.warning,
+        createdAt: new Date(existing.createdAt),
+        updatedAt: new Date(now),
+      };
+    }
+
+    const id = rows.reduce((max, row) => Math.max(max, row.id), 0) + 1;
+    rows.push({
+      id,
+      name: cleanName,
+      document: JSON.stringify(project),
+      schemaVersion: SCHEMA_VERSION,
+      lastErrorCount: report.counts.error,
+      lastWarningCount: report.counts.warning,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await writeFileRows(userId, rows);
+    return {
+      id,
+      name: cleanName,
+      document: project,
+      schemaVersion: SCHEMA_VERSION,
+      lastErrorCount: report.counts.error,
+      lastWarningCount: report.counts.warning,
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    };
+  }
+
   const db = await requireDb();
 
   // Counts are cached at save time so a list view does not re-run the engine for every row.
@@ -164,6 +277,30 @@ export async function saveContinuityProject(
 export async function listContinuityProjects(
   userId: number,
 ): Promise<Array<Omit<StoredProject, "document"> & { sceneCount: number }>> {
+  if (usingFileBackend()) {
+    const rows = await readFileRows(userId);
+    return rows
+      .map((row) => {
+        let sceneCount = 0;
+        try {
+          sceneCount = parseStoredDocument(row.document, row.schemaVersion).scenes.length;
+        } catch {
+          sceneCount = 0; // still listed, so it can be seen and deleted
+        }
+        return {
+          id: row.id,
+          name: row.name,
+          schemaVersion: row.schemaVersion,
+          lastErrorCount: row.lastErrorCount,
+          lastWarningCount: row.lastWarningCount,
+          createdAt: new Date(row.createdAt),
+          updatedAt: new Date(row.updatedAt),
+          sceneCount,
+        };
+      })
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+
   const db = await requireDb();
   const rows = await db
     .select()
@@ -195,6 +332,22 @@ export async function listContinuityProjects(
 }
 
 export async function loadContinuityProject(userId: number, id: number): Promise<StoredProject> {
+  if (usingFileBackend()) {
+    const rows = await readFileRows(userId);
+    const row = rows.find((entry) => entry.id === id);
+    if (!row) throw new ProjectDocumentError("That project does not exist, or belongs to someone else.");
+    return {
+      id: row.id,
+      name: row.name,
+      document: parseStoredDocument(row.document, row.schemaVersion),
+      schemaVersion: row.schemaVersion,
+      lastErrorCount: row.lastErrorCount,
+      lastWarningCount: row.lastWarningCount,
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt),
+    };
+  }
+
   const db = await requireDb();
   const rows = await db
     .select()
@@ -217,6 +370,14 @@ export async function loadContinuityProject(userId: number, id: number): Promise
 }
 
 export async function deleteContinuityProject(userId: number, id: number): Promise<boolean> {
+  if (usingFileBackend()) {
+    const rows = await readFileRows(userId);
+    const next = rows.filter((row) => row.id !== id);
+    if (next.length === rows.length) return false;
+    await writeFileRows(userId, next);
+    return true;
+  }
+
   const db = await requireDb();
   const rows = await db
     .select({ id: continuityProjects.id })
