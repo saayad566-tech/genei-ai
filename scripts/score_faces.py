@@ -94,6 +94,14 @@ def detect_faces(det_session, image):
         ).reshape(-1, 2).astype(np.float32)
         centres = (centres + 0.5) * stride
 
+        # SCRFD places TWO anchors per grid cell, so the score map has twice as many rows as
+        # there are cells. Without repeating each centre, anchor i is paired with the centre
+        # of cell i/2 and every box lands in the wrong place — which is why a clear frontal
+        # face produced zero detections at first.
+        per_cell = max(1, scores.shape[0] // max(1, centres.shape[0]))
+        if per_cell > 1:
+            centres = np.repeat(centres, per_cell, axis=0)
+
         count = min(scores.shape[0], bboxes.shape[0], centres.shape[0])
         for i in range(count):
             if scores[i] < DET_THRESHOLD:
