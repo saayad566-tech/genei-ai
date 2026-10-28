@@ -59,39 +59,56 @@ def letterbox(image, size):
 
 
 def detect_faces(det_session, image):
-    """Run SCRFD and return face boxes as (x1, y1, x2, y2, score) in original coordinates."""
+    """Run SCRFD and return face boxes as (x1, y1, x2, y2, score) in original coordinates.
+
+    The model emits NINE tensors, in a fixed order: three strides (8, 16, 32) each
+    contributing a score map [N,1], a bbox map [N,4] and a keypoint map [N,10].
+
+    Two details are easy to get wrong and both were, in the first version of this function:
+
+      * The pairing is positional (0-2 scores, 3-5 bboxes, 6-8 keypoints), not a stride
+        computed from the tensor index. Grouping by `index % 3` pairs a score with the wrong
+        stride and detects nothing.
+      * The bbox values are in STRIDE units, not pixels. Anchor centres are on a grid, so the
+        absolute pixel box is `(centre + offset) * stride`.
+    """
     import cv2
 
     padded, scale = letterbox(image, DET_SIZE)
     blob = padded.astype(np.float32).transpose(2, 0, 1)[None]
-    # SCRFD expects BGR minus 127.5 divided by 128, which is what the reference impl does.
+    # SCRFD expects BGR minus 127.5 divided by 128, matching the reference implementation.
     blob = (blob - 127.5) / 128.0
 
-    input_name = det_session.get_inputs()[0].name
-    outputs = det_session.run(None, {input_name: blob})
-
-    # The model emits score/bbox pairs per stride (8, 16, 32), bbox already in pixels.
-    boxes = []
+    outputs = det_session.run(None, {det_session.get_inputs()[0].name: blob})
     strides = [8, 16, 32]
-    # Group outputs by stride: each stride contributes a score map and a 4-value bbox map.
-    groups = {}
-    for index, out in enumerate(outputs):
-        out = np.asarray(out)
-        stride = strides[index % len(strides)]
-        groups.setdefault(stride, []).append(out.reshape(-1))
 
-    for stride, tensors in groups.items():
-        scores = next((t for t in tensors if t.size and t.max() <= 1.0001 and t.min() >= 0), None)
-        bboxes = next((t for t in tensors if t is not scores and t.size % 4 == 0), None)
-        if scores is None or bboxes is None:
-            continue
-        bboxes = bboxes.reshape(-1, 4)
-        count = min(scores.shape[0], bboxes.shape[0])
+    boxes = []
+    for index, stride in enumerate(strides):
+        scores = np.asarray(outputs[index]).reshape(-1)
+        bboxes = np.asarray(outputs[index + len(strides)]).reshape(-1, 4)
+
+        grid = DET_SIZE // stride
+        # Anchor centres: one per grid cell, (x + 0.5) * stride.
+        centres = np.stack(
+            np.meshgrid(np.arange(grid), np.arange(grid), indexing="xy"), axis=-1
+        ).reshape(-1, 2).astype(np.float32)
+        centres = (centres + 0.5) * stride
+
+        count = min(scores.shape[0], bboxes.shape[0], centres.shape[0])
         for i in range(count):
             if scores[i] < DET_THRESHOLD:
                 continue
-            x1, y1, x2, y2 = bboxes[i][:4] * stride
-            boxes.append([x1 / scale, y1 / scale, x2 / scale, y2 / scale, float(scores[i])])
+            cx, cy = centres[i]
+            dx1, dy1, dx2, dy2 = bboxes[i] * stride
+            boxes.append(
+                [
+                    (cx - dx1) / scale,
+                    (cy - dy1) / scale,
+                    (cx + dx2) / scale,
+                    (cy + dy2) / scale,
+                    float(scores[i]),
+                ]
+            )
 
     if not boxes:
         return []
