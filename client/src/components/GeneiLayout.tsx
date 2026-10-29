@@ -27,6 +27,7 @@ const mainNavItems = [
   { id: "website", label: "Website Builder", icon: Globe, path: "/website" },
   { id: "voice", label: "Voice Lab", icon: Mic, path: "/voice", badge: "AI", badgeColor: "purple" },
   { id: "continuity", label: "Continuity", icon: ShieldCheck, path: "/continuity", badge: "AI", badgeColor: "cyan" },
+  { id: "local-models", label: "Local Models", icon: Cpu, path: "/local-models", badge: "NEW", badgeColor: "cyan" },
   { id: "automation", label: "Automation", icon: Zap, path: "/automation" },
   { id: "marketplace", label: "Marketplace", icon: ShoppingBag, path: "/marketplace" },
   { id: "assets", label: "Asset Library", icon: Archive, path: "/assets" },

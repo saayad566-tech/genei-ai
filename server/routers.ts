@@ -81,6 +81,7 @@ import { buildBlockedJobNotification, buildBoundaryReviewNotification, dispatchA
 import { checkContinuity, gateRender, markStale, summarise, type ContinuityProject } from "@shared/continuity";
 import { deleteContinuityProject, listContinuityProjects, loadContinuityProject, saveContinuityProject } from "./continuityStore";
 import { reviewTakes, scoreConfigFromEnv, SCORER_REQUIREMENT, scoreIdentity } from "./visualContinuity";
+import { activeModel, benchmarkFrom, CATALOGUE, cleanOrphans, detectDevice, diskUsage, fitModel, findModel, listInstalled, QUANTIZATIONS, recommendModels, registerInstalled, removeModel, switchActive, tooLargeFor, tuneFor } from "./localModels";
 
 type ProviderHealth = { status: "healthy" | "invalid" | "unreachable" | "unsupported" | "needs_configuration"; message: string; checkedAt: string };
 
@@ -777,6 +778,50 @@ export const appRouter = router({
           return reviewTakes(input.takes.map(inMedia), [inMedia(input.reference)]);
         }),
     }),
+
+  /**
+   * Local model manager.
+   *
+   * Choose, install, run, switch and remove a local LLM on the machine the user actually has.
+   * Recommendations come from measured RAM and VRAM, never because a model is new.
+   */
+  localModels: router({
+    device: protectedProcedure.query(() => detectDevice()),
+
+    quantizations: protectedProcedure.query(() => QUANTIZATIONS),
+
+    /** Models that run here, best fit first, with the reasoning attached. */
+    recommend: protectedProcedure.query(() => recommendModels(detectDevice())),
+
+    /** What cannot run here, and what it would need. */
+    tooLarge: protectedProcedure.query(() => tooLargeFor(detectDevice())),
+
+    installed: protectedProcedure.query(() => listInstalled()),
+
+    active: protectedProcedure.query(() => activeModel()),
+
+    usage: protectedProcedure.query(() => diskUsage()),
+
+    /** Register an already-downloaded file. The GGUF is inspected before it is accepted. */
+    register: protectedProcedure
+      .input(z.object({ modelId: z.string().min(1), quant: z.string().min(1), filePath: z.string().min(1) }))
+      .mutation(({ input }) => registerInstalled({ modelId: input.modelId, quant: input.quant as never, filePath: input.filePath })),
+
+    switch: protectedProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .mutation(({ input }) => switchActive(input.id)),
+
+    remove: protectedProcedure
+      .input(z.object({ id: z.string().min(1), deleteFile: z.boolean().default(false) }))
+      .mutation(({ input }) => removeModel(input.id, { deleteFile: input.deleteFile })),
+
+    cleanOrphans: protectedProcedure.mutation(() => cleanOrphans()),
+
+    /** Throughput from numbers the engine reported — this does not measure independently. */
+    benchmark: protectedProcedure
+      .input(z.object({ tokens: z.number().int().positive(), elapsedMs: z.number().positive() }))
+      .mutation(({ input }) => benchmarkFrom(input.tokens, input.elapsedMs)),
+  }),
 
   continuity: router({
     check: protectedProcedure
